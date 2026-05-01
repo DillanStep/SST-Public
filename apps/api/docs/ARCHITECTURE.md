@@ -19,7 +19,7 @@ The SST Node API is an Express.js REST API that bridges the SST DayZ mod with th
 ## Project Structure
 
 ```
-sst-node-api/
+apps/api/
 ├── src/
 │   ├── server.js           # Entry point, Express setup
 │   ├── config.js           # Path configuration

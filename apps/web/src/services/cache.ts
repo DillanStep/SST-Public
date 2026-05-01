@@ -1,21 +1,3 @@
-/**
- * @file cache.ts
- * @description IndexedDB caching service for API responses
- * 
- * Provides persistent client-side caching using IndexedDB.
- * Reduces API calls and improves perceived performance.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * 
- * FEATURES:
- * - IndexedDB-based persistent storage
- * - TTL (time-to-live) support for cache entries
- * - Automatic cache invalidation
- * - Graceful fallback if IndexedDB unavailable
- */
-
 const DB_NAME = 'sst-cache';
 const DB_VERSION = 1;
 const STORE_NAME = 'api-cache';

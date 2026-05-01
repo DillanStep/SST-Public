@@ -1,0 +1,11 @@
+# Default reviewers for repository-wide changes.
+* @DillanStep
+
+# Component ownership.
+/SST/ @DillanStep
+/Missions/ @DillanStep
+/apps/api/ @DillanStep
+/apps/web/ @DillanStep
+/tools/setup-wizard/ @DillanStep
+/docs/ @DillanStep
+/.github/ @DillanStep

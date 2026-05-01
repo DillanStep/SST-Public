@@ -9,15 +9,15 @@
     "my-host": {
       "backend": "sftp",
       "sftp": {
-        "host": "104.234.251.153",
+        "host": "sftp.example-host.com",
         "port": 8822,
-        "username": "YOUR_USERNAME",
-        "password": "YOUR_PASSWORD",
+        "username": "server-user",
+        "password": "set-a-password",
         "root": "/"
       },
       "paths": {
-        "SST_PATH": "/104.234.251.153_2332/HostHavocDayZServer/SST",
-        "API_PATH": "/104.234.251.153_2332/HostHavocDayZServer/SST/api"
+        "SST_PATH": "/server-prefix/DayZServer/SST",
+        "API_PATH": "/server-prefix/DayZServer/SST/api"
       }
     },
     "my-ftp-host": {
@@ -25,8 +25,8 @@
       "ftp": {
         "host": "example.your-provider.com",
         "port": 21,
-        "username": "YOUR_USERNAME",
-        "password": "YOUR_PASSWORD",
+        "username": "server-user",
+        "password": "set-a-password",
         "secure": false,
         "root": "/"
       },

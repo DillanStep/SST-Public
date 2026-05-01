@@ -1,18 +1,3 @@
-/**
- * @file SetupWizard.tsx
- * @description First-run setup wizard for SST Dashboard
- * 
- * Multi-step wizard that guides users through:
- * 1. Hosting type selection (dedicated vs hosting provider)
- * 2. Connection configuration (SFTP/FTP for remote, paths for local)
- * 3. Connection testing and directory verification
- * 4. API key generation
- * 5. Server naming and admin account creation
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- */
 import React, { useState } from 'react';
 import { 
   Server, Cloud, HardDrive, ChevronRight, ChevronLeft, Check, 
@@ -20,6 +5,7 @@ import {
   CheckCircle2, XCircle
 } from 'lucide-react';
 import { Button, Input } from '../ui';
+import type { SetupStatusResponse, SetupStoragePayload, SetupTestResponse, StorageBackend } from '../../types';
 
 type HostingType = 'provider' | 'dedicated' | null;
 type ConnectionStatus = 'idle' | 'testing' | 'success' | 'error';
@@ -41,7 +27,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   const [hostingType, setHostingType] = useState<HostingType>(null);
   
   // Step 2: Connection details
-  const [backend, setBackend] = useState<'sftp' | 'ftp' | 'local'>('sftp');
+  const [backend, setBackend] = useState<StorageBackend>('sftp');
   const [host, setHost] = useState('');
   const [port, setPort] = useState('22');
   const [username, setUsername] = useState('');
@@ -135,7 +121,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         testSstPath = testSstPath.slice(normalizedRoot.length).replace(/^\/+/, '');
       }
 
-      const payload: any = { 
+      const payload: SetupStoragePayload = {
         backend: hostingType === 'dedicated' ? 'local' : backend, 
         sstPath: hostingType === 'dedicated' ? localPath : testSstPath 
       };
@@ -155,7 +141,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         body: JSON.stringify(payload),
       });
 
-      const json = await resp.json();
+      const json = await resp.json() as SetupTestResponse;
       
       if (!resp.ok) {
         setConnectionStatus('error');
@@ -197,7 +183,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         finalProfilesPath = finalProfilesPath.slice(normalizedRoot.length).replace(/^\/+/, '');
       }
 
-      const payload: any = { 
+      const payload: SetupStoragePayload = {
         backend: hostingType === 'dedicated' ? 'local' : backend, 
         sstPath: hostingType === 'dedicated' ? localPath : finalSstPath,
         profilesPath: hostingType === 'dedicated' ? '' : finalProfilesPath
@@ -219,7 +205,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       });
 
       if (!resp.ok) {
-        const json = await resp.json();
+        const json = await resp.json() as SetupTestResponse;
         throw new Error(json?.error || 'Failed to save configuration');
       }
 
@@ -230,7 +216,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       });
       
       if (statusResp.ok) {
-        const status = await statusResp.json();
+        const status = await statusResp.json() as SetupStatusResponse;
         if (status?.apiKey) {
           setApiKey(status.apiKey);
         }
@@ -287,7 +273,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       });
 
       if (!resp.ok) {
-        const json = await resp.json();
+        const json = await resp.json() as SetupTestResponse;
         throw new Error(json?.error || 'Failed to create admin account');
       }
 

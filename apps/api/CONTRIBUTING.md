@@ -6,9 +6,8 @@ Thank you for your interest in contributing to SST! This document provides guide
 
 By contributing to this project, you agree that:
 
-1. Your contributions will be licensed under the same [Non-Commercial License](LICENSE) as the rest of the project
+1. Your contributions will be licensed under the same [MIT License](LICENSE) as the rest of the project
 2. You have the right to submit the contribution
-3. You understand that SST is **non-commercial software** and may not be sold or used for commercial purposes
 
 ## 🚀 Getting Started
 
@@ -23,7 +22,7 @@ By contributing to this project, you agree that:
 1. **Clone the repository**
    ```bash
    git clone https://github.com/sudo-gaming/sst.git
-   cd sst/sst-node-api
+   cd sst/apps/api
    ```
 
 2. **Install dependencies**
@@ -83,7 +82,3 @@ By contributing to this project, you agree that:
 - Never commit secrets
 - Use `.env` for sensitive config
 - Report vulnerabilities privately
-
----
-
-**SUDO Gaming - Made with ❤️ for the DayZ Community**

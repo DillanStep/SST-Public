@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive API documentation
 
 ### Security
-- Non-commercial license with DMCA enforcement
+- MIT license metadata
 - Passwords hashed with bcrypt
 - JWT tokens with session validation
 - Audit logging for all auth events

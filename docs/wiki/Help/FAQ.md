@@ -2,7 +2,7 @@
 
 ## Is SST free?
 
-SST is intended for personal/community use. See the project’s license terms in [License](../Legal/License.md).
+Yes. SST is licensed under the MIT License. See [License](../Legal/License.md).
 
 ## Do I need both the API and the dashboard?
 

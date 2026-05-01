@@ -12,10 +12,8 @@
   <img src="https://img.shields.io/badge/React-18-blue" alt="React">
   <img src="https://img.shields.io/badge/TypeScript-5-blue" alt="TypeScript">
   <img src="https://img.shields.io/badge/Tailwind-3-teal" alt="Tailwind">
-  <img src="https://img.shields.io/badge/License-Non--Commercial-red" alt="License">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
-
-> ⚠️ **NON-COMMERCIAL LICENSE** - Free for personal and community use. Commercial use is **strictly prohibited** and will result in DMCA action. See [LICENSE](LICENSE).
 
 ![Dashboard Screenshot](docs/screenshot.png)
 
@@ -35,9 +33,8 @@
 ## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/sst-dashboard.git
-cd sst-dashboard
+# From the repository root
+cd apps/web
 
 # Install dependencies
 npm install
@@ -51,7 +48,7 @@ Dashboard opens at `http://localhost:5173`
 ## Requirements
 
 - Node.js 18+
-- [SST Node API](../sst-node-api) running
+- [SST Node API](../api) running
 
 ## Documentation
 
@@ -65,7 +62,7 @@ Dashboard opens at `http://localhost:5173`
 ## Project Structure
 
 ```
-sst-dashboard/
+apps/web/
 ├── src/
 │   ├── App.tsx          # Main application
 │   ├── main.tsx         # Entry point
@@ -121,26 +118,15 @@ Edit Expansion mod market prices with inventory counts.
 
 ## Related Projects
 
-- **[SST Node API](../sst-node-api)** - Backend API (required)
+- **[SST Node API](../api)** - Backend API (required)
 - **SST DayZ Mod** - EnforceScript mod (required)
 
 ## Support
 
 - 📖 [Documentation](docs/)
-- 🐛 [Report a Bug](.github/ISSUE_TEMPLATE/bug_report.md)
-- 💡 [Request a Feature](.github/ISSUE_TEMPLATE/feature_request.md)
+- [Report a bug](../../.github/ISSUE_TEMPLATE/bug_report.md)
+- [Request a feature](../../.github/ISSUE_TEMPLATE/feature_request.md)
 
 ## License
 
-This project is licensed under a **Non-Commercial License**.
-
-- ✅ Free for personal use
-- ✅ Free for community servers
-- ❌ **No commercial use**
-- ❌ **No selling or monetization**
-
-Violations will result in DMCA takedowns. See [LICENSE](LICENSE) for full terms.
-
----
-
-Made with ❤️ by the SST Development Team
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.

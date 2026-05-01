@@ -1,24 +1,3 @@
-/**
- * @file Select.tsx
- * @description Dropdown select component with label support
- * 
- * A styled dropdown select component for choosing from a list
- * of predefined options.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * PROPS:
- * - label: Optional field label
- * - options: Array of { value, label } objects
- * - ...HTMLSelectAttributes
- * 
- * STYLING:
- * Dark theme styling matching other form inputs.
- * Custom dropdown arrow styling.
- */
 import React from 'react';
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {

@@ -1,25 +1,3 @@
-/**
- * @file Input.tsx
- * @description Text input component with label, error, and icon support
- * 
- * A styled text input component for forms with optional label,
- * validation error display, and icon prefix.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * PROPS:
- * - label: Optional field label
- * - error: Error message (shows in red)
- * - icon: Optional prefix icon
- * - ...HTMLInputAttributes
- * 
- * STYLING:
- * Dark theme styling with focus ring.
- * Error state shows red border and message.
- */
 import React from 'react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {

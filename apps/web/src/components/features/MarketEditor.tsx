@@ -1,39 +1,3 @@
-/**
- * @file MarketEditor.tsx
- * @description Expansion Market editor - Full CRUD for market items and prices
- * 
- * This component provides a visual editor for the DayZ Expansion mod's
- * market system, allowing admins to manage categories and items.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * FEATURES:
- * - Browse market categories
- * - Add/edit/delete market items
- * - Set buy and sell prices
- * - View current inventory counts
- * - Bulk price updates
- * 
- * API ENDPOINTS USED:
- * - GET /expansion/market              - List categories
- * - GET /expansion/market/:category    - Get items in category
- * - PUT /expansion/market/:cat/:item   - Update item prices
- * - POST /expansion/market/:category   - Add new item
- * - DELETE /expansion/market/:cat/:item - Remove item
- * - GET /inventory/counts              - Item quantities in world
- * 
- * LOCALIZATION:
- * cleanDisplayName() strips #STR_ prefixes from Expansion strings.
- * 
- * HOW TO EXTEND:
- * 1. Add price import/export
- * 2. Add price history tracking
- * 3. Add bulk operations UI
- * 4. Add price templates
- */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Store, RefreshCw, Plus, Trash2, Edit2, X, Check, Package } from 'lucide-react';
 import { Card, Button, Badge, Input } from '../ui';

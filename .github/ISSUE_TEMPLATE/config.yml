@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup and support guide
+    url: https://github.com/DillanStep/SST-Public/blob/main/SUPPORT.md
+    about: Read this before opening a support request.
+  - name: Getting Started documentation
+    url: https://github.com/DillanStep/SST-Public/blob/main/docs/wiki/Getting%20Started/index.md
+    about: Installation, configuration, and first-run checklist.

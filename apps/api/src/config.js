@@ -1,34 +1,3 @@
-/**
- * =============================================================================
- * SST Node API - Configuration
- * =============================================================================
- * 
- * @file        config.js
- * @description Central configuration file that loads all paths from environment
- *              variables. All file paths used by the API are defined here.
- * 
- * @author      SUDO Gaming
- * @license     Non-Commercial (see LICENSE file)
- * @version     1.0.0
- * @lastUpdated 2026-01-17
- * 
- * WHAT THIS FILE DOES:
- * - Loads environment variables from .env file
- * - Exports `paths` object with all configured directories
- * - Provides `logConfig()` function to print current configuration
- * 
- * HOW TO ADD NEW PATHS:
- * 1. Add a new entry to the `paths` object below
- * 2. Use process.env.YOUR_VAR || defaultValue pattern
- * 3. Document the new variable in .env.example
- * 
- * IMPORTANT:
- * - Users MUST configure SST_PATH in .env for the API to work
- * - All paths should use forward slashes (/) even on Windows
- * - Paths are resolved relative to the DayZ server installation
- * 
- * =============================================================================
- */
 import "./appConfig.js";
 
 function normalizeEnvPath(value) {

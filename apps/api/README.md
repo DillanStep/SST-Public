@@ -11,10 +11,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-18+-green" alt="Node.js">
   <img src="https://img.shields.io/badge/Express-4.x-blue" alt="Express">
-  <img src="https://img.shields.io/badge/License-Non--Commercial-red" alt="License">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
-
-> ⚠️ **NON-COMMERCIAL LICENSE** - Free for personal and community use. Commercial use is **strictly prohibited** and will result in DMCA action. See [LICENSE](LICENSE).
 
 ## Features
 
@@ -30,9 +28,8 @@
 ## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/sst-node-api.git
-cd sst-node-api
+# From the repository root
+cd apps/api
 
 # Install dependencies
 npm install
@@ -79,7 +76,7 @@ API_KEY=your-api-key
 ## Project Structure
 
 ```
-sst-node-api/
+apps/api/
 ├── src/
 │   ├── server.js        # Express entry point
 │   ├── config.js        # Path configuration
@@ -124,26 +121,15 @@ See [API Reference](docs/API.md) for complete documentation.
 
 ## Related Projects
 
-- **[SST Dashboard](../sst-dashboard)** - React web dashboard
+- **[SST Dashboard](../web)** - React web dashboard
 - **SST DayZ Mod** - EnforceScript mod (required)
 
 ## Support
 
 - 📖 [Documentation](docs/)
-- 🐛 [Report a Bug](.github/ISSUE_TEMPLATE/bug_report.md)
-- 💡 [Request a Feature](.github/ISSUE_TEMPLATE/feature_request.md)
+- [Report a bug](../../.github/ISSUE_TEMPLATE/bug_report.md)
+- [Request a feature](../../.github/ISSUE_TEMPLATE/feature_request.md)
 
 ## License
 
-This project is licensed under a **Non-Commercial License**.
-
-- ✅ Free for personal use
-- ✅ Free for community servers
-- ❌ **No commercial use**
-- ❌ **No selling or monetization**
-
-Violations will result in DMCA takedowns. See [LICENSE](LICENSE) for full terms.
-
----
-
-Made with ❤️ by the SST Development Team
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.

@@ -1,9 +1,5 @@
 # Known Issues
 
-## License metadata inconsistency
-
-Some package metadata may not match the repository license files (for example, `apps/api/package.json` may show an SPDX identifier even though the repo includes a custom non-commercial license text). See [License](../Legal/License.md).
-
 ## High-volume JSON export cost
 
 Very frequent inventory/position export can cause CPU and IO spikes.

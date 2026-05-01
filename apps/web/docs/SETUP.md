@@ -13,8 +13,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/sst-dashboard.git
-cd sst-dashboard
+# From the repository root
+cd apps/web
 ```
 
 ### 2. Install Dependencies
@@ -210,7 +210,7 @@ Server configurations are stored in browser localStorage.
 ### Project Structure
 
 ```
-sst-dashboard/
+apps/web/
 ├── src/
 │   ├── App.tsx           # Main component
 │   ├── main.tsx          # Entry point
@@ -238,5 +238,5 @@ sst-dashboard/
 
 ## Next Steps
 
-- [API Documentation](../../sst-node-api/docs/API.md)
+- [API Documentation](../../api/docs/API.md)
 - [Contributing](../CONTRIBUTING.md)

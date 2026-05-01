@@ -55,10 +55,7 @@ Mod scripts are built/packed via the DayZ mod toolchain; most code changes can b
 
 ## Code of conduct
 
-Community expectations are defined in:
-
-- `apps/api/CODE_OF_CONDUCT.md`
-- `apps/web/CODE_OF_CONDUCT.md`
+Community expectations are defined in `CODE_OF_CONDUCT.md` at the repository root.
 
 ## License note
 

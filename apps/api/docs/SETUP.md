@@ -14,8 +14,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/sst-node-api.git
-cd sst-node-api
+# From the repository root
+cd apps/api
 ```
 
 ### 2. Install Dependencies
@@ -237,8 +237,8 @@ On first run, a default admin user is created:
 1. Download [NSSM](https://nssm.cc/)
 2. Install as service:
    ```cmd
-   nssm install SST-API "C:\path\to\node.exe" "C:\path\to\sst-node-api\src\server.js"
-   nssm set SST-API AppDirectory "C:\path\to\sst-node-api"
+   nssm install SST-API "C:\path\to\node.exe" "C:\path\to\SST\apps\api\src\server.js"
+   nssm set SST-API AppDirectory "C:\path\to\SST\apps\api"
    nssm start SST-API
    ```
 
@@ -308,5 +308,5 @@ npm start
 ## Next Steps
 
 - [API Reference](./API.md) - Full API documentation
-- [Dashboard Setup](../../sst-dashboard/docs/SETUP.md) - Install the web dashboard
+- [Dashboard Setup](../../web/docs/SETUP.md) - Install the web dashboard
 - [Contributing](../CONTRIBUTING.md) - How to contribute

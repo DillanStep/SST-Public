@@ -1,38 +1,3 @@
-/**
- * @file LogViewer.tsx
- * @description Server log viewer - Browse and search server logs
- * 
- * This component provides access to DayZ server log files with
- * live tailing, search, and historical log access.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * FEATURES:
- * - Live log tailing (auto-scroll)
- * - Log file browser
- * - Text search within logs
- * - Color-coded log levels
- * - Auto-refresh toggle
- * 
- * API ENDPOINTS USED:
- * - GET /logs/script           - Get latest script log
- * - GET /logs/script/list      - List available log files
- * - GET /logs/script/:filename - Get specific log file
- * - GET /logs/summary          - Log file statistics
- * 
- * LIVE TAILING:
- * When enabled, polls for new log content every few seconds.
- * New lines are appended and view scrolls to bottom.
- * 
- * HOW TO EXTEND:
- * 1. Add log download functionality
- * 2. Add log filtering by severity
- * 3. Add log bookmarking
- * 4. Add pattern highlighting
- */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FileText, RefreshCw, AlertTriangle, Terminal, ScrollText, Play, Pause } from 'lucide-react';
 import { Card, Button, Badge } from '../ui';

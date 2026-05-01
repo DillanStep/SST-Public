@@ -1,27 +1,3 @@
-/**
- * @file Badge.tsx
- * @description Status badge component for labels and indicators
- * 
- * A small badge component for displaying status, category,
- * or other label information with color-coded variants.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * VARIANTS:
- * - default - Neutral gray
- * - success - Positive/green
- * - warning - Caution/yellow
- * - error   - Negative/red
- * - info    - Informational/blue
- * 
- * PROPS:
- * - variant: Color scheme
- * - children: Badge text
- * - className: Additional CSS classes
- */
 import React from 'react';
 
 interface BadgeProps {

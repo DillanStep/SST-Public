@@ -1,112 +1,70 @@
 # Security Policy
 
+SST is server-admin software. Treat API keys, dashboard accounts, FTP/SFTP credentials, server logs, and player data as sensitive.
+
 ## Supported Versions
 
-The following versions of the SST ecosystem are currently supported with security updates. Any versions not listed here may contain known or unknown vulnerabilities and should not be used in production environments.
+Security fixes are provided for:
 
-| Component | Version | Supported |
-|---------|---------|-----------|
-| SST API | 5.1.x | ✅ |
-| SST API | 5.0.x | ❌ |
-| SST API | 4.0.x | ✅ |
-| SST API | < 4.0 | ❌ |
-| SST Web Client | Latest main branch | ✅ |
-| SST Web Client | Older releases | ❌ |
-| SST Mod (DayZ) | Latest release | ✅ |
-| SST Mod (DayZ) | Older releases | ❌ |
+| Component | Supported version |
+|-----------|-------------------|
+| SST API | Latest `main` branch and latest public release |
+| SST Dashboard | Latest `main` branch and latest public release |
+| SST DayZ Mod | Latest `main` branch and latest public release |
+| Mission templates | Latest `main` branch |
 
-Security updates are applied only to supported versions. Users are expected to keep their API, web client, and mod versions aligned.
+Older branches and private forks are not guaranteed to receive security fixes.
 
----
+## Scope
 
-## Security Scope
+This policy covers:
 
-This security policy applies to the following SST components:
+- Authentication and session handling.
+- API key handling.
+- File access through local, FTP, or SFTP storage backends.
+- Command queues written for the DayZ mod.
+- JSON export/import behavior.
+- Dashboard handling of server, player, and admin data.
+- Setup scripts and generated configuration.
 
-### SST API
-- REST endpoints
-- Authentication and API key handling
-- File system access and JSON processing
-- Server-to-server communication
-- Rate limiting and request validation
+Out of scope:
 
-### SST Web Client
-- Authentication flows
-- Secure API communication
-- Client-side data handling
-- Live map rendering and player location display
-- Protection against common web vulnerabilities (XSS, CSRF)
-
-### SST DayZ Mod
-- Server-side Enforce Script logic
-- JSON export and import files
-- Scheduled background tasks
-- Integration with other mods (e.g. Expansion)
-- File I/O within the DayZ profile directory
-
-The following are **out of scope**:
-- Third-party mods or tools
-- User-hosted infrastructure misconfiguration
-- Reverse engineering or tampering with the DayZ game client
-- Issues caused by outdated or unsupported versions
-
----
-
-## Security Expectations
-
-Users running SST are expected to:
-- Keep API keys private and rotated regularly
-- Avoid exposing the SST API directly to the public internet without protection
-- Use HTTPS where possible
-- Restrict file system permissions to the minimum required
-- Keep all SST components updated to supported versions
-
-Failure to follow these guidelines may result in increased security risk.
-
----
+- Third-party DayZ mods.
+- Hosting-provider control panels.
+- User-hosted firewall, VPN, reverse proxy, or operating system misconfiguration.
+- Reports that require attacking a live server without permission.
+- Publicly posting secrets or private player data.
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, **please do not open a public GitHub issue**.
+Do not open a public GitHub issue for security problems.
 
-Instead, report it responsibly using one of the following methods:
+Use GitHub private vulnerability reporting if available on the repository, or contact the maintainer privately. Include:
 
-- **GitHub Security Advisories**
-  - Use the “Report a vulnerability” option on the repository
+- A clear description of the issue.
+- Affected component: API, dashboard, mod, setup tooling, or mission config.
+- Steps to reproduce, if safe to share.
+- Potential impact.
+- Suggested mitigation, if known.
 
-- **Direct contact**
-  - Email the project maintainer directly (preferred for critical issues)
+Please redact credentials, IP addresses, private player data, and server-owner details.
 
-When reporting a vulnerability, please include:
-- A clear description of the issue
-- The affected component (API, Web Client, or Mod)
-- Steps to reproduce, if possible
-- Potential impact or severity
-- Any suggested mitigations (optional)
+## Expected Response
 
----
+- Initial response target: 72 hours.
+- Valid reports will be investigated and prioritized.
+- Fixes may be released as commits, tagged releases, or security advisories depending on severity.
+- Coordinated disclosure is preferred for issues that could affect live servers.
 
-## Disclosure Process
+## Security Expectations For Operators
 
-- You can expect an initial response within **72 hours**
-- Valid vulnerabilities will be investigated and prioritised
-- Fixes will be released for supported versions only
-- Coordinated disclosure will be used where appropriate
-- Credit may be given to reporters unless anonymity is requested
+Server owners should:
 
-If a report is declined, an explanation will be provided.
+- Keep API keys and dashboard passwords private.
+- Rotate secrets after accidental exposure.
+- Avoid exposing the SST API directly to the public internet without HTTPS and access controls.
+- Restrict filesystem permissions to the minimum required.
+- Test updates on a staging server before using them on a live community.
+- Remove credentials and player-sensitive data before sharing logs.
 
----
-
-## Enforcement
-
-Abuse of vulnerabilities, including exploitation on live servers without consent, may result in:
-- Removal from the community
-- Revocation of access
-- Permanent bans from SST-related services
-
-This policy exists to protect server owners, players, and contributors.
-
----
-
-Thank you for helping keep SST secure.
+Thank you for helping keep SST safe for server owners and players.

@@ -1,39 +1,3 @@
-/**
- * @file api.ts
- * @description TypeScript type definitions for API requests and responses
- * 
- * This module contains all TypeScript interfaces and types used for
- * communication with the SST Node API backend.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * CATEGORIES:
- * - Server Configuration types
- * - Player data types
- * - Inventory and item types
- * - Economy and market types
- * - Vehicle tracking types
- * - Position and map types
- * - Authentication types
- * 
- * USAGE:
- * Import types as needed:
- * import type { PlayerData, InventoryItem } from '../types';
- * 
- * NAMING CONVENTIONS:
- * - Response types: *Response (e.g., DashboardResponse)
- * - Request types: *Request (e.g., GrantRequest)
- * - Entity types: singular nouns (e.g., Player, Item)
- * 
- * HOW TO EXTEND:
- * 1. Add new interfaces for new API endpoints
- * 2. Export from index.ts for public use
- * 3. Use consistent naming patterns
- * 4. Document complex types with JSDoc
- */
 // API Types for SST Node API
 
 // Server Configuration for multi-server support
@@ -44,6 +8,41 @@ export interface ServerConfig {
   apiKey: string;
   createdAt: string;
   lastUsed?: string;
+}
+
+export type StorageBackend = 'sftp' | 'ftp' | 'local';
+
+export interface RemoteStorageConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  root: string;
+  secure?: boolean;
+}
+
+export interface SetupStoragePayload {
+  backend: StorageBackend;
+  sstPath: string;
+  profilesPath?: string;
+  sftp?: RemoteStorageConfig;
+  ftp?: RemoteStorageConfig;
+}
+
+export interface SetupTestResponse {
+  details?: string;
+  error?: string;
+  parsed?: {
+    onlineCount?: number;
+    playersLen?: number;
+  };
+  stat?: {
+    size?: number;
+  };
+}
+
+export interface SetupStatusResponse {
+  apiKey?: string;
 }
 
 export interface InventoryItem {

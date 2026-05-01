@@ -1,25 +1,10 @@
-/**
- * @file LoginPage.tsx
- * @description Professional authentication page with banner and animations
- * 
- * Modern login experience with:
- * - Full-height banner image on left
- * - Clean grey/white form on right
- * - Smooth animations and transitions
- * - Server configuration management
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 2.0.0
- * @lastUpdated 2026-01-17
- */
 import React, { useState, useEffect } from 'react';
 import { Server, LogIn, Eye, EyeOff, AlertCircle, Settings, Check, RefreshCw, ChevronRight } from 'lucide-react';
 import { Button, Input } from '../ui';
 import { getAuthStatus, login, setupFirstAdmin } from '../../services/auth';
 import type { User } from '../../services/auth';
 import { getActiveServer, addServer, setActiveServerId, updateServer } from '../../services/serverManager';
-import type { ServerConfig } from '../../types';
+import type { ServerConfig, SetupStatusResponse, SetupStoragePayload, SetupTestResponse, StorageBackend } from '../../types';
 import { SetupWizard } from './SetupWizard';
 
 interface LoginPageProps {
@@ -56,7 +41,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
   // Environment setup (files/backend) state
   const [envSetupOpen, setEnvSetupOpen] = useState(false);
-  const [envBackend, setEnvBackend] = useState<'sftp' | 'ftp' | 'local'>('sftp');
+  const [envBackend, setEnvBackend] = useState<StorageBackend>('sftp');
   const [envPasteUrl, setEnvPasteUrl] = useState('');
   const [envRemoteRoot, setEnvRemoteRoot] = useState('/');
   const [envSstPath, setEnvSstPath] = useState('');
@@ -288,7 +273,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const callSetupStatus = async (baseUrl: string) => {
     const resp = await fetch(`${baseUrl}/setup/status`, { method: 'GET', credentials: 'include' });
     if (!resp.ok) throw new Error(`Setup status failed (${resp.status})`);
-    return resp.json() as Promise<{ apiKey?: string }>;
+    return resp.json() as Promise<SetupStatusResponse>;
   };
 
   const handleEnvTest = async () => {
@@ -302,7 +287,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setEnvTestResult(null);
     try {
       const baseUrl = activeServer.apiUrl;
-      const payload: any = { backend: envBackend, sstPath: envSstPath };
+      const payload: SetupStoragePayload = { backend: envBackend, sstPath: envSstPath };
       if (envBackend === 'sftp') {
         payload.sftp = { host: envHost, port: Number(envPort), username: envUser, password: envPassword, root: envRemoteRoot };
       } else if (envBackend === 'ftp') {
@@ -317,7 +302,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       });
 
       const text = await resp.text();
-      const json = text ? (JSON.parse(text) as any) : {};
+      const json = text ? (JSON.parse(text) as SetupTestResponse) : {};
       if (!resp.ok) {
         setEnvTestResult(json?.details || json?.error || `Test failed (${resp.status})`);
         return;
@@ -346,7 +331,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setEnvTestResult(null);
     try {
       const baseUrl = activeServer.apiUrl;
-      const payload: any = { backend: envBackend, sstPath: envSstPath };
+      const payload: SetupStoragePayload = { backend: envBackend, sstPath: envSstPath };
       if (envBackend === 'sftp') {
         payload.sftp = { host: envHost, port: Number(envPort), username: envUser, password: envPassword, root: envRemoteRoot };
       } else if (envBackend === 'ftp') {
@@ -361,7 +346,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       });
 
       const text = await resp.text();
-      const json = text ? (JSON.parse(text) as any) : {};
+      const json = text ? (JSON.parse(text) as SetupTestResponse) : {};
       if (!resp.ok) {
         setEnvTestResult(json?.details || json?.error || `Apply failed (${resp.status})`);
         return;
@@ -541,7 +526,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </div>
             
             <p className="text-xs text-surface-400 mt-6 hidden lg:block">
-              © 2026 SST Development Team
+              © 2026 SST contributors
             </p>
           </div>
         </div>

@@ -1,31 +1,3 @@
-/**
- * @file Button.tsx
- * @description Styled button component with variants and states
- * 
- * A versatile button component with multiple visual variants,
- * sizes, loading states, and icon support.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * VARIANTS:
- * - primary   - Main action (blue)
- * - secondary - Secondary action (gray)
- * - success   - Positive action (green)
- * - danger    - Destructive action (red)
- * - ghost     - Subtle/text button
- * 
- * SIZES: sm, md, lg
- * 
- * PROPS:
- * - variant: Visual style
- * - size: Button size
- * - loading: Show spinner, disable button
- * - icon: Icon element to display
- * - ...HTMLButtonAttributes
- */
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

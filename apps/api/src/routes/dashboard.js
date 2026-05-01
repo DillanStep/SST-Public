@@ -1,36 +1,3 @@
-/**
- * =============================================================================
- * SST Node API - Dashboard Routes
- * =============================================================================
- * 
- * @file        routes/dashboard.js
- * @description Main dashboard data routes with in-memory caching for fast
- *              responses. Aggregates player data from multiple JSON files.
- * 
- * @author      SUDO Gaming
- * @license     Non-Commercial (see LICENSE file)
- * @version     1.0.0
- * @lastUpdated 2026-01-17
- * 
- * ENDPOINTS:
- * - GET  /dashboard          - Get all cached player data
- * - GET  /dashboard/player/:id - Get single player data
- * - POST /dashboard/refresh   - Force cache refresh
- * - GET  /dashboard/grants    - Get grant results from cache
- * 
- * CACHING:
- * - Player data is cached in memory for fast responses
- * - Auto-refreshes every 20 seconds (configurable)
- * - Call /refresh to force immediate update
- * 
- * HOW TO EXTEND:
- * 1. Add new data to the cache object
- * 2. Update refreshCache() to load new data
- * 3. Add new endpoint to expose the data
- * 
- * =============================================================================
- */
-
 import { Router } from "express";
 import { readFile, readdir } from "../storage/fs.js";
 import { paths } from "../config.js";

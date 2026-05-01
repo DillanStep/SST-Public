@@ -1,53 +1,26 @@
-/**
- * @file authRoutes.js
- * @description Authentication API routes - Login, logout, session management
- * 
- * This module handles user authentication including login, logout,
- * token refresh, and session management.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * ENDPOINTS:
- * - POST /login       - Authenticate user, return JWT token
- * - POST /logout      - Invalidate current session
- * - POST /refresh     - Refresh JWT token
- * - GET  /me          - Get current user info
- * - GET  /sessions    - List active sessions (admin)
- * - DELETE /sessions/:id - Revoke specific session (admin)
- * 
- * AUTHENTICATION FLOW:
- * 1. Client sends username/password to /login
- * 2. Server validates credentials against database
- * 3. Server creates session and returns JWT token
- * 4. Client includes token in Authorization header
- * 5. Token expires after SESSION_DURATION (24 hours default)
- * 
- * SECURITY FEATURES:
- * - Passwords hashed with bcrypt
- * - Sessions stored in database (can be revoked)
- * - Audit log of all auth events
- * - Rate limiting recommended for production
- * 
- * ENVIRONMENT VARIABLES:
- * - JWT_SECRET: Secret key for signing tokens (REQUIRED in production)
- * 
- * HOW TO EXTEND:
- * 1. Add OAuth/SSO integration
- * 2. Add two-factor authentication
- * 3. Add password reset flow
- * 4. Add email verification
- */
 import { Router } from "express";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { userOps, sessionOps, auditOps } from "./authDb.js";
+import { resolveEnvPathForWrite, upsertEnvVar } from "../utils/envFile.js";
 
 const router = Router();
 
-// JWT secret - in production, use environment variable
-const JWT_SECRET = process.env.JWT_SECRET || "sst-dashboard-secret-key-change-in-production";
+function getJwtSecret() {
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET;
+  }
+
+  const generated = crypto.randomBytes(48).toString("hex");
+  try {
+    upsertEnvVar(resolveEnvPathForWrite(), "JWT_SECRET", generated);
+  } catch {
+    // The generated secret is still safe for this process; sessions will reset on restart.
+  }
+  return generated;
+}
+
+const JWT_SECRET = getJwtSecret();
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 // Auth status (requires API key at the app mount)

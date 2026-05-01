@@ -1,27 +1,3 @@
-/**
- * @file Card.tsx
- * @description Container card component with optional header and actions
- * 
- * A flexible card component for grouping related content with
- * optional title, icon, and action buttons.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * PROPS:
- * - title: Optional header text
- * - icon: Optional icon in header
- * - children: Card content
- * - className: Additional CSS classes
- * - actions: Right-side header actions
- * - compact: Reduced padding variant
- * 
- * STYLING:
- * Uses Tailwind classes for dark theme.
- * Customizable via className prop.
- */
 import React from 'react';
 
 interface CardProps {

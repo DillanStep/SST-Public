@@ -1,38 +1,3 @@
-/**
- * @file ApiConfig.tsx
- * @description API configuration widget - Connection status and setup
- * 
- * This component provides a compact widget for API connection status
- * and quick access to server configuration.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * FEATURES:
- * - Connection status display
- * - Active server info
- * - Quick connect button
- * - Link to full settings
- * 
- * PROPS:
- * - onConnected: Callback when connection established
- * 
- * STATUS DISPLAY:
- * - Shows connected server name
- * - Shows connection error if present
- * - Link to configure if no servers
- * 
- * VS ConnectionBar:
- * This is a simpler widget for embedding.
- * ConnectionBar is the full header component.
- * 
- * HOW TO EXTEND:
- * 1. Add quick server switch
- * 2. Add connection diagnostics
- * 3. Add offline mode indicator
- */
 import React, { useState, useEffect } from 'react';
 import { Key, CheckCircle, XCircle, Wifi, Server, Settings } from 'lucide-react';
 import { Card, Button, Badge } from '../ui';

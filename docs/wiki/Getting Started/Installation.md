@@ -1,36 +1,52 @@
 # Installation
 
-This is the high-level install flow. See Configuration next.
+This is the standard community install path. Adjust paths for your host or operating system.
 
-## 1) Install and enable the SST mod
+## 1. Install the DayZ Mod
 
-- Build the mod PBOs as you normally would (Workbench/pboProject)
-- Add the mod to your DayZ server startup parameters
-- Verify server loads the mod without script errors
+1. Build the mod PBOs from `SST/` using your normal DayZ tools workflow.
+2. Add the mod to the DayZ server startup parameters.
+3. Start the server once and confirm the profile folder contains `SST/`.
+4. Check DayZ script/RPT logs before continuing.
 
-## 2) Start the Node API
+## 2. Configure and Start the API
 
-From the repo root:
+From the repository root:
 
-- API project lives under `apps/api/`
+```bash
+cd apps/api
+npm ci
+cp .env.example .env
+npm start
+```
 
-Typical flow:
+Then edit `apps/api/.env` or, from the repository root, run the setup wizard:
 
-- `npm install`
-- configure `apps/api/.env`
-- `npm start`
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File tools/setup-wizard/SetupWizard.ps1
+```
 
-## 3) Start the web dashboard
+The API listens on `http://localhost:3001` by default. Check it with:
 
-From the repo root:
+```bash
+curl http://localhost:3001/health
+```
 
-- Web project lives under `apps/web/`
+## 3. Start the Dashboard
 
-Typical flow:
+From the repository root:
 
-- `npm install`
-- configure web `.env` if used
-- `npm run dev` (local) or build for production
+```bash
+cd apps/web
+npm ci
+npm run dev
+```
+
+Open the URL shown by Vite, usually `http://localhost:5173`.
+
+## 4. First Admin User
+
+On a fresh install, the dashboard will prompt you to create the first admin account. Use a strong password and keep the generated API key private.
 
 ## Next
 

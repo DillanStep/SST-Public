@@ -1,53 +1,31 @@
-/**
- * @file App.tsx
- * @description Main application component - Root layout and navigation
- * 
- * This is the root component of the SST Dashboard React application.
- * It handles routing, authentication state, and the main layout structure.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * FEATURES:
- * - Tab-based navigation between dashboard sections
- * - Responsive sidebar with mobile menu
- * - Authentication state management
- * - Server connection status display
- * - Role-based feature visibility
- * 
- * TABS/VIEWS:
- * - dashboard  - Main overview with stats
- * - items      - Item search and granting
- * - players    - Online player management
- * - map        - Full-page position map
- * - vehicles   - Vehicle tracking system
- * - market     - Expansion market editor
- * - economy    - Types.xml economy analysis
- * - logs       - Server log viewer
- * - history    - Player history lookup
- * - users      - User management (admin)
- * - settings   - Server configuration
- * 
- * STATE:
- * - isConnected: API connection status
- * - activeTab: Currently selected view
- * - user: Authenticated user info
- * 
- * HOW TO EXTEND:
- * 1. Add new TabType to the union type
- * 2. Add navigation item to sidebar
- * 3. Add case to renderContent() switch
- * 4. Import and use your new component
- */
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { LayoutDashboard, Search, Users, Settings, Menu, X, Server, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car } from 'lucide-react';
-import { PlayerDashboard, ItemSearch, PlayerManager, FullPageMap, ServerSettings, MarketEditor, LogViewer, PlayerHistory, ConnectionBar, EconomyDashboard, LoginPage, UserManagement, VehicleDashboard } from './components';
+import { ConnectionBar } from './components/features/ConnectionBar';
+import { LoginPage } from './components/features/LoginPage';
 import { getActiveServer } from './services/serverManager';
 import { checkAuth, logout, type User } from './services/auth';
 
 type TabType = 'dashboard' | 'items' | 'players' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
+
+const PlayerDashboard = lazy(() => import('./components/features/PlayerDashboard').then((module) => ({ default: module.PlayerDashboard })));
+const ItemSearch = lazy(() => import('./components/features/ItemSearch').then((module) => ({ default: module.ItemSearch })));
+const PlayerManager = lazy(() => import('./components/features/PlayerManager').then((module) => ({ default: module.PlayerManager })));
+const FullPageMap = lazy(() => import('./components/features/FullPageMap').then((module) => ({ default: module.FullPageMap })));
+const ServerSettings = lazy(() => import('./components/features/ServerSettings').then((module) => ({ default: module.ServerSettings })));
+const MarketEditor = lazy(() => import('./components/features/MarketEditor').then((module) => ({ default: module.MarketEditor })));
+const LogViewer = lazy(() => import('./components/features/LogViewer').then((module) => ({ default: module.LogViewer })));
+const PlayerHistory = lazy(() => import('./components/features/PlayerHistory').then((module) => ({ default: module.PlayerHistory })));
+const EconomyDashboard = lazy(() => import('./components/features/EconomyDashboard').then((module) => ({ default: module.EconomyDashboard })));
+const UserManagement = lazy(() => import('./components/features/UserManagement').then((module) => ({ default: module.UserManagement })));
+const VehicleDashboard = lazy(() => import('./components/features/VehicleDashboard').then((module) => ({ default: module.VehicleDashboard })));
+
+function FeatureLoading() {
+  return (
+    <div className="min-h-[240px] flex items-center justify-center">
+      <div className="w-9 h-9 border-2 border-surface-200 border-t-surface-600 rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -122,7 +100,7 @@ function App() {
     loadActiveServerName();
   }, [loadActiveServerName]);
 
-  const tabs: { id: TabType; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
+  const tabs: { id: TabType; label: string; icon: ReactNode; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'map', label: 'Live Map', icon: <Map size={20} /> },
     { id: 'items', label: 'Item Search', icon: <Search size={20} /> },
@@ -212,9 +190,11 @@ function App() {
         
         {/* Full Page Content */}
         <div className="flex-1">
+          <Suspense fallback={<FeatureLoading />}>
           {activeTab === 'map' && <FullPageMap isConnected={isConnected} />}
           {activeTab === 'history' && <PlayerHistory isConnected={isConnected} />}
           {activeTab === 'vehicles' && <VehicleDashboard isConnected={isConnected} />}
+          </Suspense>
         </div>
       </div>
     );
@@ -375,54 +355,53 @@ function App() {
         </div>
 
         <div className="p-4 sm:p-5 lg:p-6 pt-18 md:pt-5 space-y-5">
-          {/* Tab Content with animations */}
-          {activeTab === 'dashboard' && (
-            <PlayerDashboard isConnected={isConnected} />
-          )}
+          <Suspense fallback={<FeatureLoading />}>
+            {activeTab === 'dashboard' && (
+              <PlayerDashboard isConnected={isConnected} />
+            )}
 
-          {activeTab === 'items' && (
-            <ItemSearch isConnected={isConnected} />
-          )}
+            {activeTab === 'items' && (
+              <ItemSearch isConnected={isConnected} />
+            )}
 
-          {activeTab === 'players' && (
-            <PlayerManager isConnected={isConnected} />
-          )}
+            {activeTab === 'players' && (
+              <PlayerManager isConnected={isConnected} />
+            )}
 
-          {activeTab === 'market' && (
-            <MarketEditor isConnected={isConnected} />
-          )}
+            {activeTab === 'market' && (
+              <MarketEditor isConnected={isConnected} />
+            )}
 
-          {activeTab === 'economy' && (
-            <EconomyDashboard isConnected={isConnected} />
-          )}
+            {activeTab === 'economy' && (
+              <EconomyDashboard isConnected={isConnected} />
+            )}
 
-          {activeTab === 'logs' && (
-            <LogViewer isConnected={isConnected} />
-          )}
+            {activeTab === 'logs' && (
+              <LogViewer isConnected={isConnected} />
+            )}
 
-          {activeTab === 'users' && (
-            <UserManagement currentUser={user} />
-          )}
+            {activeTab === 'users' && (
+              <UserManagement currentUser={user} />
+            )}
 
-          {activeTab === 'history' && !isConnected && (
-            <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-8 sm:p-12 text-center animate-fade-in">
-              <History size={48} className="mx-auto mb-4 text-surface-300\" />
-              <p className="text-surface-500">Connect to the API to view player history.</p>
-            </div>
-          )}
+            {activeTab === 'history' && !isConnected && (
+              <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-8 sm:p-12 text-center animate-fade-in">
+                <History size={48} className="mx-auto mb-4 text-surface-300" />
+                <p className="text-surface-500">Connect to the API to view player history.</p>
+              </div>
+            )}
 
-          {/* Map prompt when not connected */}
-          {activeTab === 'map' && !isConnected && (
-            <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-8 sm:p-12 text-center animate-fade-in">
-              <Map size={48} className="mx-auto mb-4 text-surface-300" />
-              <p className="text-surface-500">Connect to the API to view the live map.</p>
-            </div>
-          )}
+            {activeTab === 'map' && !isConnected && (
+              <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-8 sm:p-12 text-center animate-fade-in">
+                <Map size={48} className="mx-auto mb-4 text-surface-300" />
+                <p className="text-surface-500">Connect to the API to view the live map.</p>
+              </div>
+            )}
 
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <ServerSettings onServerChange={handleServerChange} />
-          )}
+            {activeTab === 'settings' && (
+              <ServerSettings onServerChange={handleServerChange} />
+            )}
+          </Suspense>
         </div>
       </main>
     </div>

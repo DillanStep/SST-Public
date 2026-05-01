@@ -1,34 +1,3 @@
-/**
- * @file ItemSearch.tsx
- * @description Item database search - Browse and select items from the database
- * 
- * This component provides a searchable interface to the DayZ item database.
- * It's used both standalone and as a picker in the grant item workflow.
- * 
- * @author SST Development Team
- * @license Non-Commercial Open Source - See LICENSE for terms
- * @version 1.0.0
- * @lastUpdated 2025-01-15
- * 
- * FEATURES:
- * - Full-text search across item names and classnames
- * - Category filtering
- * - Grid display with item details
- * - Selection callback for parent components
- * 
- * API ENDPOINTS USED:
- * - GET /items/search?query=...  - Search items
- * - GET /items/categories        - Get category list
- * 
- * PROPS:
- * - isConnected: boolean         - API connection status
- * - onSelectItem?: (item) => void - Callback when item selected
- * 
- * HOW TO EXTEND:
- * 1. Add more filter options (rarity, type, etc.)
- * 2. Add item comparison feature
- * 3. Add favorites/bookmarks
- */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Package, Filter } from 'lucide-react';
 import { Card, Input, Select, Badge } from '../ui';

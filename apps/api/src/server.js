@@ -1,36 +1,3 @@
-/**
- * =============================================================================
- * SST Node API - Main Server Entry Point
- * =============================================================================
- * 
- * @file        server.js
- * @description Main Express server that handles all API requests for the SST
- *              dashboard. This is the entry point for the entire API.
- * 
- * @author      SUDO Gaming
- * @license     Non-Commercial (see LICENSE file)
- * @version     1.0.0
- * @lastUpdated 2026-01-17
- * 
- * WHAT THIS FILE DOES:
- * - Initializes Express server with CORS and authentication
- * - Mounts all API route handlers
- * - Sets up position tracking interval
- * - Initializes SQLite databases for auth and archiving
- * 
- * HOW TO EXTEND:
- * 1. Create a new route file in ./routes/ (e.g., myfeature.js)
- * 2. Import it at the top of this file
- * 3. Mount it with: app.use("/myfeature", requireAuth, requireApiKey, myRoutes)
- * 4. Add corresponding API methods in dashboard's api.ts
- * 
- * CONFIGURATION:
- * - All paths configured via .env file (see .env.example)
- * - Port defaults to 3001 (set PORT in .env to change)
- * - API key auto-generates if not set in .env
- * 
- * =============================================================================
- */
 import "./appConfig.js";
 import express from "express";
 import cors from "cors";
