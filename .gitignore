@@ -20,6 +20,11 @@ Missions/**/storage_*
 # Local reference copies (not for publishing)
 Script Refrences/
 
+# Published ready-to-install server-side mod package
+!@SST/
+!@SST/Addons/
+!@SST/Addons/*.pbo
+
 # --- Open-source safety (apps) ---
 # Secrets
 .env

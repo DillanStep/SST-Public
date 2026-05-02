@@ -23,6 +23,7 @@ SST is ready for community testing and contribution, but it should be treated as
 
 ## What Is Included
 
+- `@SST/` - ready-to-install server-side DayZ mod package.
 - `SST/` - DayZ mod source in Enforce Script.
 - `Missions/` - mission configuration bundles for supported maps.
 - `apps/api/` - Node/Express API that reads SST export files and queues commands.
@@ -42,15 +43,17 @@ SST is ready for community testing and contribution, but it should be treated as
 
 ### 1. Install the Server-Side DayZ Mod
 
-This repository contains the mod source. Build the PBOs from `SST/` using your normal DayZ tools workflow, or use a packaged SST server mod release if one is provided.
+This repository includes a ready-to-install server-side mod package in `@SST/`. It also includes the mod source in `SST/` if you want to rebuild the PBOs yourself.
 
-Install the built mod on your DayZ server and load it as a server-side mod. A typical startup parameter looks like:
+Copy the whole `@SST/` folder to your DayZ server root and load it as a server-side mod. A typical startup parameter looks like:
 
 ```text
 -serverMod=@SST
 ```
 
 If your host does not expose `-serverMod`, use the server-side mod field or startup parameter field your host provides. Avoid putting SST in the public client mod list unless your host specifically requires that.
+
+If you rebuild from source, build the PBOs from `SST/` using your normal DayZ tools workflow and place the output in `@SST/Addons/`.
 
 Start the DayZ server once, then check the server profile folder. SST should create:
 
