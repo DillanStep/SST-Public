@@ -1,21 +1,6 @@
 # SST Dashboard
 
-<p align="center">
-  <img src="docs/banner.svg" alt="SST Dashboard Banner" width="100%">
-</p>
-
-<p align="center">
-  <strong>Modern React web dashboard for DayZ server management</strong>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/React-18-blue" alt="React">
-  <img src="https://img.shields.io/badge/TypeScript-5-blue" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Tailwind-3-teal" alt="Tailwind">
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-</p>
-
-![Dashboard Screenshot](docs/screenshot.png)
+React dashboard for SST DayZ server management.
 
 ## Features
 

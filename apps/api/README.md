@@ -1,18 +1,6 @@
 # SST Node API
 
-<p align="center">
-  <img src="docs/banner.svg" alt="SST Node API Banner" width="100%">
-</p>
-
-<p align="center">
-  <strong>REST API for DayZ server management - bridges your web dashboard with DayZ server files</strong>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Node.js-18+-green" alt="Node.js">
-  <img src="https://img.shields.io/badge/Express-4.x-blue" alt="Express">
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-</p>
+REST API for DayZ server management. The API bridges the SST dashboard with files written by the server-side SST DayZ mod.
 
 ## Features
 
