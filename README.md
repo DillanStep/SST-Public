@@ -2,6 +2,20 @@
 
 SST is an open-source DayZ server management suite. It combines a server-side DayZ mod, a Node/Express API, and a React dashboard so server owners can inspect player data, manage items and vehicles, review logs, and work with common DayZ Expansion economy files.
 
+## Big Early-Release Warning
+
+> **SST has been released early because people were asking whether the project was still active. It is active, and the current build does work, but this is an early MVP.**
+
+Expect some rough edges. Setup is still more manual than it should be, some workflows may feel messy, and the project needs more testing across real hosted DayZ environments. The current goal is to get the basics right first:
+
+- server-side mod loads correctly
+- mod writes useful JSON exports
+- API reads the server files through local disk, FTP, or SFTP
+- dashboard connects to the API
+- admins can test the core management tools
+
+Future releases will streamline installation, configuration, packaging, and documentation. For now, treat SST as a working early release for testers and server owners who are comfortable following detailed setup steps.
+
 ## How SST Works
 
 SST has three parts:
@@ -73,67 +87,285 @@ If the `SST/` folder does not appear, check the DayZ RPT/script logs and confirm
 
 The API needs to read the `SST/` folder created by the mod.
 
-Use `local` when the API runs on the same machine as the DayZ server:
+First, find where the mod created its files.
+
+1. Start the DayZ server with `@SST` loaded.
+2. Open your DayZ server profile folder.
+3. Look for a folder named `SST`.
+4. Inside it you should see folders such as `api`, `inventories`, `events`, `life_events`, `trades`, and `vehicles`.
+5. That folder is your `SST_PATH`.
+
+If you cannot find the folder, the mod is probably not loaded correctly yet. Fix that before configuring the API.
+
+#### Option A: Local Storage
+
+Use `local` when the API runs on the same machine as the DayZ server.
+
+Example:
 
 ```env
 STORAGE_BACKEND=local
 SST_PATH=C:/DayZServer/profiles/SST
 ```
 
-Use `sftp` or `ftp` when the DayZ server is hosted by a provider:
+Use forward slashes `/` in the path, even on Windows. Do not use backslashes.
+
+Good:
+
+```env
+SST_PATH=C:/DayZServer/profiles/SST
+```
+
+Avoid:
+
+```env
+SST_PATH=C:\DayZServer\profiles\SST
+```
+
+#### Option B: SFTP Storage
+
+Use `sftp` when your DayZ server is hosted by a provider and you have SFTP details.
+
+You need these details from your host panel:
+
+- SFTP host
+- SFTP port
+- SFTP username
+- SFTP password
+- The remote path to the `SST` folder
+
+Example:
 
 ```env
 STORAGE_BACKEND=sftp
-SST_PATH=HostHavocDayZServer/SST
 SFTP_HOST=example.host
 SFTP_PORT=22
 SFTP_USER=your-user
 SFTP_PASSWORD=your-password
 SFTP_ROOT=/remote/root
+SST_PATH=HostHavocDayZServer/SST
+```
+
+Host panels often show a long path. For example, if FileZilla shows:
+
+```text
+/104.234.251.153_2332/HostHavocDayZServer/SST/api/online_players.json
+```
+
+Then use:
+
+```env
+STORAGE_BACKEND=sftp
+SFTP_ROOT=/104.234.251.153_2332
+SST_PATH=HostHavocDayZServer/SST
+```
+
+In plain English:
+
+- `SFTP_ROOT` is the top folder your host drops you into.
+- `SST_PATH` is the path from that root to the `SST` folder.
+- Do not include `/api/online_players.json` in `SST_PATH`; stop at the `SST` folder.
+
+#### Option C: FTP / FTPS Storage
+
+Use `ftp` if your host provides FTP or FTPS instead of SFTP.
+
+Example:
+
+```env
+STORAGE_BACKEND=ftp
+FTP_HOST=example.host
+FTP_PORT=21
+FTP_USER=your-user
+FTP_PASSWORD=your-password
+FTP_SECURE=true
+FTP_ROOT=/remote/root
+SST_PATH=HostHavocDayZServer/SST
+```
+
+If your provider does not support FTPS, set:
+
+```env
+FTP_SECURE=false
 ```
 
 Keep credentials private. Do not commit `.env`.
 
 ### 3. Start the API
 
-From the repository root:
+The API is the backend server. The dashboard talks to it, and it talks to the DayZ server files.
+
+#### Step 3.1: Open a Terminal
+
+Open PowerShell, Command Prompt, Windows Terminal, or Git Bash.
+
+Go to the repository folder:
+
+```powershell
+cd C:\path\to\SST-Public-main
+```
+
+If your folder is somewhere else, use your real path.
+
+#### Step 3.2: Go Into the API Folder
 
 ```bash
 cd apps/api
+```
+
+#### Step 3.3: Install API Dependencies
+
+Run this once:
+
+```bash
 npm ci
+```
+
+If `npm ci` fails, check that Node.js 18 or newer is installed:
+
+```bash
+node --version
+npm --version
+```
+
+#### Step 3.4: Create the API `.env` File
+
+If you are using Git Bash, WSL, or Linux:
+
+```bash
 cp .env.example .env
+```
+
+If you are using PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+If you are using Command Prompt:
+
+```cmd
+copy .env.example .env
+```
+
+#### Step 3.5: Edit `.env`
+
+Open this file:
+
+```text
+apps/api/.env
+```
+
+At minimum, set:
+
+```env
+STORAGE_BACKEND=local
+SST_PATH=C:/DayZServer/profiles/SST
+```
+
+Or, for hosted SFTP:
+
+```env
+STORAGE_BACKEND=sftp
+SFTP_HOST=your-host
+SFTP_PORT=22
+SFTP_USER=your-user
+SFTP_PASSWORD=your-password
+SFTP_ROOT=/your/root
+SST_PATH=path/to/SST
+```
+
+Leave `API_KEY` and `JWT_SECRET` blank if you want SST to generate them on first startup.
+
+#### Step 3.6: Start the API
+
+From inside `apps/api`, run:
+
+```bash
 npm start
 ```
 
-Edit `apps/api/.env` with your storage settings, or run the Windows setup wizard from the repository root:
+Leave this terminal window open. If you close it, the API stops.
 
-```powershell
-PowerShell -NoProfile -ExecutionPolicy Bypass -File tools/setup-wizard/SetupWizard.ps1
+The API listens on:
+
+```text
+http://localhost:3001
 ```
 
-The API listens on `http://localhost:3001` by default. Check it with:
+#### Step 3.7: Check the API Is Alive
+
+Open a second terminal and run:
 
 ```bash
 curl http://localhost:3001/health
 ```
 
+If `curl` is not available, open this in your browser:
+
+```text
+http://localhost:3001/health
+```
+
+You should get a small health response. If the browser cannot connect, the API is not running or the port is blocked.
+
+#### Optional: Use the Windows Setup Wizard
+
+From the repository root, you can run:
+
+```powershell
+PowerShell -NoProfile -ExecutionPolicy Bypass -File tools/setup-wizard/SetupWizard.ps1
+```
+
+The setup wizard helps write the API configuration, but you still need the DayZ mod loaded and the `SST/` folder created first.
+
 ### 4. Start the Dashboard
 
-From the repository root:
+The dashboard is the web interface you open in your browser.
+
+Open a new terminal. Do not close the API terminal.
+
+Go back to the repository root:
+
+```powershell
+cd C:\path\to\SST-Public-main
+```
+
+Then go into the dashboard folder:
 
 ```bash
 cd apps/web
+```
+
+Install dashboard dependencies:
+
+```bash
 npm ci
+```
+
+Start the dashboard:
+
+```bash
 npm run dev
 ```
 
-Open the URL shown by Vite, usually:
+Leave this terminal window open. If you close it, the dashboard dev server stops.
+
+Vite will show a local URL. It is usually:
 
 ```text
 http://localhost:5173
 ```
 
 On first run, the dashboard will ask you to connect to the API and create the first admin account.
+
+Use this API URL when the dashboard asks:
+
+```text
+http://localhost:3001
+```
+
+If the dashboard asks for an API key, use the `API_KEY` from `apps/api/.env`. If you left it blank, restart the API once and check `.env`; SST should write the generated key there.
 
 ### 5. Use SST
 
