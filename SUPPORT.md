@@ -1,6 +1,6 @@
 # Support
 
-SST is community-maintained software for DayZ server owners and admins. Please use the right channel so bugs, setup help, and security reports stay easy to handle.
+SST is source-available, non-commercial software for DayZ server owners and admins. Please use the right channel so bugs, setup help, and security reports stay easy to handle.
 
 ## Before Asking For Help
 

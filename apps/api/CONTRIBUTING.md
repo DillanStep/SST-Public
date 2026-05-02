@@ -6,7 +6,7 @@ Thank you for your interest in contributing to SST! This document provides guide
 
 By contributing to this project, you agree that:
 
-1. Your contributions will be licensed under the same [MIT License](LICENSE) as the rest of the project
+1. Your contributions will be licensed under the same [SST Source-Available Non-Commercial License](LICENSE) as the rest of the project
 2. You have the right to submit the contribution
 
 ## 🚀 Getting Started

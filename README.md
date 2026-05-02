@@ -1,6 +1,6 @@
 # SST Public
 
-SST is an open-source DayZ server management suite. It combines a server-side DayZ mod, a Node/Express API, and a React dashboard so server owners can inspect player data, manage items and vehicles, review logs, and work with common DayZ Expansion economy files.
+SST is a source-available, non-commercial DayZ server management suite. It combines a server-side DayZ mod, a Node/Express API, and a React dashboard so server owners can inspect player data, manage items and vehicles, review logs, and work with common DayZ Expansion economy files.
 
 ## Big Early-Release Warning
 
@@ -447,7 +447,7 @@ More help is available in [SUPPORT.md](SUPPORT.md) and [Troubleshooting](docs/wi
 
 ## Contributing
 
-SST welcomes community testing, bug reports, documentation fixes, and pull requests. The normal open-source workflow is:
+SST welcomes community testing, bug reports, documentation fixes, and pull requests. The normal contribution workflow is:
 
 1. Open or find an issue.
 2. Fork the repository.
@@ -464,4 +464,4 @@ Good first contributions include documentation fixes, setup notes for hosted pro
 - Report bugs, feature requests, support questions, and documentation issues with the GitHub issue templates.
 - Open pull requests from forks; maintainers review and merge accepted changes.
 - Security reports should follow [SECURITY.md](SECURITY.md), not public issues.
-- License: MIT. See [LICENSE.md](LICENSE.md).
+- License: source-available non-commercial. See [LICENSE.md](LICENSE.md).

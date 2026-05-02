@@ -59,4 +59,4 @@ Community expectations are defined in `CODE_OF_CONDUCT.md` at the repository roo
 
 ## License note
 
-Contributions are expected to be compatible with this repository’s license terms. See [License](../Legal/License.md).
+Contributions are expected to be compatible with this repository’s source-available non-commercial license terms. See [License](../Legal/License.md).

@@ -120,4 +120,4 @@ See [API Reference](docs/API.md) for complete documentation.
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full text.
+This project is licensed under the SST Source-Available Non-Commercial License. See [LICENSE](LICENSE) for details.

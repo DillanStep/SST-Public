@@ -110,4 +110,4 @@ Regular contributors may be invited to help maintain a part of the project. Main
 
 ## License
 
-By contributing, you agree that your contribution is licensed under the MIT License used by this repository.
+By contributing, you agree that your contribution is licensed under the SST Source-Available Non-Commercial License used by this repository.

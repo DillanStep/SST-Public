@@ -1,6 +1,6 @@
 # Governance
 
-SST is maintained as a community open-source project. The goal is to keep the project useful for DayZ server owners while protecting user security, player privacy, and maintainability.
+SST is maintained as a community source-available project. The goal is to keep the project useful for DayZ server owners while protecting user security, player privacy, licensing terms, and maintainability.
 
 ## Maintainer Responsibilities
 
