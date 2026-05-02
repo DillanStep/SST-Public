@@ -62,7 +62,7 @@ This repository includes a ready-to-install server-side mod package in `@SST/`. 
 Copy the whole `@SST/` folder to your DayZ server root and load it as a server-side mod. A typical startup parameter looks like:
 
 ```text
--serverMod=@SST
+-serverMod=@SST -scrAllowFileWrite
 ```
 
 If your host does not expose `-serverMod`, use the server-side mod field or startup parameter field your host provides. Avoid putting SST in the public client mod list unless your host specifically requires that.
@@ -82,6 +82,20 @@ SST/vehicles/
 ```
 
 If the `SST/` folder does not appear, check the DayZ RPT/script logs and confirm the mod is loaded by the server.
+
+### Application Updates
+
+When an admin logs into the dashboard, SST checks GitHub Releases for a newer version. If one is available, the dashboard shows an update prompt with release notes.
+
+The install button is intentionally local-only by default because it changes files on the machine running SST. It starts `tools/updater/Update-SST.ps1`, backs up local API config/data, downloads the release archive, installs dependencies, rebuilds the web dashboard, and then asks you to restart SST so the API can load the new code.
+
+Update settings live in `apps/api/.env`:
+
+```env
+SST_DISABLE_UPDATE_CHECK=0
+SST_UPDATE_REPO=DillanStep/SST-Public
+SST_ALLOW_REMOTE_UPDATE=0
+```
 
 ### 2. Choose Local, FTP, or SFTP Storage
 

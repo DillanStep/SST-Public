@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Server, Cloud, HardDrive, ChevronRight, ChevronLeft, Check, 
   AlertCircle, RefreshCw, Key, User, Lock, Wifi, 
@@ -18,6 +18,11 @@ interface SetupWizardProps {
     username: string;
   }) => void;
 }
+
+const isAbsoluteLocalPath = (value: string) => {
+  const trimmed = value.trim().replace(/\\/g, '/');
+  return /^[a-zA-Z]:\//.test(trimmed) || trimmed.startsWith('/') || trimmed.startsWith('//');
+};
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) => {
   // Wizard step (1-5)
@@ -62,6 +67,27 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   // General
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+
+  const runtimeFolderWarning = (
+    <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+      <div className="space-y-2">
+        <p className="font-medium">Start the DayZ server with @SST before testing.</p>
+        <p>
+          The mod creates a runtime folder at $profile:SST after it has loaded. Start DayZ with -scrAllowFileWrite, then point this field at that generated folder, not the @SST mod package or repo source folder.
+        </p>
+        <p className="text-xs text-amber-700">
+          Expected contents include api/online_players.json, api/server_items.json, inventories/, events/, life_events/, and optional trades/ or vehicles/ data when those features are used.
+        </p>
+      </div>
+    </div>
+  );
+
+  useEffect(() => {
+    setConnectionStatus('idle');
+    setTestResult(null);
+    setTestDetails(null);
+  }, [hostingType, backend, host, port, username, password, remoteRoot, sstPath, profilesPath, localPath]);
 
   // Parse pasted URL (for hosting providers like HostHavoc)
   const parseUrl = () => {
@@ -112,6 +138,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
     setError(null);
 
     try {
+      if (hostingType === 'dedicated' && !isAbsoluteLocalPath(localPath)) {
+        setConnectionStatus('error');
+        setTestResult('Enter the full path to your SST folder, for example C:\\DayZServer\\profiles\\SST.');
+        return;
+      }
+
       // Normalize paths - ensure sstPath doesn't include the remoteRoot
       let testSstPath = sstPath.replace(/\\/g, '/').replace(/^\/+/, '');
       const normalizedRoot = remoteRoot.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -301,7 +333,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
 
   const canProceedStep1 = hostingType !== null;
   const canProceedStep2 = hostingType === 'dedicated' 
-    ? localPath.trim().length > 0 
+    ? isAbsoluteLocalPath(localPath) 
     : (host.trim().length > 0 && sstPath.trim().length > 0);
   const canProceedStep3 = connectionStatus === 'success';
   const canProceedStep4 = apiKey.trim().length > 0;
@@ -416,14 +448,16 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-surface-800 mb-2">
-                  {hostingType === 'provider' ? 'Server Connection Details' : 'Server File Location'}
+                  {hostingType === 'provider' ? 'Server Connection Details' : 'SST Runtime File Location'}
                 </h2>
                 <p className="text-surface-500">
                   {hostingType === 'provider' 
                     ? 'Enter your SFTP/FTP credentials from your hosting provider.' 
-                    : 'Enter the path to your SST mod folder on this machine.'}
+                    : 'Enter the path to the generated SST runtime folder in your DayZ server profiles directory.'}
                 </p>
               </div>
+
+              {runtimeFolderWarning}
 
               {hostingType === 'provider' ? (
                 <>
@@ -527,11 +561,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       />
                       <p className="text-xs text-surface-400 mt-1">Base path on the server</p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-surface-600 mb-2">SST Path</label>
-                      <Input
-                        type="text"
-                        value={sstPath}
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">SST Path</label>
+                    <Input
+                      type="text"
+                      value={sstPath}
                         onChange={(e) => setSstPath(e.target.value)}
                         placeholder="HostHavocDayZServer/SST"
                       />
@@ -554,17 +588,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                 /* Local/Dedicated Setup */
                 <div>
                   <label className="block text-sm font-medium text-surface-600 mb-2">
-                    SST Folder Path
+                    SST Runtime Folder Path
                   </label>
                   <Input
                     type="text"
                     value={localPath}
                     onChange={(e) => setLocalPath(e.target.value)}
-                    placeholder="C:\DayZServer\SST"
+                    placeholder="C:\\DayZServer\\profiles\\SST"
                   />
                   <p className="text-xs text-surface-400 mt-2">
-                    Enter the full path to your SST mod folder. This should contain an 'api' subfolder with online_players.json.
+                    Enter the full path to the generated SST runtime folder in your DayZ profiles directory.
                   </p>
+                  {localPath.trim().length > 0 && !isAbsoluteLocalPath(localPath) && (
+                    <p className="text-xs text-red-600 mt-2">
+                      Use a full path like C:\DayZServer\profiles\SST, not a placeholder or relative folder name.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -613,21 +652,21 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-500">Remote Root:</span>
-                      <span className="text-surface-700 font-medium font-mono text-xs">{remoteRoot}</span>
+                      <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{remoteRoot}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-500">SST Path:</span>
-                      <span className="text-surface-700 font-medium font-mono text-xs">{sstPath}</span>
+                      <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{sstPath}</span>
                     </div>
                     {profilesPath && (
                       <div className="flex justify-between">
                         <span className="text-surface-500">Profiles Path:</span>
-                        <span className="text-surface-700 font-medium font-mono text-xs">{profilesPath}</span>
+                        <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{profilesPath}</span>
                       </div>
                     )}
                     <div className="flex justify-between border-t border-surface-200 pt-2 mt-2">
                       <span className="text-surface-500">Full Path:</span>
-                      <span className="text-surface-700 font-medium font-mono text-xs">{remoteRoot === '/' ? `/${sstPath}` : `${remoteRoot}/${sstPath}`}</span>
+                      <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{remoteRoot === '/' ? `/${sstPath}` : `${remoteRoot}/${sstPath}`}</span>
                     </div>
                   </div>
                 ) : (
@@ -638,7 +677,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-500">Path:</span>
-                      <span className="text-surface-700 font-medium">{localPath}</span>
+                      <span className="text-surface-700 font-medium text-right break-all">{localPath}</span>
                     </div>
                   </div>
                 )}

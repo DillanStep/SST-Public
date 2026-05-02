@@ -1,11 +1,13 @@
 import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { LayoutDashboard, Search, Users, Settings, Menu, X, Server, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car } from 'lucide-react';
+import { LayoutDashboard, Search, Users, Settings, Menu, X, Server, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy } from 'lucide-react';
 import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
+import { UpdatePrompt } from './components/features/UpdatePrompt';
 import { getActiveServer } from './services/serverManager';
 import { checkAuth, logout, type User } from './services/auth';
 
 type TabType = 'dashboard' | 'items' | 'players' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
+const DISCORD_SUPPORT_URL = 'https://discord.gg/jv52WVbFdj';
 
 const PlayerDashboard = lazy(() => import('./components/features/PlayerDashboard').then((module) => ({ default: module.PlayerDashboard })));
 const ItemSearch = lazy(() => import('./components/features/ItemSearch').then((module) => ({ default: module.ItemSearch })));
@@ -140,6 +142,7 @@ function App() {
   if (isFullPageMode) {
     return (
       <div className="h-screen w-screen flex flex-col">
+        <UpdatePrompt user={user} />
         {/* Minimal Top Bar */}
         <div className="h-14 bg-white border-b border-surface-200 flex items-center px-4 gap-4 flex-shrink-0 z-[1002]">
           <div className="flex items-center">
@@ -171,6 +174,15 @@ function App() {
           {/* User Info & Logout */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-surface-600 hidden md:block">{user.username}</span>
+            <a
+              href={DISCORD_SUPPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 text-surface-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200"
+              title="Discord Support"
+            >
+              <LifeBuoy size={18} />
+            </a>
             <button
               onClick={handleLogout}
               className="p-2 text-surface-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200"
@@ -203,6 +215,7 @@ function App() {
   // Standard layout for other tabs
   return (
     <div className="min-h-screen bg-surface-50 flex">
+      <UpdatePrompt user={user} />
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-surface-200 transition-all duration-300 ease-out sticky top-0 h-screen ${sidebarOpen ? 'w-64' : 'w-20'}`}>
         {/* Logo */}
@@ -258,18 +271,40 @@ function App() {
             </div>
           )}
           {!sidebarOpen && (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center p-2.5 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 mb-3"
-              title="Logout"
-            >
-              <LogOut size={18} />
-            </button>
+            <>
+              <a
+                href={DISCORD_SUPPORT_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="mb-2 flex w-full items-center justify-center rounded-xl p-2.5 text-surface-400 transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-600"
+                title="Discord Support"
+              >
+                <LifeBuoy size={18} />
+              </a>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center p-2.5 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 mb-3"
+                title="Logout"
+              >
+                <LogOut size={18} />
+              </button>
+            </>
           )}
           {sidebarOpen && activeServerName && (
             <div className="text-xs text-surface-400 mb-2 truncate px-1">
               {activeServerName}
             </div>
+          )}
+          {sidebarOpen && (
+            <a
+              href={DISCORD_SUPPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm font-medium text-surface-600 transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+            >
+              <LifeBuoy size={16} />
+              Support
+            </a>
           )}
           <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm ${
             isConnected 
@@ -331,6 +366,15 @@ function App() {
                 {tab.label}
               </button>
             ))}
+            <a
+              href={DISCORD_SUPPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition-all duration-200"
+            >
+              <LifeBuoy size={20} />
+              Support
+            </a>
             {/* Logout button for mobile */}
             <button
               onClick={handleLogout}

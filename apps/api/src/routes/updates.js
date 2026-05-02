@@ -1,0 +1,241 @@
+import { Router } from "express";
+import { spawn } from "child_process";
+import { existsSync } from "fs";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath } from "url";
+
+const router = Router();
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const apiRoot = resolve(__dirname, "../..");
+const repoRoot = resolve(apiRoot, "../..");
+const dataDir = join(apiRoot, "data");
+const updateStatePath = join(dataDir, "update-state.json");
+const updaterScriptPath = join(repoRoot, "tools", "updater", "Update-SST.ps1");
+
+const updateRepo = process.env.SST_UPDATE_REPO || "DillanStep/SST-Public";
+const updateApiUrl = process.env.SST_UPDATE_API_URL || `https://api.github.com/repos/${updateRepo}/releases/latest`;
+
+function isLocalRequest(req) {
+  const ip = String(req.ip || req.socket?.remoteAddress || "");
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+}
+
+function normalizeVersion(version) {
+  return String(version || "")
+    .trim()
+    .replace(/^v/i, "")
+    .split("-")[0];
+}
+
+function compareVersions(current, latest) {
+  const left = normalizeVersion(current).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const right = normalizeVersion(latest).split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(left.length, right.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const a = left[index] || 0;
+    const b = right[index] || 0;
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+
+  return 0;
+}
+
+async function getCurrentVersion() {
+  const packagePath = join(apiRoot, "package.json");
+  const raw = await readFile(packagePath, "utf8");
+  const pkg = JSON.parse(raw);
+  return pkg.version || "0.0.0";
+}
+
+async function fetchLatestRelease() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch(updateApiUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "SST-Dashboard-Updater",
+      },
+      signal: controller.signal,
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Update check failed with HTTP ${response.status}`);
+    }
+
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function releaseToStatus(currentVersion, release) {
+  if (!release) {
+    return {
+      ok: true,
+      currentVersion,
+      latestVersion: currentVersion,
+      updateAvailable: false,
+      release: null,
+      message: "No published releases found.",
+    };
+  }
+
+  const latestVersion = normalizeVersion(release.tag_name || release.name);
+  const tagName = release.tag_name || `v${latestVersion}`;
+
+  return {
+    ok: true,
+    currentVersion,
+    latestVersion,
+    updateAvailable: compareVersions(currentVersion, latestVersion) < 0,
+    release: {
+      tagName,
+      name: release.name || tagName,
+      url: release.html_url || `https://github.com/${updateRepo}/releases/tag/${tagName}`,
+      publishedAt: release.published_at || null,
+      notes: String(release.body || "").slice(0, 4000),
+      archiveUrl: `https://github.com/${updateRepo}/archive/refs/tags/${tagName}.zip`,
+    },
+  };
+}
+
+async function readUpdateState() {
+  try {
+    const raw = await readFile(updateStatePath, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return {
+      status: "idle",
+      message: null,
+      updatedAt: null,
+    };
+  }
+}
+
+async function writeUpdateState(state) {
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(updateStatePath, JSON.stringify(state, null, 2), "utf8");
+}
+
+function getPowerShellExe() {
+  const systemRoot = process.env.SystemRoot || "C:\\Windows";
+  const fullPath = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  return existsSync(fullPath) ? fullPath : "powershell.exe";
+}
+
+router.get("/status", async (req, res) => {
+  if (process.env.SST_DISABLE_UPDATE_CHECK === "1") {
+    const currentVersion = await getCurrentVersion();
+    return res.json({
+      ok: true,
+      currentVersion,
+      latestVersion: currentVersion,
+      updateAvailable: false,
+      disabled: true,
+    });
+  }
+
+  try {
+    const currentVersion = await getCurrentVersion();
+    const release = await fetchLatestRelease();
+    return res.json(releaseToStatus(currentVersion, release));
+  } catch (err) {
+    return res.status(502).json({
+      ok: false,
+      error: err?.message || String(err),
+    });
+  }
+});
+
+router.get("/install/status", async (req, res) => {
+  const state = await readUpdateState();
+  res.json({ ok: true, ...state });
+});
+
+router.post("/install", async (req, res) => {
+  if (!isLocalRequest(req) && process.env.SST_ALLOW_REMOTE_UPDATE !== "1") {
+    return res.status(403).json({
+      ok: false,
+      error: "Updates can only be installed from the machine running SST. Set SST_ALLOW_REMOTE_UPDATE=1 to override.",
+    });
+  }
+
+  if (!existsSync(updaterScriptPath)) {
+    return res.status(500).json({
+      ok: false,
+      error: `Updater script not found at ${updaterScriptPath}`,
+    });
+  }
+
+  try {
+    const currentVersion = await getCurrentVersion();
+    const release = await fetchLatestRelease();
+    const status = releaseToStatus(currentVersion, release);
+
+    if (!status.updateAvailable) {
+      return res.json({ ok: true, status: "current", message: "SST is already up to date.", update: status });
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const logDir = join(repoRoot, "logs");
+    const logPath = join(logDir, `update-${timestamp}.log`);
+
+    const state = {
+      status: "starting",
+      message: `Starting update to ${status.release.tagName}.`,
+      currentVersion,
+      targetVersion: status.latestVersion,
+      targetTag: status.release.tagName,
+      releaseUrl: status.release.url,
+      archiveUrl: status.release.archiveUrl,
+      logPath,
+      updatedAt: new Date().toISOString(),
+    };
+    await writeUpdateState(state);
+
+    const args = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      updaterScriptPath,
+      "-RepoRoot",
+      repoRoot,
+      "-ArchiveUrl",
+      status.release.archiveUrl,
+      "-TargetTag",
+      status.release.tagName,
+      "-StatePath",
+      updateStatePath,
+      "-LogPath",
+      logPath,
+    ];
+
+    const child = spawn(getPowerShellExe(), args, {
+      cwd: repoRoot,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
+
+    return res.status(202).json({ ok: true, status: "started", ...state });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      error: err?.message || String(err),
+    });
+  }
+});
+
+export default router;
