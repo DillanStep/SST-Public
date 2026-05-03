@@ -124,8 +124,12 @@ echo.
 echo   2. Your browser will open to the setup wizard
 echo.
 echo   3. Follow the on-screen instructions to:
-echo      - Configure your DayZ server connection (SFTP/FTP)
+echo      - Configure your DayZ server connection (Local/SFTP/FTP)
 echo      - Create your admin account
+echo.
+echo   NOTE: Install @SST on the DayZ server and start the
+echo   DayZ server once before testing the connection.
+echo   SST must generate the DayZ profile SST files first.
 echo.
 echo ============================================================
 echo.

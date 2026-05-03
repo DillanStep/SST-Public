@@ -64,7 +64,9 @@ This is the navigation index for the wiki content under `docs/wiki/`.
 - [Zones](Expansion%20Integration/Zones.md)
 - [Garage](Expansion%20Integration/Garage.md)
 
-## Discord Integration
+## Planned Discord Integration Notes
+
+These pages are planning notes unless a release note says Discord integration is enabled.
 
 - [Discord Overview](Discord%20Integration/Discord%20Overview.md)
 - [Ticket System](Discord%20Integration/Ticket%20System.md)

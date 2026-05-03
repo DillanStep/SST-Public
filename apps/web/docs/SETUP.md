@@ -144,22 +144,21 @@ Note: Vite environment variables must be prefixed with `VITE_`.
 
 ---
 
-## Map Tiles
+## Map Image
 
-The dashboard uses DayZ map images for the player map.
+The dashboard uses a bundled DayZ map image for the player and vehicle maps.
 
 ### Map Location
 
-Place map tiles in:
+The current Chernarus image lives at:
+
 ```
-public/maps/chernarusplus/map.png
-public/maps/enoch/map.png
-public/maps/sakhal/map.png
+public/maps/chernarus.jpg
 ```
 
 ### Map Size
 
-Maps should be 15360 x 15360 pixels (or scaled appropriately).
+Maps should match the DayZ world coordinate size used by the dashboard, currently `15360 x 15360`.
 
 ---
 

@@ -89,7 +89,7 @@ function parseSstPathFromLocal(sstPath) {
   const base = normalizeLocalPath(sstPath);
   if (!base) return null;
   if (!isAbsoluteLocalPath(base)) {
-    throw setupError("Local SST path must be a full path, for example C:/DayZServer/profiles/SST.");
+    throw setupError("Local SST path must be a full path to the generated profile SST folder, for example C:/DayZServer/Server1/SST.");
   }
 
   const apiDir = path.join(base, "api");

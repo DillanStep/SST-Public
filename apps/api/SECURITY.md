@@ -48,7 +48,7 @@ Security issues we're interested in:
 
 When deploying SST Node API:
 
-1. **Change default credentials** - Default admin/admin must be changed
+1. **Use strong admin credentials** - Create a unique first admin account and do not share it
 2. **Use strong JWT_SECRET** - Generate a random 64+ character secret
 3. **Firewall properly** - Only expose required ports
 4. **Use HTTPS** - Deploy behind a reverse proxy with SSL

@@ -12,3 +12,5 @@ Start here:
 - [Installation](Installation.md)
 - [Configuration](Configuration.md)
 - [First Run Checklist](First%20Run%20Checklist.md)
+
+Important: install and run the DayZ server-side mod before testing the dashboard connection. SST writes its data under `$profile:SST/`, where `$profile` is the folder set by your DayZ `-profiles` startup parameter.

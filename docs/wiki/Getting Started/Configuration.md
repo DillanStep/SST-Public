@@ -13,18 +13,41 @@ Copy `apps/api/.env.example` to `apps/api/.env`, then set the values for your se
 Important settings:
 
 - `STORAGE_BACKEND`: `local`, `ftp`, or `sftp`.
-- `SST_PATH`: the folder that contains `api/`, `inventories/`, `events/`, and related SST exports.
+- `SST_PATH`: the DayZ profile `SST` folder that contains `api/`, `inventories/`, `events/`, and related SST exports.
+- `PROFILES_PATH`: the active DayZ profile folder, useful for reading server logs.
 - `API_KEY`: leave blank to generate on first startup, or set your own 32+ byte secret.
 - `JWT_SECRET`: leave blank to generate on first startup, or set your own 32+ byte secret.
 - `CORS_ORIGIN`: set to your dashboard origin for production.
 - `EXPANSION_ENABLED`: set to `1` only if you use DayZ Expansion features.
 
+## Finding `SST_PATH`
+
+SST writes to `$profile:SST`. In DayZ terms, `$profile` is the folder set by your `-profiles` startup parameter.
+
+Examples:
+
+```text
+-profiles=Server1
+SST_PATH=<DayZServerRoot>/Server1/SST
+PROFILES_PATH=<DayZServerRoot>/Server1
+
+-profiles=profiles
+SST_PATH=<DayZServerRoot>/profiles/SST
+PROFILES_PATH=<DayZServerRoot>/profiles
+
+-profiles=D:\DayZServer\profiles
+SST_PATH=D:/DayZServer/profiles/SST
+PROFILES_PATH=D:/DayZServer/profiles
+```
+
+Run the DayZ server once with `@SST` loaded before testing the API connection. The setup test expects the mod to have generated `SST/api/online_players.json`.
+
 ## Local Server Example
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/profiles/SST
-PROFILES_PATH=C:/DayZServer/profiles
+SST_PATH=C:/DayZServer/Server1/SST
+PROFILES_PATH=C:/DayZServer/Server1
 MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.chernarusplus
 EXPANSION_ENABLED=0
 ```
@@ -47,6 +70,36 @@ If your provider shows a prefixed path such as `/123456/MyServer/SST/api/online_
 SFTP_ROOT=/123456
 SST_PATH=MyServer/SST
 ```
+
+Do not include `/api/online_players.json` in `SST_PATH`. Stop at the `SST` folder.
+
+## FTP / FTPS Example
+
+```env
+STORAGE_BACKEND=ftp
+FTP_HOST=example.hosting-provider.com
+FTP_PORT=21
+FTP_USER=your-username
+FTP_PASSWORD=your-password
+FTP_SECURE=true
+FTP_ROOT=/
+SST_PATH=profiles/SST
+```
+
+If your provider does not support FTPS, set `FTP_SECURE=false`.
+
+## Expansion Paths
+
+If you use DayZ Expansion economy features:
+
+```env
+EXPANSION_ENABLED=1
+EXPANSION_TRADERS_PATH=C:/DayZServer/Server1/ExpansionMod/Traders
+EXPANSION_MARKET_PATH=C:/DayZServer/Server1/ExpansionMod/Market
+MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.chernarusplus
+```
+
+Vehicle tracking requires Expansion vehicle purchases with keys. The vehicle map will stay empty until SST has tracked at least one vehicle purchase and the server has written a valid `SST/vehicles/tracked.json`.
 
 ## Dashboard Environment
 

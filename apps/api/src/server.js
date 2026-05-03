@@ -252,7 +252,7 @@ async function startServer() {
       logConfig();
     }
     
-    // Initialize auth database (creates tables and default admin if needed)
+    // Initialize auth database (creates tables and optional bootstrap admin if enabled)
     await initAuthDb();
     
     // Initialize archive database

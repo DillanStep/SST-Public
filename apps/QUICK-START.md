@@ -1,95 +1,108 @@
-# SST Dashboard - Quick Start Guide
+# SST Quick Start For DayZ Server Owners
 
-## First-Time Setup (3 Steps)
+This is the shortest path to get SST running on a Windows DayZ server or admin PC.
 
-### Step 1: Install Dependencies
-Double-click **`Install-SST.bat`** in the root folder.
+## Before You Start
 
-This will:
-- Check that Node.js is installed
-- Install API dependencies
-- Install Web Client dependencies
-- Build the web client for production
+- Install Node.js 18 or newer from https://nodejs.org/.
+- Copy the included `@SST` folder to your DayZ server root.
+- Load SST as a server-side mod, for example:
 
-### Step 2: Launch SST
-Double-click **`Start-SST.bat`** in the root folder.
-
-This will:
-- Start the API server on port 3001
-- Open your browser to the dashboard
-
-### Step 3: Complete Setup in Browser
-When the dashboard opens, you'll be guided to:
-
-1. **Configure your DayZ server connection**
-   - Choose SFTP, FTP, or Local files
-   - Enter your server credentials
-   - Test the connection
-
-2. **Create your admin account**
-   - Set username and password
-   - This account manages the dashboard
-
----
-
-## Requirements
-
-- **Node.js 18+** - Download from https://nodejs.org/
-- **DayZ Server with SST mod** installed
-- **SFTP/FTP access** to your server (for hosted servers like HostHavoc, GTX, etc.)
-
----
-
-## Folder Structure
-
-```
-SST/
-├── Start-SST.bat          ← Run this to start the dashboard
-├── Install-SST.bat        ← Run this once on first install
-├── apps/
-│   ├── api/               ← Backend API (Node.js)
-│   │   └── .env           ← Configuration (created during setup)
-│   └── web/               ← Frontend dashboard (React)
-│       └── dist/          ← Built web client (created by Install-SST)
+```text
+-profiles=Server1 -serverMod=@SST -scrAllowFileWrite
 ```
 
----
+Keep normal player/client mods in `-mod`. Keep `@SST` in `-serverMod` unless your host specifically requires a different field.
 
-## Configuration
+Start the DayZ server once before configuring the app. SST creates its files under the active DayZ profile folder:
 
-All configuration is done through the web interface during first-run setup.
+```text
+<DayZServerRoot>/Server1/SST
+```
 
-Settings are saved to `apps/api/.env` and include:
-- **Storage Backend**: SFTP, FTP, or Local
-- **Server Credentials**: Host, port, username, password
-- **File Paths**: SST mod folder location on your server
+The exact path depends on your `-profiles` value. If `-profiles=profiles`, use `<DayZServerRoot>/profiles/SST`. If `-profiles` is an absolute path, use that path plus `/SST`.
 
----
+Inside the folder you should see:
 
-## Troubleshooting
+```text
+SST/api/
+SST/inventories/
+SST/events/
+SST/life_events/
+SST/trades/
+SST/vehicles/
+```
 
-### "Node.js is not installed"
-Download and install Node.js LTS from https://nodejs.org/
+The dashboard connection test expects `SST/api/online_players.json`. That file appears after the server has run with SST loaded.
 
-### "Cannot connect to server"
-- Make sure no other application is using port 3001
-- Check your firewall allows connections on port 3001
-- Verify your SFTP/FTP credentials are correct
+## 1. Install The App
 
-### Dashboard shows blank page
-- Press F12 to open browser console
-- Check for error messages
-- Ensure the API is running (check the API terminal window)
+From the repository root, double-click:
 
-### SFTP/FTP connection fails
-1. Test your credentials with a standalone SFTP client (WinSCP, FileZilla)
-2. Make sure you have the correct port (SFTP is often 8822, not 22)
-3. Verify the path to your SST folder
+```text
+Install-SST.bat
+```
 
----
+This installs API dependencies, installs dashboard dependencies, builds the web dashboard, and creates `apps/api/.env` if it does not exist.
+
+## 2. Start SST
+
+Double-click:
+
+```text
+Start-SST.bat
+```
+
+This starts the API on:
+
+```text
+http://localhost:3001
+```
+
+It also opens the dashboard in your browser.
+
+## 3. Complete Browser Setup
+
+In the dashboard:
+
+1. Choose `Local Files`, `SFTP`, or `FTP`.
+2. Enter the path to the `SST` folder created by the mod.
+3. Test the connection.
+4. Create the first admin account.
+
+For local files, use forward slashes:
+
+```text
+C:/DayZServer/Server1/SST
+```
+
+For hosted servers, stop the path at the `SST` folder. Do not include `/api/online_players.json`.
+
+## Common Hosted SFTP Example
+
+If FileZilla shows:
+
+```text
+/104.234.251.153_2332/HostHavocDayZServer/SST/api/online_players.json
+```
+
+Use:
+
+```text
+SFTP root: /104.234.251.153_2332
+SST path:  HostHavocDayZServer/SST
+```
+
+## Troubleshooting Fast Checks
+
+- No `SST` folder: the server has not loaded the mod, or you are checking the wrong `-profiles` folder.
+- Connection test cannot find `online_players.json`: run the DayZ server with SST loaded first.
+- Players kicked for mods: client-required mods belong in `-mod`; SST belongs in `-serverMod`.
+- API will not open: check port `3001` and Windows Firewall.
+- Dashboard blank: run `npm run build` in `apps/web`, then restart `Start-SST.bat`.
 
 ## Support
 
-- **Discord**: [SUDO Gaming Discord](https://discord.gg/sudogaming)
-- **GitHub Issues**: Report bugs and feature requests
-- **Documentation**: See `docs/` folder for detailed guides
+- Discord: https://discord.gg/jv52WVbFdj
+- GitHub Issues: use the bug/support templates
+- Full docs: `README.md` and `docs/wiki/Getting Started/`
