@@ -2,11 +2,11 @@
 
 SST is a source-available, non-commercial DayZ server management suite. It combines a server-side DayZ mod, a Node/Express API, and a React dashboard so server owners can inspect player data, manage items and vehicles, review logs, and work with common DayZ Expansion economy files.
 
-## Big Early-Release Warning
+## Release Status
 
-> **SST has been released early because people were asking whether the project was still active. It is active, and the current build does work, but this is an early MVP.**
+> **SST is a public early release for DayZ server owners who are comfortable testing server-admin tools.**
 
-Expect some rough edges. Setup is still more manual than it should be, some workflows may feel messy, and the project needs more testing across real hosted DayZ environments. The current goal is to get the basics right first:
+The current build is usable, but setup still requires care. Test it on a development or staging server before using it on a live community. The current release focuses on the core server-admin loop:
 
 - server-side mod loads correctly
 - mod writes useful JSON exports
@@ -14,7 +14,7 @@ Expect some rough edges. Setup is still more manual than it should be, some work
 - dashboard connects to the API
 - admins can test the core management tools
 
-Future releases will streamline installation, configuration, packaging, and documentation. For now, treat SST as a working early release for testers and server owners who are comfortable following detailed setup steps.
+Future releases will continue to streamline installation, packaging, hosted-provider setup, and documentation.
 
 ## How SST Works
 
@@ -27,7 +27,7 @@ SST has three parts:
 The mod is intended to be installed as a **server-side mod**. Players should not need to install SST on their client when your server host supports server-side mods through `-serverMod`.
 
 ```text
-DayZ server + SST mod  ->  profile/SST JSON files  ->  SST API  ->  Web dashboard
+DayZ server + SST mod  ->  $profile:SST JSON files  ->  SST API  ->  Web dashboard
 Dashboard actions      ->  SST API command queue   ->  SST mod  ->  DayZ server
 ```
 
@@ -51,7 +51,7 @@ SST is ready for community testing and contribution, but it should be treated as
 - Node.js 18 or newer for the API and dashboard.
 - Windows for DayZ server tooling and the setup wizard.
 - SFTP/FTP credentials if the DayZ server is hosted by a provider.
-- Access to the DayZ server profile folder, usually the folder that will contain `SST/` after the mod starts.
+- Access to the DayZ server profile folder. This is the folder passed to DayZ with `-profiles=...`; after the mod runs it should contain `SST/`.
 
 ## Quick Start
 
@@ -62,14 +62,22 @@ This repository includes a ready-to-install server-side mod package in `@SST/`. 
 Copy the whole `@SST/` folder to your DayZ server root and load it as a server-side mod. A typical startup parameter looks like:
 
 ```text
--serverMod=@SST
+-profiles=Server1 -serverMod=@SST -scrAllowFileWrite
 ```
 
 If your host does not expose `-serverMod`, use the server-side mod field or startup parameter field your host provides. Avoid putting SST in the public client mod list unless your host specifically requires that.
 
+Keep your normal client-required mods in `-mod`, and keep SST in `-serverMod`. If players are kicked for missing or extra PBOs, make sure every client-required mod is also loaded by the server through `-mod` and that those mods' `.bikey` files are in the server `keys` folder.
+
 If you rebuild from source, build the PBOs from `SST/` using your normal DayZ tools workflow and place the output in `@SST/Addons/`.
 
-Start the DayZ server once, then check the server profile folder. SST should create:
+Start the DayZ server once, then check the active DayZ profile folder. SST writes to `$profile:SST`, so the real folder depends on your `-profiles` parameter:
+
+- `-profiles=Server1` usually means `<DayZServerRoot>/Server1/SST`
+- `-profiles=profiles` usually means `<DayZServerRoot>/profiles/SST`
+- `-profiles=D:\DayZServer\profiles` means `D:\DayZServer\profiles\SST`
+
+SST should create:
 
 ```text
 SST/
@@ -82,6 +90,22 @@ SST/vehicles/
 ```
 
 If the `SST/` folder does not appear, check the DayZ RPT/script logs and confirm the mod is loaded by the server.
+
+The API setup and dashboard connection test will not work until the mod has run at least once and generated the `SST/` folder.
+
+### Application Updates
+
+When an admin logs into the dashboard, SST checks GitHub Releases for a newer version. If one is available, the dashboard shows an update prompt with release notes.
+
+The install button is intentionally local-only by default because it changes files on the machine running SST. It starts `tools/updater/Update-SST.ps1`, backs up local API config/data, downloads the release archive, installs dependencies, rebuilds the web dashboard, and then asks you to restart SST so the API can load the new code.
+
+Update settings live in `apps/api/.env`:
+
+```env
+SST_DISABLE_UPDATE_CHECK=0
+SST_UPDATE_REPO=DillanStep/SST-Public
+SST_ALLOW_REMOTE_UPDATE=0
+```
 
 ### 2. Choose Local, FTP, or SFTP Storage
 
@@ -105,7 +129,7 @@ Example:
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/profiles/SST
+SST_PATH=C:/DayZServer/Server1/SST
 ```
 
 Use forward slashes `/` in the path, even on Windows. Do not use backslashes.
@@ -113,7 +137,7 @@ Use forward slashes `/` in the path, even on Windows. Do not use backslashes.
 Good:
 
 ```env
-SST_PATH=C:/DayZServer/profiles/SST
+SST_PATH=C:/DayZServer/Server1/SST
 ```
 
 Avoid:
@@ -260,7 +284,7 @@ At minimum, set:
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/profiles/SST
+SST_PATH=C:/DayZServer/Server1/SST
 ```
 
 Or, for hosted SFTP:
@@ -461,6 +485,7 @@ Good first contributions include documentation fixes, setup notes for hosted pro
 
 ## Community
 
+- Discord support: [SUDO Gaming Discord](https://discord.gg/jv52WVbFdj)
 - Report bugs, feature requests, support questions, and documentation issues with the GitHub issue templates.
 - Open pull requests from forks; maintainers review and merge accepted changes.
 - Security reports should follow [SECURITY.md](SECURITY.md), not public issues.

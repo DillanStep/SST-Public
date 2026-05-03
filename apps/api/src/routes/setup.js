@@ -1,10 +1,12 @@
 import { Router } from "express";
+import path from "path";
 
 import { userOps } from "../auth/authDb.js";
 import { getApiKey } from "../middleware/auth.js";
 import { resolveEnvPathForWrite, upsertEnvVar } from "../utils/envFile.js";
 import { createSftpStorage } from "../storage/sftpStorage.js";
 import { createFtpStorage } from "../storage/ftpStorage.js";
+import { createLocalStorage } from "../storage/localStorage.js";
 import { resolveRemotePath } from "../storage/pathUtils.js";
 
 const router = Router();
@@ -50,6 +52,20 @@ function normalizePosix(value) {
   return String(value).trim().replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
+function normalizeLocalPath(value) {
+  const normalized = String(value || "").trim().replace(/\\/g, "/");
+  if (normalized === "/") return normalized;
+  if (/^[a-zA-Z]:\/?$/.test(normalized)) {
+    return normalized.endsWith("/") ? normalized : `${normalized}/`;
+  }
+  return normalized.replace(/\/+$/, "");
+}
+
+function isAbsoluteLocalPath(value) {
+  const normalized = String(value || "").trim().replace(/\\/g, "/");
+  return /^[a-zA-Z]:\//.test(normalized) || normalized.startsWith("/") || normalized.startsWith("//");
+}
+
 function parseSstPathFromRemote(remoteRoot, sstPath) {
   // Compute the expected online_players.json path.
   const root = normalizePosix(remoteRoot || "/") || "/";
@@ -66,6 +82,117 @@ function parseSstPathFromRemote(remoteRoot, sstPath) {
     apiDir,
     onlinePlayers,
     resolvedOnlinePlayers: resolveRemotePath(root, onlinePlayers),
+  };
+}
+
+function parseSstPathFromLocal(sstPath) {
+  const base = normalizeLocalPath(sstPath);
+  if (!base) return null;
+  if (!isAbsoluteLocalPath(base)) {
+    throw setupError("Local SST path must be a full path to the generated profile SST folder, for example C:/DayZServer/Server1/SST.");
+  }
+
+  const apiDir = path.join(base, "api");
+  const onlinePlayers = path.join(apiDir, "online_players.json");
+
+  return {
+    sstPath: base,
+    apiDir,
+    onlinePlayers,
+    resolvedOnlinePlayers: path.resolve(onlinePlayers),
+  };
+}
+
+function isNotFoundError(err) {
+  const code = String(err?.code || "").toUpperCase();
+  const message = String(err?.message || "").toLowerCase();
+  return code === "ENOENT" || message.includes("no such file") || message.includes("not found");
+}
+
+function setupError(message, statusCode = 400, code = undefined) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  if (code) err.code = code;
+  return err;
+}
+
+function normalizeStat(fileStat) {
+  return {
+    size: typeof fileStat?.size === "number" ? fileStat.size : null,
+    mtime: fileStat?.mtime instanceof Date ? fileStat.mtime.toISOString() : fileStat?.mtime || null,
+  };
+}
+
+function isPlayerOnline(player) {
+  return player?.isOnline === 1 || player?.isOnline === true;
+}
+
+function parseOnlinePlayers(raw) {
+  let json;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    throw setupError("Found online_players.json, but it is not valid JSON.", 422);
+  }
+
+  if (Array.isArray(json)) {
+    return {
+      onlineCount: json.filter(isPlayerOnline).length,
+      playersLen: json.length,
+    };
+  }
+
+  const players = Array.isArray(json?.players) ? json.players : null;
+  const onlineCount = typeof json?.onlineCount === "number"
+    ? json.onlineCount
+    : players
+      ? players.filter(isPlayerOnline).length
+      : null;
+
+  if (!players && onlineCount === null) {
+    throw setupError("Found online_players.json, but it does not look like an SST online players file.", 422);
+  }
+
+  return {
+    onlineCount,
+    playersLen: players ? players.length : null,
+  };
+}
+
+async function validateOnlinePlayers(storage, parsed) {
+  const checkedPath = parsed.resolvedOnlinePlayers || parsed.onlinePlayers;
+
+  let onlineStat;
+  try {
+    onlineStat = await storage.stat(parsed.onlinePlayers);
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      throw setupError(
+        `Could not find SST online players file at '${checkedPath}'. Check that the path points to the DayZ profile SST folder. The @SST server mod must run once with -scrAllowFileWrite first to create $profile:SST/api/online_players.json.`,
+        404,
+        "ENOENT"
+      );
+    }
+    throw err;
+  }
+
+  let raw;
+  try {
+    raw = await storage.readFile(parsed.onlinePlayers, "utf8");
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      throw setupError(
+        `Could not read SST online players file at '${checkedPath}'. Check that the path points to the SST folder.`,
+        404,
+        "ENOENT"
+      );
+    }
+    throw err;
+  }
+
+  return {
+    stat: normalizeStat(onlineStat),
+    parsed: parseOnlinePlayers(raw),
   };
 }
 
@@ -113,7 +240,23 @@ router.post("/test", async (req, res) => {
 
   try {
     if (chosenBackend === "local") {
-      return res.json({ ok: true, backend: "local", note: "Local validation not implemented here. Start API with local paths and check /config." });
+      const storage = createLocalStorage();
+      const parsed = parseSstPathFromLocal(sstPath);
+      if (!parsed) return res.status(400).json({ error: "Could not build paths from sstPath" });
+
+      const validation = await validateOnlinePlayers(storage, parsed);
+
+      return res.json({
+        ok: true,
+        backend: "local",
+        resolved: {
+          sstPath: parsed.sstPath,
+          apiDir: parsed.apiDir,
+          onlinePlayers: parsed.onlinePlayers,
+          resolvedOnlinePlayers: parsed.resolvedOnlinePlayers,
+        },
+        ...validation,
+      });
     }
 
     if (chosenBackend === "sftp") {
@@ -129,19 +272,7 @@ router.post("/test", async (req, res) => {
       const storage = createSftpStorage({ backend: "sftp", config: cfg });
       const parsed = parseSstPathFromRemote(cfg.root, sstPath);
       if (!parsed) return res.status(400).json({ error: "Could not build paths from sstPath" });
-
-      const onlineStat = await storage.stat(parsed.onlinePlayers);
-      const raw = await storage.readFile(parsed.onlinePlayers, "utf8");
-      let parsedJson = null;
-      try {
-        const json = JSON.parse(raw);
-        parsedJson = {
-          onlineCount: typeof json?.onlineCount === "number" ? json.onlineCount : null,
-          playersLen: Array.isArray(json?.players) ? json.players.length : null,
-        };
-      } catch {
-        // ignore
-      }
+      const validation = await validateOnlinePlayers(storage, parsed);
 
       return res.json({
         ok: true,
@@ -152,8 +283,7 @@ router.post("/test", async (req, res) => {
           onlinePlayers: parsed.onlinePlayers,
           resolvedOnlinePlayers: parsed.resolvedOnlinePlayers,
         },
-        stat: onlineStat,
-        parsed: parsedJson,
+        ...validation,
       });
     }
 
@@ -171,19 +301,7 @@ router.post("/test", async (req, res) => {
       const storage = createFtpStorage({ backend: "ftp", config: cfg });
       const parsed = parseSstPathFromRemote(cfg.root, sstPath);
       if (!parsed) return res.status(400).json({ error: "Could not build paths from sstPath" });
-
-      const onlineStat = await storage.stat(parsed.onlinePlayers);
-      const raw = await storage.readFile(parsed.onlinePlayers, "utf8");
-      let parsedJson = null;
-      try {
-        const json = JSON.parse(raw);
-        parsedJson = {
-          onlineCount: typeof json?.onlineCount === "number" ? json.onlineCount : null,
-          playersLen: Array.isArray(json?.players) ? json.players.length : null,
-        };
-      } catch {
-        // ignore
-      }
+      const validation = await validateOnlinePlayers(storage, parsed);
 
       return res.json({
         ok: true,
@@ -194,14 +312,19 @@ router.post("/test", async (req, res) => {
           onlinePlayers: parsed.onlinePlayers,
           resolvedOnlinePlayers: parsed.resolvedOnlinePlayers,
         },
-        stat: onlineStat,
-        parsed: parsedJson,
+        ...validation,
       });
     }
 
     return res.status(400).json({ error: "Unsupported backend" });
   } catch (err) {
-    return res.status(500).json({
+    const statusCode = Number.isInteger(err?.statusCode)
+      ? err.statusCode
+      : isNotFoundError(err)
+        ? 404
+        : 500;
+
+    return res.status(statusCode).json({
       ok: false,
       error: "Connection test failed",
       details: err?.message || String(err),

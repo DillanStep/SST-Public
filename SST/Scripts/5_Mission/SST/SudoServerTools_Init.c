@@ -549,6 +549,9 @@ modded class MissionServer
 		
 		if (GetGame().IsServer())
 		{
+			Print("[SST] MissionServer.OnInit - Ensuring runtime folders");
+			SST_RuntimePaths.EnsureProfileFolders();
+			
 			Print("[SST] MissionServer.OnInit - Starting Inventory Exporter");
 			SST_InventoryExporter.Start();
 			
@@ -846,4 +849,3 @@ class SST_OnlinePlayerTracker
 		// For now, we keep all players to maintain history
 	}
 }
-

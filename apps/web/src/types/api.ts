@@ -732,9 +732,9 @@ export interface TrackedVehicle {
   traderName?: string;
   traderZone?: string;
   purchasePrice?: number;
-  lastPosition?: number[];
+  lastPosition?: number[] | string | { x?: number; y?: number; z?: number; X?: number; Y?: number; Z?: number };
   lastUpdateTime?: string;
-  isDestroyed: boolean | number;
+  isDestroyed: boolean | number | string;
   keyData?: VehicleKeyData;           // Original key
   additionalKeys?: VehicleKeyData[];  // Additional keys generated
 }
@@ -756,7 +756,7 @@ export interface VehiclePosition {
   vehicleId: string;
   className: string;
   displayName?: string;
-  position?: number[];
+  position?: number[] | string | { x?: number; y?: number; z?: number; X?: number; Y?: number; Z?: number };
   lastUpdate?: string;
   ownerName: string;
   ownerId: string;

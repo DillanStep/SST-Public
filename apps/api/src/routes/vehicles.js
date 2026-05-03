@@ -14,9 +14,125 @@ const safeReadJson = async (filePath, defaultValue = []) => {
     }
     return JSON.parse(content);
   } catch (err) {
-    console.error(`[Vehicles] Error reading ${filePath}:`, err.message);
+    if (err?.code !== "ENOENT") {
+      console.error(`[Vehicles] Error reading ${filePath}:`, err.message);
+    }
     return defaultValue;
   }
+};
+
+const asArray = (data, possibleKeys = []) => {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+
+  for (const key of possibleKeys) {
+    if (Array.isArray(data[key])) return data[key];
+  }
+
+  return [];
+};
+
+const asString = (value, fallback = "") => {
+  if (value === undefined || value === null) return fallback;
+  return String(value);
+};
+
+const asNumber = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const normalizeBoolean = (value) => {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "0" || normalized === "") return false;
+  }
+
+  return Boolean(value);
+};
+
+const parseBooleanQuery = (value) => {
+  if (value === undefined) return undefined;
+  return normalizeBoolean(value);
+};
+
+const normalizePosition = (position) => {
+  let values = null;
+
+  if (Array.isArray(position)) {
+    values = position;
+  } else if (typeof position === "string") {
+    values = position.trim().split(/[,\s]+/);
+  } else if (position && typeof position === "object") {
+    values = [
+      position.x ?? position.X ?? position[0],
+      position.y ?? position.Y ?? position[1],
+      position.z ?? position.Z ?? position[2]
+    ];
+  }
+
+  if (!values || values.length < 3) return null;
+
+  const x = asNumber(values[0]);
+  const y = asNumber(values[1]);
+  const z = asNumber(values[2]);
+
+  if (x === null || y === null || z === null) return null;
+  return [x, y, z];
+};
+
+const normalizeTrackedVehicle = (vehicle) => {
+  const lastPosition = normalizePosition(vehicle?.lastPosition);
+  const purchasePrice = asNumber(vehicle?.purchasePrice);
+
+  return {
+    ...vehicle,
+    vehicleId: asString(vehicle?.vehicleId),
+    vehicleClassName: asString(vehicle?.vehicleClassName, "Unknown vehicle"),
+    vehicleDisplayName: asString(vehicle?.vehicleDisplayName, ""),
+    ownerId: asString(vehicle?.ownerId),
+    ownerName: asString(vehicle?.ownerName, "Unknown owner"),
+    keyClassName: asString(vehicle?.keyClassName, "ExpansionCarKey"),
+    purchaseTimestamp: asString(vehicle?.purchaseTimestamp),
+    lastPosition: lastPosition ?? undefined,
+    isDestroyed: normalizeBoolean(vehicle?.isDestroyed),
+    purchasePrice: purchasePrice ?? vehicle?.purchasePrice
+  };
+};
+
+const normalizePurchase = (purchase) => {
+  const purchasePosition = normalizePosition(purchase?.purchasePosition);
+  const purchasePrice = asNumber(purchase?.purchasePrice);
+
+  return {
+    ...purchase,
+    vehicleId: asString(purchase?.vehicleId),
+    vehicleClassName: asString(purchase?.vehicleClassName, "Unknown vehicle"),
+    vehicleDisplayName: asString(purchase?.vehicleDisplayName, ""),
+    ownerId: asString(purchase?.ownerId),
+    ownerName: asString(purchase?.ownerName, "Unknown owner"),
+    keyClassName: asString(purchase?.keyClassName, "ExpansionCarKey"),
+    timestamp: asString(purchase?.timestamp),
+    purchasePosition: purchasePosition ?? undefined,
+    purchasePrice: purchasePrice ?? purchase?.purchasePrice
+  };
+};
+
+const getTrackedVehicles = async () => {
+  const trackedFile = joinStoragePath(paths.sst, "vehicles", "tracked.json");
+  const data = await safeReadJson(trackedFile, []);
+  return asArray(data, ["vehicles", "tracked", "items"]).map(normalizeTrackedVehicle);
+};
+
+const getVehiclePurchases = async () => {
+  const purchasesFile = joinStoragePath(paths.sst, "vehicles", "purchases.json");
+  const data = await safeReadJson(purchasesFile, []);
+  return asArray(data, ["purchases", "vehicles", "items"]).map(normalizePurchase);
 };
 
 const exists = async (filePath) => {
@@ -37,11 +153,7 @@ const ensureDirectories = async () => {
 // GET /vehicles - List all tracked vehicles
 router.get("/", async (req, res) => {
   try {
-    const trackedFile = joinStoragePath(paths.sst, "vehicles", "tracked.json");
-    const vehicles = await safeReadJson(trackedFile, []);
-    
-    // Ensure vehicles is an array
-    const vehicleList = Array.isArray(vehicles) ? vehicles : [];
+    const vehicleList = await getTrackedVehicles();
     
     // Optional filtering
     const { ownerId, className, destroyed } = req.query;
@@ -53,18 +165,15 @@ router.get("/", async (req, res) => {
     }
     
     if (className) {
+      const classNameQuery = String(className).toLowerCase();
       filtered = filtered.filter(v => 
-        v.vehicleClassName?.toLowerCase().includes(className.toLowerCase())
+        v.vehicleClassName.toLowerCase().includes(classNameQuery)
       );
     }
     
     if (destroyed !== undefined) {
-      const isDestroyed = destroyed === 'true';
-      // Handle both boolean and number (0/1) values for isDestroyed
-      filtered = filtered.filter(v => {
-        const vehicleDestroyed = v.isDestroyed === true || v.isDestroyed === 1;
-        return vehicleDestroyed === isDestroyed;
-      });
+      const isDestroyed = parseBooleanQuery(destroyed);
+      filtered = filtered.filter(v => v.isDestroyed === isDestroyed);
     }
     
     res.json({
@@ -87,10 +196,11 @@ router.get("/delete-results/all", async (req, res) => {
   try {
     const resultsFile = joinStoragePath(paths.api, "vehicle_delete_results.json");
     const data = await safeReadJson(resultsFile, { requests: [] });
+    const results = Array.isArray(data.requests) ? data.requests : [];
     
     res.json({
-      results: data.requests || [],
-      count: (data.requests || []).length
+      results,
+      count: results.length
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -102,11 +212,7 @@ router.get("/purchases/all", async (req, res) => {
   try {
     await ensureDirectories();
     
-    const purchasesFile = joinStoragePath(paths.sst, "vehicles", "purchases.json");
-    const purchases = await safeReadJson(purchasesFile, []);
-    
-    // Ensure purchases is an array
-    const purchaseList = Array.isArray(purchases) ? purchases : [];
+    const purchaseList = await getVehiclePurchases();
     
     // Optional filtering
     const { ownerId, className, limit } = req.query;
@@ -118,16 +224,20 @@ router.get("/purchases/all", async (req, res) => {
     }
     
     if (className) {
+      const classNameQuery = String(className).toLowerCase();
       filtered = filtered.filter(p => 
-        p.vehicleClassName?.toLowerCase().includes(className.toLowerCase())
+        p.vehicleClassName.toLowerCase().includes(classNameQuery)
       );
     }
     
     // Sort by timestamp descending (newest first)
-    filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    filtered.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
     
     if (limit) {
-      filtered = filtered.slice(0, parseInt(limit));
+      const parsedLimit = Number.parseInt(limit, 10);
+      if (Number.isFinite(parsedLimit) && parsedLimit > 0) {
+        filtered = filtered.slice(0, parsedLimit);
+      }
     }
     
     res.json({
@@ -146,10 +256,11 @@ router.get("/key-results/all", async (req, res) => {
   try {
     const resultsFile = joinStoragePath(paths.api, "key_grants_results.json");
     const data = await safeReadJson(resultsFile, { requests: [] });
+    const results = Array.isArray(data.requests) ? data.requests : [];
     
     res.json({
-      results: data.requests || [],
-      count: (data.requests || []).length
+      results,
+      count: results.length
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -161,9 +272,7 @@ router.get("/by-owner/:ownerId", async (req, res) => {
   try {
     const { ownerId } = req.params;
     
-    const trackedFile = joinStoragePath(paths.sst, "vehicles", "tracked.json");
-    const vehicles = await safeReadJson(trackedFile, []);
-    
+    const vehicles = await getTrackedVehicles();
     const owned = vehicles.filter(v => v.ownerId === ownerId);
     
     res.json({
@@ -179,17 +288,16 @@ router.get("/by-owner/:ownerId", async (req, res) => {
 // GET /vehicles/positions/all - Get all vehicle positions for map display
 router.get("/positions/all", async (req, res) => {
   try {
-    const trackedFile = joinStoragePath(paths.sst, "vehicles", "tracked.json");
-    const vehicles = await safeReadJson(trackedFile, []);
+    const vehicles = await getTrackedVehicles();
     
     // Extract just position data for map display
     const positions = vehicles
-      .filter(v => !v.isDestroyed)
+      .filter(v => !v.isDestroyed && normalizePosition(v.lastPosition))
       .map(v => ({
         vehicleId: v.vehicleId,
         className: v.vehicleClassName,
         displayName: v.vehicleDisplayName,
-        position: v.lastPosition,
+        position: normalizePosition(v.lastPosition),
         lastUpdate: v.lastUpdateTime,
         ownerName: v.ownerName,
         ownerId: v.ownerId
@@ -214,8 +322,7 @@ router.get("/:vehicleId", async (req, res) => {
   try {
     const { vehicleId } = req.params;
     
-    const trackedFile = joinStoragePath(paths.sst, "vehicles", "tracked.json");
-    const vehicles = await safeReadJson(trackedFile, []);
+    const vehicles = await getTrackedVehicles();
     
     if (vehicles.length === 0) {
       return res.status(404).json({ error: "No vehicles tracked yet" });
@@ -253,8 +360,7 @@ router.delete("/:vehicleId", async (req, res) => {
     let vehicleInfo = null;
     
     if (await exists(trackedFile)) {
-      const content = await readFile(trackedFile, "utf8");
-      const vehicles = JSON.parse(content);
+      const vehicles = await getTrackedVehicles();
       vehicleInfo = vehicles.find(v => v.vehicleId === vehicleId);
     }
     
@@ -275,14 +381,8 @@ router.delete("/:vehicleId", async (req, res) => {
     
     // Load existing queue or create new one
     const queueFile = joinStoragePath(paths.api, "vehicle_delete.json");
-    let queue = { requests: [] };
-    
-    if (await exists(queueFile)) {
-      try {
-        const content = await readFile(queueFile, "utf8");
-        queue = JSON.parse(content);
-      } catch {}
-    }
+    const queue = await safeReadJson(queueFile, { requests: [] });
+    if (!Array.isArray(queue.requests)) queue.requests = [];
     
     queue.requests.push(request);
     
@@ -328,8 +428,7 @@ router.post("/generate-key", async (req, res) => {
     }
     
     // Check if vehicle exists in tracked list
-    const trackedFile = joinStoragePath(paths.sst, "vehicles", "tracked.json");
-    const vehicles = await safeReadJson(trackedFile, []);
+    const vehicles = await getTrackedVehicles();
     const vehicle = vehicles.find(v => v.vehicleId === vehicleId);
     
     if (!vehicle) {
@@ -350,7 +449,7 @@ router.post("/generate-key", async (req, res) => {
     // Load existing queue or create new one
     const queueFile = joinStoragePath(paths.api, "key_grants.json");
     const queue = await safeReadJson(queueFile, { requests: [] });
-    if (!queue.requests) queue.requests = [];
+    if (!Array.isArray(queue.requests)) queue.requests = [];
     
     queue.requests.push(request);
     

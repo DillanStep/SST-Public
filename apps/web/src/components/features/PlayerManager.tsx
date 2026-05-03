@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, RefreshCw, Package, Calendar, Gift, Send, 
   CheckCircle, XCircle, Clock, ChevronLeft, Activity, Search,
-  MapPin, Heart, Droplets, Zap, Wifi, WifiOff, X, Plus, Minus, ArrowDown, ArrowUp,
-  DollarSign
+  MapPin, Heart, Droplets, Zap, Wifi, WifiOff, X, ArrowDown, ArrowUp,
+  DollarSign, Skull, LogIn, LogOut, UserPlus, RotateCw, Backpack, PackagePlus,
+  PackageMinus, ShieldPlus
 } from 'lucide-react';
 import L from 'leaflet';
 import { MapContainer, ImageOverlay, CircleMarker, useMap } from 'react-leaflet';
@@ -46,6 +47,151 @@ function formatTimeAgo(timestamp: string): string {
   if (diffHour > 0) return `${diffHour}h ago`;
   if (diffMin > 0) return `${diffMin}m ago`;
   return 'Just now';
+}
+
+type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
+
+interface EventVisual {
+  label: string;
+  icon: React.ReactNode;
+  rowClass: string;
+  iconClass: string;
+  badgeVariant: BadgeVariant;
+  markerColor: string;
+}
+
+function formatEventTypeLabel(eventType: string): string {
+  return eventType
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function getItemEventVisual(eventType: string): EventVisual {
+  const type = eventType.toUpperCase();
+
+  if (['PICKED_UP', 'PICKUP', 'TAKE', 'TAKEN', 'LOOTED'].includes(type)) {
+    return {
+      label: 'Looted',
+      icon: <Backpack size={15} />,
+      rowClass: 'bg-green-50 border-green-200',
+      iconClass: 'bg-green-100 text-green-700 border-green-200',
+      badgeVariant: 'success',
+      markerColor: '#22c55e',
+    };
+  }
+
+  if (['DROPPED', 'DROP'].includes(type)) {
+    return {
+      label: 'Dropped',
+      icon: <PackageMinus size={15} />,
+      rowClass: 'bg-amber-50 border-amber-200',
+      iconClass: 'bg-amber-100 text-amber-700 border-amber-200',
+      badgeVariant: 'warning',
+      markerColor: '#f59e0b',
+    };
+  }
+
+  if (['ADDED', 'GRANTED', 'SPAWNED'].includes(type)) {
+    return {
+      label: 'Granted',
+      icon: <PackagePlus size={15} />,
+      rowClass: 'bg-primary-50 border-primary-200',
+      iconClass: 'bg-primary-100 text-primary-700 border-primary-200',
+      badgeVariant: 'info',
+      markerColor: '#0ea5e9',
+    };
+  }
+
+  if (['REMOVED', 'REMOVE', 'DELETED', 'DESTROYED'].includes(type)) {
+    return {
+      label: 'Removed',
+      icon: <PackageMinus size={15} />,
+      rowClass: 'bg-red-50 border-red-200',
+      iconClass: 'bg-red-100 text-red-700 border-red-200',
+      badgeVariant: 'error',
+      markerColor: '#ef4444',
+    };
+  }
+
+  if (['EQUIPPED', 'EQUIP', 'ATTACHED', 'ATTACH'].includes(type)) {
+    return {
+      label: formatEventTypeLabel(eventType),
+      icon: <ShieldPlus size={15} />,
+      rowClass: 'bg-sky-50 border-sky-200',
+      iconClass: 'bg-sky-100 text-sky-700 border-sky-200',
+      badgeVariant: 'info',
+      markerColor: '#0ea5e9',
+    };
+  }
+
+  return {
+    label: formatEventTypeLabel(eventType),
+    icon: <Package size={15} />,
+    rowClass: 'bg-surface-50 border-surface-200',
+    iconClass: 'bg-surface-100 text-surface-600 border-surface-200',
+    badgeVariant: 'default',
+    markerColor: '#6b7280',
+  };
+}
+
+function getLifeEventVisual(eventType: string): EventVisual {
+  switch (eventType) {
+    case 'DIED':
+      return {
+        label: 'Died',
+        icon: <Skull size={16} />,
+        rowClass: 'bg-red-50 border-red-200',
+        iconClass: 'bg-red-100 text-red-700 border-red-200',
+        badgeVariant: 'error',
+        markerColor: '#ef4444',
+      };
+    case 'SPAWNED':
+      return {
+        label: 'Spawned',
+        icon: <UserPlus size={16} />,
+        rowClass: 'bg-green-50 border-green-200',
+        iconClass: 'bg-green-100 text-green-700 border-green-200',
+        badgeVariant: 'success',
+        markerColor: '#22c55e',
+      };
+    case 'RESPAWNED':
+      return {
+        label: 'Respawned',
+        icon: <RotateCw size={16} />,
+        rowClass: 'bg-green-50 border-green-200',
+        iconClass: 'bg-green-100 text-green-700 border-green-200',
+        badgeVariant: 'success',
+        markerColor: '#22c55e',
+      };
+    case 'CONNECTED':
+      return {
+        label: 'Connected',
+        icon: <LogIn size={16} />,
+        rowClass: 'bg-primary-50 border-primary-200',
+        iconClass: 'bg-primary-100 text-primary-700 border-primary-200',
+        badgeVariant: 'info',
+        markerColor: '#0ea5e9',
+      };
+    case 'DISCONNECTED':
+      return {
+        label: 'Disconnected',
+        icon: <LogOut size={16} />,
+        rowClass: 'bg-amber-50 border-amber-200',
+        iconClass: 'bg-amber-100 text-amber-700 border-amber-200',
+        badgeVariant: 'warning',
+        markerColor: '#f59e0b',
+      };
+    default:
+      return {
+        label: formatEventTypeLabel(eventType),
+        icon: <Activity size={16} />,
+        rowClass: 'bg-surface-50 border-surface-200',
+        iconClass: 'bg-surface-100 text-surface-600 border-surface-200',
+        badgeVariant: 'default',
+        markerColor: '#6b7280',
+      };
+  }
 }
 
 // Item type categorization for proper quantity display in events
@@ -494,8 +640,8 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
 
     const tabs: { id: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
       { id: 'inventory', label: 'Inventory', icon: <Package size={16} />, count: totalItems },
-      { id: 'events', label: 'Item Events', icon: <Calendar size={16} />, count: itemEvents.length },
-      { id: 'life', label: 'Life Events', icon: <Activity size={16} />, count: lifeEvents.length },
+      { id: 'events', label: 'Item Events', icon: <Backpack size={16} />, count: itemEvents.length },
+      { id: 'life', label: 'Life Events', icon: <Skull size={16} />, count: lifeEvents.length },
       { id: 'trades', label: 'Trades', icon: <ArrowDown size={16} />, count: trades.length },
       { id: 'grant', label: 'Grant Items', icon: <Gift size={16} /> },
     ];
@@ -639,21 +785,9 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                   {[...itemEvents].sort((a, b) => 
                     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
                   ).map((event, idx) => {
-                    const eventIcon = event.eventType === 'PICKED_UP' || event.eventType === 'PICKUP' ? (
-                      <ArrowUp size={12} className="text-green-500" />
-                    ) : event.eventType === 'DROPPED' || event.eventType === 'DROP' ? (
-                      <ArrowDown size={12} className="text-amber-500" />
-                    ) : event.eventType === 'ADDED' ? (
-                      <Plus size={12} className="text-blue-500" />
-                    ) : event.eventType === 'REMOVED' || event.eventType === 'REMOVE' ? (
-                      <Minus size={12} className="text-red-500" />
-                    ) : null;
-                    
-                    const bgColor = event.eventType === 'PICKED_UP' || event.eventType === 'PICKUP' ? 'bg-green-50 border-green-200' :
-                      event.eventType === 'DROPPED' || event.eventType === 'DROP' ? 'bg-amber-50 border-amber-200' :
-                      event.eventType === 'ADDED' ? 'bg-blue-50 border-blue-200' :
-                      event.eventType === 'REMOVED' || event.eventType === 'REMOVE' ? 'bg-red-50 border-red-200' : 
-                      'bg-surface-50 border-surface-200';
+                    const visual = getItemEventVisual(event.eventType);
+                    const itemName = event.itemDisplayName || event.itemClassName || 'Unknown item';
+                    const itemClassName = event.itemClassName || itemName;
                     
                     // Check if position is valid (exists and not at origin 0,0,0)
                     const hasPosition = event.position && 
@@ -666,22 +800,35 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                         key={idx}
                         onClick={() => hasPosition && setSelectedEvent(event)}
                         disabled={!hasPosition}
-                        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded border ${bgColor} ${
+                        className={`w-full text-left flex items-start gap-3 px-3 py-2 rounded-lg border ${visual.rowClass} ${
                           hasPosition ? 'hover:ring-2 hover:ring-primary-300 cursor-pointer' : 'cursor-default'
                         } transition-all`}
                       >
-                        {eventIcon}
-                        <span className="text-sm font-medium text-surface-800 truncate flex-1">
-                          {event.itemClassName}
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${visual.iconClass}`}>
+                          {visual.icon}
                         </span>
-                        <span className="text-xs text-surface-500">
-                          {formatEventQuantity(event.itemClassName || '', event.itemQuantity || 1)}
-                        </span>
-                        {hasPosition && (
-                          <MapPin size={12} className="text-primary-500" />
-                        )}
-                        <span className="text-xs text-surface-400 w-16 text-right">
-                          {timeAgo}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-surface-800 truncate">
+                              {itemName}
+                            </span>
+                            <Badge variant={visual.badgeVariant} className="shrink-0">
+                              {visual.label}
+                            </Badge>
+                          </span>
+                          <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-surface-500">
+                            {event.itemDisplayName && event.itemClassName && event.itemDisplayName !== event.itemClassName && (
+                              <span className="truncate">{event.itemClassName}</span>
+                            )}
+                            <span>{formatEventQuantity(itemClassName, event.itemQuantity || 1)}</span>
+                            {hasPosition && (
+                              <span className="inline-flex items-center gap-1 text-primary-600">
+                                <MapPin size={12} />
+                                Location
+                              </span>
+                            )}
+                            <span className="text-surface-400">{timeAgo}</span>
+                          </span>
                         </span>
                       </button>
                     );
@@ -741,10 +888,7 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                       radius={12}
                       pathOptions={{
                         color: '#fff',
-                        fillColor: selectedEvent.eventType === 'PICKED_UP' || selectedEvent.eventType === 'PICKUP' ? '#22c55e' :
-                          selectedEvent.eventType === 'DROPPED' || selectedEvent.eventType === 'DROP' ? '#f59e0b' :
-                          selectedEvent.eventType === 'ADDED' ? '#0ea5e9' :
-                          selectedEvent.eventType === 'REMOVED' || selectedEvent.eventType === 'REMOVE' ? '#ef4444' : '#6b7280',
+                        fillColor: getItemEventVisual(selectedEvent.eventType).markerColor,
                         fillOpacity: 0.9,
                         weight: 3,
                       }}
@@ -764,13 +908,8 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                         <span className="text-surface-500">Health: <span className="text-surface-800 font-medium">{Math.round(selectedEvent.itemHealth)}%</span></span>
                       )}
                     </div>
-                    <Badge variant={
-                      selectedEvent.eventType === 'PICKED_UP' || selectedEvent.eventType === 'PICKUP' ? 'success' :
-                      selectedEvent.eventType === 'DROPPED' || selectedEvent.eventType === 'DROP' ? 'warning' :
-                      selectedEvent.eventType === 'ADDED' ? 'info' :
-                      selectedEvent.eventType === 'REMOVED' || selectedEvent.eventType === 'REMOVE' ? 'error' : 'default'
-                    }>
-                      {selectedEvent.eventType}
+                    <Badge variant={getItemEventVisual(selectedEvent.eventType).badgeVariant}>
+                      {getItemEventVisual(selectedEvent.eventType).label}
                     </Badge>
                   </div>
                 </div>
@@ -783,34 +922,39 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
             <div>
               {lifeEvents.length > 0 ? (
                 <div className="space-y-2">
-                  {lifeEvents.map((event, idx) => (
-                    <div 
-                      key={idx}
-                      className="bg-surface-50 rounded-lg px-4 py-3 border border-surface-200 flex items-start gap-3"
-                    >
-                      <Badge 
-                        variant={
-                          event.eventType === 'DIED' ? 'error' : 
-                          (event.eventType === 'SPAWNED' || event.eventType === 'RESPAWNED') ? 'success' : 
-                          event.eventType === 'CONNECTED' ? 'info' : 
-                          event.eventType === 'DISCONNECTED' ? 'warning' : 'default'
-                        }
+                  {lifeEvents.map((event, idx) => {
+                    const visual = getLifeEventVisual(event.eventType);
+                    const timeAgo = formatTimeAgo(event.timestamp);
+
+                    return (
+                      <div 
+                        key={idx}
+                        className={`rounded-lg px-4 py-3 border flex items-start gap-3 ${visual.rowClass}`}
                       >
-                        {event.eventType}
-                      </Badge>
-                      <div className="flex-1">
-                        <div className="text-surface-600">
-                          {event.eventType === 'DIED' && event.causeOfDeath && (
-                            <span>Cause: <span className="text-red-700">{event.causeOfDeath}</span></span>
-                          )}
-                          {event.eventType !== 'DIED' && (
-                            <span className="text-surface-800">{event.playerName}</span>
-                          )}
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${visual.iconClass}`}>
+                          {visual.icon}
                         </div>
-                        <div className="text-surface-500 text-sm mt-1">{event.timestamp}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={visual.badgeVariant}>
+                              {visual.label}
+                            </Badge>
+                            <span className="font-medium text-surface-800 truncate">{event.playerName}</span>
+                          </div>
+                          <div className="mt-1 text-sm text-surface-600">
+                            {event.eventType === 'DIED' && event.causeOfDeath ? (
+                              <span>Cause: <span className="text-red-700">{event.causeOfDeath}</span></span>
+                            ) : (
+                              <span>{visual.label} event recorded for {event.playerName}</span>
+                            )}
+                          </div>
+                          <div className="text-surface-500 text-sm mt-1">
+                            {new Date(event.timestamp).toLocaleString()} - {timeAgo}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-surface-500">

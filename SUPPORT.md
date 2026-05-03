@@ -14,6 +14,7 @@ Check:
 
 ## Where To Ask
 
+- Discord community support: https://discord.gg/jv52WVbFdj
 - Use a bug report for reproducible problems in SST.
 - Use a support question for installation or configuration help.
 - Use a feature request for new behavior or integrations.

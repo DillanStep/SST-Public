@@ -33,6 +33,7 @@ import logsRoutes from "./routes/logs.js";
 import positionsRoutes from "./routes/positions.js";
 import archiveRoutes from "./routes/archive.js";
 import vehiclesRoutes from "./routes/vehicles.js";
+import updateRoutes from "./routes/updates.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -180,6 +181,7 @@ app.use("/logs", requireAuth, requireApiKey, logsRoutes);
 app.use("/positions", requireAuth, requireApiKey, positionsRoutes);
 app.use("/archive", requireAuth, requireApiKey, archiveRoutes);
 app.use("/vehicles", requireAuth, requireApiKey, vehiclesRoutes);
+app.use("/updates", requireAuth, requireApiKey, requireAdmin, updateRoutes);
 
 // SPA fallback: serve index.html for any non-API routes (client-side routing)
 if (existsSync(webDistPath)) {
@@ -250,7 +252,7 @@ async function startServer() {
       logConfig();
     }
     
-    // Initialize auth database (creates tables and default admin if needed)
+    // Initialize auth database (creates tables and optional bootstrap admin if enabled)
     await initAuthDb();
     
     // Initialize archive database
