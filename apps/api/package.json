@@ -1,6 +1,6 @@
 {
   "name": "sst-node-api",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "SST Node API for DayZ server management",
   "main": "src/server.js",
   "type": "module",

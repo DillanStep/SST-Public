@@ -5,6 +5,12 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-05-03
+
+### Changed
+- Improved player item and life event logs with themed survival icons, clearer badges, and matching map marker colors.
+- Bumped package metadata so the GitHub updater can advertise this patch release.
+
 ## [1.0.0] - 2025-01-17
 
 ### Added
