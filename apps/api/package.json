@@ -27,7 +27,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
     "bcryptjs": "^3.0.3",
-    "basic-ftp": "^5.0.5",
+    "basic-ftp": "^6.0.0",
     "better-sqlite3": "^12.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
