@@ -25,6 +25,77 @@ function dzToMap(x: number, z: number): [number, number] {
   return [z, x];
 }
 
+type Vector3 = [number, number, number];
+
+function toFiniteNumber(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizePosition(position: unknown): Vector3 | null {
+  let values: unknown[] | null = null;
+
+  if (Array.isArray(position)) {
+    values = position;
+  } else if (typeof position === 'string') {
+    values = position.trim().split(/[,\s]+/);
+  } else if (position && typeof position === 'object') {
+    const vector = position as Record<string, unknown>;
+    values = [
+      vector.x ?? vector.X ?? vector['0'],
+      vector.y ?? vector.Y ?? vector['1'],
+      vector.z ?? vector.Z ?? vector['2'],
+    ];
+  }
+
+  if (!values || values.length < 3) return null;
+
+  const x = toFiniteNumber(values[0]);
+  const y = toFiniteNumber(values[1]);
+  const z = toFiniteNumber(values[2]);
+
+  if (x === null || y === null || z === null) return null;
+  return [x, y, z];
+}
+
+function isVehicleDestroyed(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1';
+  }
+
+  return Boolean(value);
+}
+
+function getVehicleName(vehicle: Pick<TrackedVehicle, 'vehicleClassName' | 'vehicleDisplayName'> | Pick<VehiclePosition, 'className' | 'displayName'>): string {
+  if ('vehicleClassName' in vehicle) {
+    return vehicle.vehicleDisplayName || vehicle.vehicleClassName || 'Unknown vehicle';
+  }
+
+  return vehicle.displayName || vehicle.className || 'Unknown vehicle';
+}
+
+function formatPosition(position: unknown, includeY = false): string {
+  const vector = normalizePosition(position);
+  if (!vector) return 'Unknown';
+
+  if (includeY) {
+    return `${Math.round(vector[0])}, ${Math.round(vector[1])}, ${Math.round(vector[2])}`;
+  }
+
+  return `${Math.round(vector[0])}, ${Math.round(vector[2])}`;
+}
+
+function formatPrice(value: unknown): string {
+  const number = toFiniteNumber(value);
+  if (number !== null) return number.toLocaleString();
+  return String(value || 'Unknown');
+}
+
 // Vehicle marker component
 const VehicleMarker = memo(({
   vehicle,
@@ -33,7 +104,10 @@ const VehicleMarker = memo(({
   vehicle: VehiclePosition;
   onClick: () => void;
 }) => {
-  const position = dzToMap(vehicle.position?.[0] || 0, vehicle.position?.[2] || 0);
+  const vehiclePosition = normalizePosition(vehicle.position);
+  if (!vehiclePosition) return null;
+
+  const position = dzToMap(vehiclePosition[0], vehiclePosition[2]);
 
   return (
     <CircleMarker
@@ -53,14 +127,14 @@ const VehicleMarker = memo(({
         <div className="text-sm min-w-[180px]">
           <div className="font-bold text-gray-900 flex items-center gap-2">
             <Car size={14} />
-            {vehicle.displayName || vehicle.className}
+            {getVehicleName(vehicle)}
           </div>
           <div className="text-gray-600 mt-1 text-xs">
-            Owner: {vehicle.ownerName}
+            Owner: {vehicle.ownerName || 'Unknown owner'}
           </div>
           <div className="text-gray-500 text-xs mt-1">
             <MapPin size={10} className="inline mr-1" />
-            {Math.round(vehicle.position?.[0] || 0)}, {Math.round(vehicle.position?.[2] || 0)}
+            {formatPosition(vehiclePosition)}
           </div>
           <button
             onClick={onClick}
@@ -135,9 +209,9 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
         getKeyGenerationResults()
       ]);
 
-      setVehicles(vehiclesData.vehicles || []);
-      setPositions(positionsData.positions || []);
-      setKeyResults(resultsData.results || []);
+      setVehicles(Array.isArray(vehiclesData.vehicles) ? vehiclesData.vehicles : []);
+      setPositions((Array.isArray(positionsData.positions) ? positionsData.positions : []).filter(vehicle => normalizePosition(vehicle.position)));
+      setKeyResults(Array.isArray(resultsData.results) ? resultsData.results : []);
       setLastUpdate(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load vehicle data');
@@ -165,13 +239,15 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
   const filteredVehicles = useMemo(() => {
     let result = vehicles;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
       result = result.filter(v =>
-        v.vehicleClassName.toLowerCase().includes(query) ||
-        v.vehicleDisplayName?.toLowerCase().includes(query) ||
-        v.ownerName.toLowerCase().includes(query) ||
-        v.vehicleId.includes(query)
+        [
+          v.vehicleClassName,
+          v.vehicleDisplayName,
+          v.ownerName,
+          v.vehicleId,
+        ].some(value => String(value || '').toLowerCase().includes(query))
       );
     }
 
@@ -186,8 +262,8 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
   const uniqueOwners = useMemo(() => {
     const owners = new Map<string, string>();
     vehicles.forEach(v => {
-      if (!owners.has(v.ownerId)) {
-        owners.set(v.ownerId, v.ownerName);
+      if (v.ownerId && !owners.has(v.ownerId)) {
+        owners.set(v.ownerId, v.ownerName || 'Unknown owner');
       }
     });
     return Array.from(owners.entries()).map(([id, name]) => ({ id, name }));
@@ -196,7 +272,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
   // Open key generation modal
   const openKeyModal = (vehicle: TrackedVehicle) => {
     setKeyVehicle(vehicle);
-    setKeyPlayerId(vehicle.ownerId);
+    setKeyPlayerId(vehicle.ownerId || '');
     setKeyClassName(vehicle.keyClassName || 'ExpansionCarKey');
     setIsMasterKey(false);
     setKeyMessage(null);
@@ -212,7 +288,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
 
     try {
       const request: KeyGenerationRequest = {
-        playerId: keyPlayerId,
+        playerId: keyPlayerId.trim(),
         vehicleId: keyVehicle.vehicleId,
         keyClassName,
         isMasterKey
@@ -227,7 +303,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
 
       // Refresh key results after a moment
       setTimeout(() => {
-        getKeyGenerationResults().then(data => setKeyResults(data.results || []));
+        getKeyGenerationResults().then(data => setKeyResults(Array.isArray(data.results) ? data.results : []));
       }, 2000);
     } catch (err) {
       setKeyMessage({
@@ -286,6 +362,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
   const formatTime = (timestamp?: string) => {
     if (!timestamp) return 'Unknown';
     const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
     return date.toLocaleString();
   };
 
@@ -379,50 +456,53 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
               </div>
             ) : filteredVehicles.length > 0 ? (
               <div className="space-y-2">
-                {filteredVehicles.map((vehicle) => (
-                  <button
-                    key={vehicle.vehicleId}
-                    onClick={() => setSelectedVehicle(vehicle)}
-                    className={`w-full text-left rounded-lg p-3 border transition-colors ${vehicle.isDestroyed
-                        ? 'bg-red-50 border-red-200 hover:border-red-400'
-                        : 'bg-surface-50 border-surface-200 hover:border-primary-500'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Car size={16} className={vehicle.isDestroyed ? 'text-red-500' : 'text-emerald-500'} />
-                      <span className="font-medium text-surface-800 truncate flex-1">
-                        {vehicle.vehicleDisplayName || vehicle.vehicleClassName}
-                      </span>
-                      {vehicle.isDestroyed && (
-                        <Badge variant="error">Destroyed</Badge>
-                      )}
-                    </div>
+                {filteredVehicles.map((vehicle) => {
+                  const destroyed = isVehicleDestroyed(vehicle.isDestroyed);
+                  const position = normalizePosition(vehicle.lastPosition);
 
-                    <div className="text-xs text-surface-500 space-y-0.5">
-                      <div className="flex items-center gap-1">
-                        <User size={10} />
-                        <span>{vehicle.ownerName}</span>
-                      </div>
-                      {vehicle.lastPosition && (
-                        <div className="flex items-center gap-1">
-                          <MapPin size={10} />
-                          <span>
-                            {Math.round(vehicle.lastPosition[0])}, {Math.round(vehicle.lastPosition[2])}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <Key size={10} />
-                        <span className="truncate">{vehicle.keyClassName}</span>
-                        {(vehicle.additionalKeys?.length ?? 0) > 0 && (
-                          <Badge variant="info" className="ml-1 text-[10px] px-1 py-0">
-                            +{vehicle.additionalKeys!.length}
-                          </Badge>
+                  return (
+                    <button
+                      key={vehicle.vehicleId}
+                      onClick={() => setSelectedVehicle(vehicle)}
+                      className={`w-full text-left rounded-lg p-3 border transition-colors ${destroyed
+                          ? 'bg-red-50 border-red-200 hover:border-red-400'
+                          : 'bg-surface-50 border-surface-200 hover:border-primary-500'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Car size={16} className={destroyed ? 'text-red-500' : 'text-emerald-500'} />
+                        <span className="font-medium text-surface-800 truncate flex-1">
+                          {getVehicleName(vehicle)}
+                        </span>
+                        {destroyed && (
+                          <Badge variant="error">Destroyed</Badge>
                         )}
                       </div>
-                    </div>
-                  </button>
-                ))}
+
+                      <div className="text-xs text-surface-500 space-y-0.5">
+                        <div className="flex items-center gap-1">
+                          <User size={10} />
+                          <span>{vehicle.ownerName || 'Unknown owner'}</span>
+                        </div>
+                        {position && (
+                          <div className="flex items-center gap-1">
+                            <MapPin size={10} />
+                            <span>{formatPosition(position)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Key size={10} />
+                          <span className="truncate">{vehicle.keyClassName || 'ExpansionCarKey'}</span>
+                          {(vehicle.additionalKeys?.length ?? 0) > 0 && (
+                            <Badge variant="info" className="ml-1 text-[10px] px-1 py-0">
+                              +{vehicle.additionalKeys!.length}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-surface-500 text-sm">
@@ -483,14 +563,14 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
         >
           <SetView />
           <ImageOverlay
-            url="/chernarus.png"
+            url="/maps/chernarus.jpg"
             bounds={bounds}
           />
 
           {/* Vehicle markers */}
-          {positions.map((vehicle) => (
+          {positions.map((vehicle, index) => (
             <VehicleMarker
-              key={vehicle.vehicleId}
+              key={vehicle.vehicleId || `${vehicle.className || 'vehicle'}-${index}`}
               vehicle={vehicle}
               onClick={() => {
                 const fullVehicle = vehicles.find(v => v.vehicleId === vehicle.vehicleId);
@@ -519,21 +599,21 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
               {/* Vehicle Info */}
               <div>
                 <h4 className="font-medium text-surface-800 mb-2">
-                  {selectedVehicle.vehicleDisplayName || selectedVehicle.vehicleClassName}
+                  {getVehicleName(selectedVehicle)}
                 </h4>
                 <div className="text-sm text-surface-600 space-y-1">
                   <div className="flex justify-between">
                     <span className="text-surface-500">Vehicle ID:</span>
-                    <span className="font-mono text-xs">{selectedVehicle.vehicleId}</span>
+                    <span className="font-mono text-xs">{selectedVehicle.vehicleId || 'Unknown'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Class Name:</span>
-                    <span>{selectedVehicle.vehicleClassName}</span>
+                    <span>{selectedVehicle.vehicleClassName || 'Unknown vehicle'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Status:</span>
-                    <Badge variant={selectedVehicle.isDestroyed ? 'error' : 'success'}>
-                      {selectedVehicle.isDestroyed ? 'Destroyed' : 'Active'}
+                    <Badge variant={isVehicleDestroyed(selectedVehicle.isDestroyed) ? 'error' : 'success'}>
+                      {isVehicleDestroyed(selectedVehicle.isDestroyed) ? 'Destroyed' : 'Active'}
                     </Badge>
                   </div>
                 </div>
@@ -548,35 +628,38 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="text-surface-500">Name:</span>
-                    <span>{selectedVehicle.ownerName}</span>
+                    <span>{selectedVehicle.ownerName || 'Unknown owner'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Player ID:</span>
-                    <span className="font-mono text-xs">{selectedVehicle.ownerId}</span>
+                    <span className="font-mono text-xs">{selectedVehicle.ownerId || 'Unknown'}</span>
                   </div>
                 </div>
               </div>
 
               {/* Position */}
-              {selectedVehicle.lastPosition && (
-                <div className="p-3 bg-surface-50 rounded-lg">
-                  <h5 className="text-sm font-medium text-surface-700 mb-2 flex items-center gap-2">
-                    <MapPin size={14} />
-                    Last Known Position
-                  </h5>
-                  <div className="text-sm">
-                    <span className="font-mono">
-                      {Math.round(selectedVehicle.lastPosition[0])}, {Math.round(selectedVehicle.lastPosition[1])}, {Math.round(selectedVehicle.lastPosition[2])}
-                    </span>
-                    {selectedVehicle.lastUpdateTime && (
-                      <div className="text-xs text-surface-500 mt-1">
-                        <Clock size={10} className="inline mr-1" />
-                        Updated: {formatTime(selectedVehicle.lastUpdateTime)}
-                      </div>
-                    )}
+              {(() => {
+                const position = normalizePosition(selectedVehicle.lastPosition);
+                if (!position) return null;
+
+                return (
+                  <div className="p-3 bg-surface-50 rounded-lg">
+                    <h5 className="text-sm font-medium text-surface-700 mb-2 flex items-center gap-2">
+                      <MapPin size={14} />
+                      Last Known Position
+                    </h5>
+                    <div className="text-sm">
+                      <span className="font-mono">{formatPosition(position, true)}</span>
+                      {selectedVehicle.lastUpdateTime && (
+                        <div className="text-xs text-surface-500 mt-1">
+                          <Clock size={10} className="inline mr-1" />
+                          Updated: {formatTime(selectedVehicle.lastUpdateTime)}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Purchase Info */}
               <div className="p-3 bg-surface-50 rounded-lg">
@@ -587,12 +670,12 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                 <div className="text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="text-surface-500">Key Type:</span>
-                    <span>{selectedVehicle.keyClassName}</span>
+                    <span>{selectedVehicle.keyClassName || 'ExpansionCarKey'}</span>
                   </div>
                   {selectedVehicle.purchasePrice !== undefined && (
                     <div className="flex justify-between">
                       <span className="text-surface-500">Price:</span>
-                      <span>{selectedVehicle.purchasePrice.toLocaleString()}</span>
+                      <span>{formatPrice(selectedVehicle.purchasePrice)}</span>
                     </div>
                   )}
                   {selectedVehicle.traderName && (
@@ -618,7 +701,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
               <div className="p-3 bg-surface-50 rounded-lg">
                 <h5 className="text-sm font-medium text-surface-700 mb-2 flex items-center gap-2">
                   <Key size={14} />
-                  Keys ({1 + (selectedVehicle.additionalKeys?.length || 0)})
+                  Keys ({(selectedVehicle.keyData ? 1 : 0) + (selectedVehicle.additionalKeys?.length || 0)})
                 </h5>
                 <div className="space-y-2">
                   {/* Original Key */}
@@ -626,7 +709,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                     <div className="text-xs p-2 bg-white rounded border border-surface-200">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="success">Original</Badge>
-                        <span className="text-surface-600">{selectedVehicle.keyClassName}</span>
+                        <span className="text-surface-600">{selectedVehicle.keyClassName || 'ExpansionCarKey'}</span>
                       </div>
                       <div className="font-mono text-[10px] text-surface-400">
                         {selectedVehicle.keyData.persistentIdA}-{selectedVehicle.keyData.persistentIdB}-{selectedVehicle.keyData.persistentIdC}-{selectedVehicle.keyData.persistentIdD}
@@ -638,7 +721,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                     <div key={idx} className="text-xs p-2 bg-white rounded border border-surface-200">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge variant="info">Copy #{idx + 1}</Badge>
-                        <span className="text-surface-600">{selectedVehicle.keyClassName}</span>
+                        <span className="text-surface-600">{selectedVehicle.keyClassName || 'ExpansionCarKey'}</span>
                       </div>
                       <div className="font-mono text-[10px] text-surface-400">
                         {key.persistentIdA}-{key.persistentIdB}-{key.persistentIdC}-{key.persistentIdD}
@@ -660,7 +743,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                     openKeyModal(selectedVehicle);
                     setSelectedVehicle(null);
                   }}
-                  disabled={!!selectedVehicle.isDestroyed}
+                  disabled={isVehicleDestroyed(selectedVehicle.isDestroyed)}
                 >
                   <Key size={16} className="mr-2" />
                   Generate Key
@@ -703,8 +786,8 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
               {/* Vehicle Info */}
               <div className="p-3 bg-surface-50 rounded-lg">
                 <div className="text-sm">
-                  <div className="font-medium">{keyVehicle.vehicleDisplayName || keyVehicle.vehicleClassName}</div>
-                  <div className="text-xs text-surface-500 font-mono mt-1">{keyVehicle.vehicleId}</div>
+                  <div className="font-medium">{getVehicleName(keyVehicle)}</div>
+                  <div className="text-xs text-surface-500 font-mono mt-1">{keyVehicle.vehicleId || 'Unknown'}</div>
                 </div>
               </div>
 
@@ -773,7 +856,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                   variant="primary"
                   className="flex-1"
                   onClick={handleGenerateKey}
-                  disabled={keyGenerating || !keyPlayerId}
+                  disabled={keyGenerating || !keyPlayerId.trim()}
                 >
                   {keyGenerating ? (
                     <>
@@ -820,13 +903,13 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                 </p>
                 <div className="p-3 bg-surface-50 rounded-lg">
                   <div className="font-medium text-surface-800">
-                    {deleteVehicleTarget.vehicleDisplayName || deleteVehicleTarget.vehicleClassName}
+                    {getVehicleName(deleteVehicleTarget)}
                   </div>
                   <div className="text-xs text-surface-500 mt-1">
-                    Owner: {deleteVehicleTarget.ownerName}
+                    Owner: {deleteVehicleTarget.ownerName || 'Unknown owner'}
                   </div>
                   <div className="text-xs font-mono text-surface-400 mt-1">
-                    {deleteVehicleTarget.vehicleId}
+                    {deleteVehicleTarget.vehicleId || 'Unknown'}
                   </div>
                 </div>
               </div>
