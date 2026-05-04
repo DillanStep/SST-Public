@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle, Download, ExternalLink, RefreshCw, X } from 'lucide-react';
 import { Button } from '../ui';
 import type { User } from '../../services/auth';
+import { ACTIVE_SERVER_CHANGED_EVENT } from '../../services/serverManager';
 import {
   getUpdateInstallStatus,
   getUpdateStatus,
@@ -48,8 +49,10 @@ export function UpdatePrompt({ user }: UpdatePromptProps) {
     if (user.role !== 'admin') return;
 
     let cancelled = false;
+    let retryTimer: number | null = null;
+    let intervalTimer: number | null = null;
 
-    const check = async () => {
+    async function check() {
       setChecking(true);
       try {
         const result = await getUpdateStatus();
@@ -59,19 +62,45 @@ export function UpdatePrompt({ user }: UpdatePromptProps) {
         const dismissedVersion = localStorage.getItem(dismissedVersionKey);
         if (result.updateAvailable && result.latestVersion !== dismissedVersion) {
           setVisible(true);
+        } else if (!result.updateAvailable) {
+          setVisible(false);
         }
-      } catch {
+      } catch (err) {
         // Update checks should never interrupt normal dashboard use.
+        console.warn('Update check failed:', err);
       } finally {
         if (!cancelled) setChecking(false);
       }
+    }
+
+    const scheduleCheck = (delayMs: number) => {
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
+
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        void check();
+      }, delayMs);
     };
 
-    const timer = window.setTimeout(check, 1800);
+    const handleServerChanged = () => scheduleCheck(750);
+
+    scheduleCheck(1800);
+    intervalTimer = window.setInterval(() => {
+      void check();
+    }, 10 * 60 * 1000);
+    window.addEventListener(ACTIVE_SERVER_CHANGED_EVENT, handleServerChanged);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
+      if (intervalTimer) {
+        window.clearInterval(intervalTimer);
+      }
+      window.removeEventListener(ACTIVE_SERVER_CHANGED_EVENT, handleServerChanged);
     };
   }, [user.role]);
 

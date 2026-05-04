@@ -3,6 +3,7 @@ import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText
 import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
+import { UpdateStatusBadge } from './components/features/UpdateStatusBadge';
 import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId } from './services/serverManager';
 import { checkAuth, logout, type User } from './services/auth';
 import api from './services/api';
@@ -195,6 +196,9 @@ function App() {
           {/* User Info & Logout */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-surface-600 hidden md:block">{user.username}</span>
+            {user.role === 'admin' && (
+              <UpdateStatusBadge className="hidden w-44 xl:flex" />
+            )}
             <a
               href={DISCORD_SUPPORT_URL}
               target="_blank"
@@ -327,6 +331,9 @@ function App() {
               Support
             </a>
           )}
+          {user.role === 'admin' && (
+            <UpdateStatusBadge compact={!sidebarOpen} className="mb-3" />
+          )}
           <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm ${
             isConnected 
               ? 'bg-emerald-50 text-emerald-700' 
@@ -394,6 +401,9 @@ function App() {
               <LifeBuoy size={20} />
               Support
             </a>
+            {user.role === 'admin' && (
+              <UpdateStatusBadge />
+            )}
             {/* Logout button for mobile */}
             <button
               onClick={handleLogout}

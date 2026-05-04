@@ -5,6 +5,14 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-05-04
+
+### Added
+- Added a visible version badge for admins showing the installed version and whether SST is up-to-date.
+
+### Fixed
+- Made update checks retry after server changes and refresh in the background, so a missed first check does not hide the update state.
+
 ## [1.0.4] - 2026-05-04
 
 ### Added
