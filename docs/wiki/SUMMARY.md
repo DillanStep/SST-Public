@@ -12,6 +12,7 @@ This is the navigation index for the wiki content under `docs/wiki/`.
 - [Getting Started](Getting%20Started/index.md)
 - [Installation](Getting%20Started/Installation.md)
 - [Configuration](Getting%20Started/Configuration.md)
+- [Multiple Servers](Getting%20Started/Multiple%20Servers.md)
 - [First Run Checklist](Getting%20Started/First%20Run%20Checklist.md)
 - [Requirements](Getting%20Started/Requirements.md)
 

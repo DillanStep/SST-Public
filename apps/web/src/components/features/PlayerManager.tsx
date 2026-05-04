@@ -7,22 +7,16 @@ import {
   PackageMinus, ShieldPlus
 } from 'lucide-react';
 import L from 'leaflet';
-import { MapContainer, ImageOverlay, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, CircleMarker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Card, Button, Badge, Input, Select } from '../ui';
 import { InventoryTree } from './InventoryTree';
 import { flattenInventory } from './inventoryUtils';
 import { getDashboard, refreshDashboard, getPlayer, createGrant, getGrantResults, getOnlinePlayers, getPlayerTrades, searchItems, getCategories, deleteItemFromPlayer } from '../../services/api';
 import type { DashboardResponse, PlayerData, GrantResult, OnlinePlayerData, PlayerEvent, TradeLog, Item, CategoriesResponse } from '../../types';
-
-// Map constants
-const MAP_SIZE = 15360;
-const MAP_BOUNDS: L.LatLngBoundsExpression = [[0, 0], [MAP_SIZE, MAP_SIZE]];
-
-// DayZ coords to Leaflet coords
-function dzToMap(x: number, z: number): [number, number] {
-  return [z, x];
-}
+import { MapImageLayer } from '../../maps/MapImageLayer';
+import { gameToMap, mapRenderKey, paddedMapBounds } from '../../maps/mapConfig';
+import { useMapConfig } from '../../maps/useMapConfig';
 
 // Component to center map on a position
 const CenterOnPosition: React.FC<{ position: [number, number] }> = ({ position }) => {
@@ -305,6 +299,7 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
   const [showMoneyModal, setShowMoneyModal] = useState(false);
   const [moneyAmount, setMoneyAmount] = useState(1000);
   const [moneySending, setMoneySending] = useState(false);
+  const { mapConfig } = useMapConfig(isConnected);
 
   // Item delete state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -867,24 +862,22 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                 <div className="h-96 relative">
                   {/* Actual map showing the location */}
                   <MapContainer
+                    key={mapRenderKey(mapConfig)}
                     crs={L.CRS.Simple}
-                    center={dzToMap(selectedEvent.position[0], selectedEvent.position[2] || selectedEvent.position[1])}
+                    center={gameToMap(mapConfig, selectedEvent.position[0], selectedEvent.position[2] || selectedEvent.position[1])}
                     zoom={0}
                     minZoom={-3}
                     maxZoom={2}
-                    maxBounds={[[-1000, -1000], [MAP_SIZE + 1000, MAP_SIZE + 1000]]}
+                    maxBounds={paddedMapBounds(mapConfig)}
                     style={{ width: '100%', height: '100%', background: '#1a1a2e' }}
                     attributionControl={false}
                   >
-                    <ImageOverlay
-                      url="/maps/chernarus.jpg"
-                      bounds={MAP_BOUNDS}
-                    />
-                    <CenterOnPosition position={dzToMap(selectedEvent.position[0], selectedEvent.position[2] || selectedEvent.position[1])} />
+                    <MapImageLayer mapConfig={mapConfig} />
+                    <CenterOnPosition position={gameToMap(mapConfig, selectedEvent.position[0], selectedEvent.position[2] || selectedEvent.position[1])} />
                     
                     {/* Event marker */}
                     <CircleMarker
-                      center={dzToMap(selectedEvent.position[0], selectedEvent.position[2] || selectedEvent.position[1])}
+                      center={gameToMap(mapConfig, selectedEvent.position[0], selectedEvent.position[2] || selectedEvent.position[1])}
                       radius={12}
                       pathOptions={{
                         color: '#fff',

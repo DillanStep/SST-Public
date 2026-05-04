@@ -1,34 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { MapContainer, ImageOverlay, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Users, Wifi } from 'lucide-react';
 import { Card, Badge } from '../ui';
 import { getOnlinePlayers } from '../../services/api';
 import type { OnlinePlayerData } from '../../types';
-
-const MAP_SIZE = 15360;
-
-// Map bounds for CRS.Simple
-const bounds: L.LatLngBoundsExpression = [
-  [0, 0],
-  [MAP_SIZE, MAP_SIZE]
-];
-
-// DayZ world coords to Leaflet map coords
-// In CRS.Simple: [lat, lng] where lat=Y (vertical), lng=X (horizontal)
-// DayZ: X=East/West, Z=South/North
-// No flip needed - Leaflet CRS.Simple Y increases upward like DayZ Z
-function dzToMap(x: number, z: number): [number, number] {
-  return [z, x];
-}
+import { MapImageLayer } from '../../maps/MapImageLayer';
+import { gameToMap, mapBounds, mapRenderKey } from '../../maps/mapConfig';
+import { useMapConfig } from '../../maps/useMapConfig';
 
 // Component to fit bounds on load
-function FitBounds() {
+function FitBounds({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   const map = useMap();
   useEffect(() => {
     map.fitBounds(bounds as L.LatLngBoundsExpression);
-  }, [map]);
+  }, [bounds, map]);
   return null;
 }
 
@@ -41,6 +28,8 @@ export const DayZMap: React.FC<DayZMapProps> = ({ isConnected, onPlayerSelect })
   const [players, setPlayers] = useState<OnlinePlayerData[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const { mapConfig, loading: mapLoading } = useMapConfig(isConnected);
+  const bounds = mapBounds(mapConfig);
 
   const loadPlayers = useCallback(async () => {
     if (!isConnected) return;
@@ -140,6 +129,7 @@ export const DayZMap: React.FC<DayZMapProps> = ({ isConnected, onPlayerSelect })
         {/* Map Container */}
         <div className="flex-1 rounded-lg overflow-hidden border border-surface-200">
           <MapContainer
+            key={mapRenderKey(mapConfig)}
             crs={L.CRS.Simple}
             bounds={bounds}
             minZoom={-4}
@@ -148,19 +138,14 @@ export const DayZMap: React.FC<DayZMapProps> = ({ isConnected, onPlayerSelect })
             style={{ width: '100%', height: '100%', background: '#1a1a2e' }}
             attributionControl={false}
           >
-            <FitBounds />
-            
-            {/* Map Image - you'll need to place this in public/maps/ */}
-            <ImageOverlay
-              url="/maps/chernarus.jpg"
-              bounds={bounds}
-            />
+            <FitBounds bounds={bounds} />
+            <MapImageLayer mapConfig={mapConfig} />
 
             {/* Player Markers */}
             {players.filter(p => p.position).map((player) => (
               <CircleMarker
                 key={player.playerId}
-                center={dzToMap(player.position?.x || 0, player.position?.z || 0)}
+                center={gameToMap(mapConfig, player.position?.x || 0, player.position?.z || 0)}
                 radius={8}
                 pathOptions={{
                   color: '#dc2626',
@@ -196,7 +181,7 @@ export const DayZMap: React.FC<DayZMapProps> = ({ isConnected, onPlayerSelect })
         <span>|</span>
         <span>Auto-refresh: 10 seconds</span>
         <span>|</span>
-        <span>Click player for details</span>
+        <span>{mapLoading ? 'Map checking' : mapConfig.label}</span>
       </div>
     </Card>
   );

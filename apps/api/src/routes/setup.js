@@ -350,6 +350,13 @@ router.post("/apply", (req, res) => {
     expansionEnabled,
     expansionTradersPath,
     expansionMarketPath,
+    mapPreset,
+    mapLabel,
+    mapImageUrl,
+    mapWorldSizeX,
+    mapWorldSizeZ,
+    mapInvertX,
+    mapInvertZ,
   } = req.body || {};
 
   const chosenBackend = String(backend || "").toLowerCase();
@@ -393,6 +400,34 @@ router.post("/apply", (req, res) => {
 
     if (expansionMarketPath && typeof expansionMarketPath === "string" && expansionMarketPath.trim()) {
       upsertEnvVar(envPath, "EXPANSION_MARKET_PATH", normalizePosix(expansionMarketPath));
+    }
+
+    if (mapPreset && typeof mapPreset === "string" && mapPreset.trim()) {
+      upsertEnvVar(envPath, "MAP_PRESET", mapPreset.trim());
+    }
+
+    if (mapLabel && typeof mapLabel === "string" && mapLabel.trim()) {
+      upsertEnvVar(envPath, "MAP_LABEL", mapLabel.trim());
+    }
+
+    if (mapImageUrl && typeof mapImageUrl === "string" && mapImageUrl.trim()) {
+      upsertEnvVar(envPath, "MAP_IMAGE_URL", mapImageUrl.trim());
+    }
+
+    if (mapWorldSizeX !== undefined && Number.isFinite(Number(mapWorldSizeX)) && Number(mapWorldSizeX) > 0) {
+      upsertEnvVar(envPath, "MAP_WORLD_SIZE_X", String(Number(mapWorldSizeX)));
+    }
+
+    if (mapWorldSizeZ !== undefined && Number.isFinite(Number(mapWorldSizeZ)) && Number(mapWorldSizeZ) > 0) {
+      upsertEnvVar(envPath, "MAP_WORLD_SIZE_Z", String(Number(mapWorldSizeZ)));
+    }
+
+    if (mapInvertX !== undefined) {
+      upsertEnvVar(envPath, "MAP_INVERT_X", mapInvertX ? "1" : "0");
+    }
+
+    if (mapInvertZ !== undefined) {
+      upsertEnvVar(envPath, "MAP_INVERT_Z", mapInvertZ ? "1" : "0");
     }
 
     if (chosenBackend === "sftp") {

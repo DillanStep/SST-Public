@@ -46,6 +46,7 @@ SST is ready for community testing and contribution, but it should be treated as
 - `Missions/` - mission configuration bundles for supported maps.
 - `apps/api/` - Node/Express API that reads SST export files and queues commands.
 - `apps/web/` - Vite/React dashboard.
+- `apps/web/public/maps/` - bundled map images for Chernarus+, Livonia, Sakhal, Namalsk, Deer Isle, Esseker, and Hasima.
 - `tools/setup-wizard/` - Windows setup wizard for first-time API configuration.
 - `docs/wiki/` - community-facing setup and reference documentation.
 
@@ -73,6 +74,7 @@ C:\SST-Public-main
 Keep the folder structure intact. The root folder should contain files such as:
 
 ```text
+SST-Setup.bat
 Install-SST.bat
 Start-SST.bat
 @SST/
@@ -94,13 +96,15 @@ After installing Node.js, reopen any terminal windows so `node` and `npm` are av
 
 ### 3. Install The SST App
 
-From the extracted SST root folder, double-click:
+From the extracted SST root folder, double-click the all-in-one setup menu:
 
 ```text
-Install-SST.bat
+SST-Setup.bat
 ```
 
-This installs the API and dashboard dependencies, builds the dashboard, and creates `apps/api/.env` if it does not already exist.
+Choose `Install or repair SST`. This installs the API and dashboard dependencies, builds the dashboard, and creates `apps/api/.env` if it does not already exist.
+
+You can still run `Install-SST.bat` directly if you prefer the older one-task installer.
 
 ### 4. Install The DayZ Server Mod
 
@@ -121,6 +125,16 @@ Start-SST.bat
 ```
 
 This starts the API and opens the dashboard. In the browser setup, choose Local, SFTP, or FTP storage, then point SST at the `SST/` folder created by the DayZ server mod.
+
+### Reset Or Install As New
+
+To wipe local SST setup and go through the browser setup again, double-click:
+
+```text
+SST-Setup.bat
+```
+
+Choose `Reset to defaults, then install as new`. This removes local API users, local API databases, generated API config, web build cache, and clears the dashboard's saved browser state on the next start.
 
 For the shortest standalone checklist, see [apps/QUICK-START.md](apps/QUICK-START.md).
 
@@ -474,15 +488,7 @@ If the dashboard asks for an API key, use the `API_KEY` from `apps/api/.env`. If
 
 ### Multiple DayZ Servers
 
-The dashboard can save and switch between multiple SST API connections.
-
-For each DayZ server you host, run a separate SST API instance with its own `.env` values:
-
-- `SST_PATH` points to that server's `SST/` folder.
-- `PORT` uses a unique port, such as `3001`, `3002`, `3003`, `3004`, and `3005`.
-- `API_KEY`, `JWT_SECRET`, and auth data stay separate for that server.
-
-Then open the dashboard, go to Settings, and add each API URL. For example:
+The dashboard can save and switch between multiple SST API connections. Run one SST API instance per DayZ server, give each instance its own `.env` file, and use a different port for each one:
 
 ```text
 Server 1 -> http://localhost:3001
@@ -492,7 +498,9 @@ Server 4 -> http://localhost:3004
 Server 5 -> http://localhost:3005
 ```
 
-When switching servers in the dashboard, SST keeps the saved connection and login token separate for each server.
+Each env file should have its own `SST_PATH`, `AUTH_DB_PATH`, `DATABASE_PATH`, `ARCHIVE_DB_PATH`, `API_KEY`, and `JWT_SECRET`.
+
+Full walkthrough: [Multiple Servers](docs/wiki/Getting%20Started/Multiple%20Servers.md).
 
 ### 5. Use SST
 
@@ -512,9 +520,10 @@ For the full walkthrough, start with [Getting Started](docs/wiki/Getting%20Start
 
 The repository includes Windows helper scripts:
 
+- `SST-Setup.bat` - all-in-one menu for install/repair, start, factory reset, and install-as-new.
 - `Install-SST.bat` - installs API/web dependencies and builds the dashboard.
 - `Start-SST.bat` - starts the API and dashboard locally.
-- `Reset-Factory.bat` / `Reset-Factory.ps1` - reset local generated setup state.
+- `Reset-Factory.bat` / `Reset-Factory.ps1` - resets local generated setup state, API databases, API config, web build cache, and browser SST state on next start.
 - `tools/setup-wizard/SetupWizard.ps1` - guided API storage configuration.
 
 These scripts do not install the DayZ server mod for you. The DayZ mod still needs to be built/installed on your DayZ server.

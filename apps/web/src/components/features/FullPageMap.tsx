@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
-import { MapContainer, ImageOverlay, CircleMarker, Popup, useMap, useMapEvents, Marker, Circle } from 'react-leaflet';
+import { MapContainer, CircleMarker, Popup, useMap, useMapEvents, Marker, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -10,24 +10,9 @@ import { Badge, Button } from '../ui';
 import { PlayerModal } from './PlayerModal';
 import { getOnlinePlayers, teleportPlayer, getTraderZones } from '../../services/api';
 import type { OnlinePlayerData, TraderZone } from '../../types';
-
-const MAP_SIZE = 15360;
-
-// Map bounds for CRS.Simple
-const bounds: L.LatLngBoundsExpression = [
-  [0, 0],
-  [MAP_SIZE, MAP_SIZE]
-];
-
-// DayZ world coords to Leaflet map coords
-function dzToMap(x: number, z: number): [number, number] {
-  return [z, x];
-}
-
-// Leaflet map coords to DayZ world coords
-function mapToDz(lat: number, lng: number): { x: number; z: number } {
-  return { x: lng, z: lat };
-}
+import { MapImageLayer } from '../../maps/MapImageLayer';
+import { gameToMap, mapCenter, mapRenderKey, mapToGame, paddedMapBounds, type ActiveMapConfig } from '../../maps/mapConfig';
+import { useMapConfig } from '../../maps/useMapConfig';
 
 // Custom crosshair icon for teleport target
 const crosshairIcon = L.divIcon({
@@ -57,12 +42,14 @@ const MapClickHandler: React.FC<MapClickHandlerProps> = ({ enabled, onMapClick }
 // Memoized player marker to prevent re-renders
 const PlayerMarker = memo(({ 
   player, 
-  onClick 
+  onClick,
+  mapConfig,
 }: { 
   player: OnlinePlayerData; 
   onClick: () => void;
+  mapConfig: ActiveMapConfig;
 }) => {
-  const position = dzToMap(player.position?.x || 0, player.position?.z || 0);
+  const position = gameToMap(mapConfig, player.position?.x || 0, player.position?.z || 0);
   
   return (
     <CircleMarker
@@ -103,11 +90,11 @@ const PlayerMarker = memo(({
 PlayerMarker.displayName = 'PlayerMarker';
 
 // Component to set initial view
-function SetView() {
+function SetView({ mapConfig }: { mapConfig: ActiveMapConfig }) {
   const map = useMap();
   useEffect(() => {
-    map.setView([MAP_SIZE / 2, MAP_SIZE / 2], -2);
-  }, [map]);
+    map.setView(mapCenter(mapConfig), -2);
+  }, [map, mapConfig]);
   return null;
 }
 
@@ -128,6 +115,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
   const [teleportMode, setTeleportMode] = useState<{ playerId: string; playerName: string } | null>(null);
   const [teleportTarget, setTeleportTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [teleportSending, setTeleportSending] = useState(false);
+  const { mapConfig, loading: mapLoading } = useMapConfig(isConnected);
 
   // Load trader zones once on mount
   useEffect(() => {
@@ -179,7 +167,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
   const confirmTeleport = useCallback(async () => {
     if (!teleportMode || !teleportTarget) return;
     
-    const dzCoords = mapToDz(teleportTarget.lat, teleportTarget.lng);
+    const dzCoords = mapToGame(mapConfig, teleportTarget.lat, teleportTarget.lng);
     setTeleportSending(true);
     
     try {
@@ -200,7 +188,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
     } finally {
       setTeleportSending(false);
     }
-  }, [teleportMode, teleportTarget, loadPlayers]);
+  }, [mapConfig, teleportMode, teleportTarget, loadPlayers]);
 
   // Cancel teleport mode
   const cancelTeleport = useCallback(() => {
@@ -324,6 +312,10 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
               <span className="mx-2">|</span>
               <span>Auto-refresh: 10s</span>
             </div>
+            <div className="flex items-center gap-2">
+              <MapPin size={12} />
+              <span>{mapLoading ? 'Loading map' : mapConfig.label}</span>
+            </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-emerald-600" />
@@ -362,7 +354,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
           </div>
           {teleportTarget && (
             <div className="ml-4 pl-4 border-l border-green-400">
-              <div className="text-sm">Target: {Math.round(mapToDz(teleportTarget.lat, teleportTarget.lng).x)}, {Math.round(mapToDz(teleportTarget.lat, teleportTarget.lng).z)}</div>
+              <div className="text-sm">Target: {Math.round(mapToGame(mapConfig, teleportTarget.lat, teleportTarget.lng).x)}, {Math.round(mapToGame(mapConfig, teleportTarget.lat, teleportTarget.lng).z)}</div>
               <div className="flex gap-2 mt-1">
                 <Button 
                   size="sm" 
@@ -387,27 +379,24 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
       {/* Map */}
       <div className={`flex-1 h-full ${teleportMode ? 'cursor-crosshair' : ''}`}>
         <MapContainer
+          key={mapRenderKey(mapConfig)}
           crs={L.CRS.Simple}
-          center={[MAP_SIZE / 2, MAP_SIZE / 2]}
+          center={mapCenter(mapConfig)}
           zoom={-2}
           minZoom={-4}
           maxZoom={2}
-          maxBounds={[[-1000, -1000], [MAP_SIZE + 1000, MAP_SIZE + 1000]]}
+          maxBounds={paddedMapBounds(mapConfig)}
           style={{ width: '100%', height: '100%', background: '#1a1a2e' }}
           attributionControl={false}
           preferCanvas={true}
         >
-          <SetView />
+          <SetView mapConfig={mapConfig} />
           <MapClickHandler enabled={!!teleportMode} onMapClick={handleMapClick} />
-          
-          <ImageOverlay
-            url="/maps/chernarus.jpg"
-            bounds={bounds}
-          />
+          <MapImageLayer mapConfig={mapConfig} />
 
           {/* Trader Zones */}
           {showTraderZones && traderZones.map((zone) => {
-            const position = dzToMap(zone.Position[0], zone.Position[2]);
+            const position = gameToMap(mapConfig, zone.Position[0], zone.Position[2]);
             return (
               <Circle
                 key={zone.fileName}
@@ -455,6 +444,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
             <PlayerMarker
               key={player.playerId}
               player={player}
+              mapConfig={mapConfig}
               onClick={() => handleOpenPlayerModal(player.playerId, player.playerName)}
             />
           ))}

@@ -12,6 +12,7 @@ echo.
 set "SCRIPT_DIR=%~dp0"
 set "API_DIR=%SCRIPT_DIR%apps\api"
 set "WEB_DIR=%SCRIPT_DIR%apps\web"
+set "RESET_CLIENT_FLAG=%SCRIPT_DIR%.sst-reset-client.flag"
 
 echo Project: %SCRIPT_DIR%
 echo API:     %API_DIR%
@@ -71,7 +72,12 @@ ping 127.0.0.1 -n 4 > nul
 REM Open browser
 echo Opening browser...
 if exist "%WEB_DIR%\dist\index.html" (
-    start http://localhost:3001
+    if exist "%RESET_CLIENT_FLAG%" (
+        del /q "%RESET_CLIENT_FLAG%" >nul 2>nul
+        start http://localhost:3001/reset-client.html?return=/
+    ) else (
+        start http://localhost:3001
+    )
 ) else (
     echo Web not built - checking dev mode...
     if not exist "%WEB_DIR%\node_modules" (
@@ -83,7 +89,12 @@ if exist "%WEB_DIR%\dist\index.html" (
     cd /d "%WEB_DIR%"
     start "SST Web" cmd /k npm run dev
     ping 127.0.0.1 -n 4 > nul
-    start http://localhost:5173
+    if exist "%RESET_CLIENT_FLAG%" (
+        del /q "%RESET_CLIENT_FLAG%" >nul 2>nul
+        start http://localhost:5173/reset-client.html?return=/
+    ) else (
+        start http://localhost:5173
+    )
 )
 
 echo.

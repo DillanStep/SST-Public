@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
-import { MapContainer, ImageOverlay, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -11,19 +11,9 @@ import {
   getVehicles, getVehiclePositions, generateVehicleKey, getKeyGenerationResults, deleteVehicle
 } from '../../services/api';
 import type { TrackedVehicle, VehiclePosition, KeyGenerationResult, KeyGenerationRequest } from '../../types';
-
-const MAP_SIZE = 15360;
-
-// Map bounds for CRS.Simple
-const bounds: L.LatLngBoundsExpression = [
-  [0, 0],
-  [MAP_SIZE, MAP_SIZE]
-];
-
-// DayZ world coords to Leaflet map coords
-function dzToMap(x: number, z: number): [number, number] {
-  return [z, x];
-}
+import { MapImageLayer } from '../../maps/MapImageLayer';
+import { gameToMap, mapCenter, mapRenderKey, paddedMapBounds, type ActiveMapConfig } from '../../maps/mapConfig';
+import { useMapConfig } from '../../maps/useMapConfig';
 
 type Vector3 = [number, number, number];
 
@@ -99,15 +89,17 @@ function formatPrice(value: unknown): string {
 // Vehicle marker component
 const VehicleMarker = memo(({
   vehicle,
-  onClick
+  onClick,
+  mapConfig,
 }: {
   vehicle: VehiclePosition;
   onClick: () => void;
+  mapConfig: ActiveMapConfig;
 }) => {
   const vehiclePosition = normalizePosition(vehicle.position);
   if (!vehiclePosition) return null;
 
-  const position = dzToMap(vehiclePosition[0], vehiclePosition[2]);
+  const position = gameToMap(mapConfig, vehiclePosition[0], vehiclePosition[2]);
 
   return (
     <CircleMarker
@@ -151,11 +143,11 @@ const VehicleMarker = memo(({
 VehicleMarker.displayName = 'VehicleMarker';
 
 // Component to set initial map view
-function SetView() {
+function SetView({ mapConfig }: { mapConfig: ActiveMapConfig }) {
   const map = useMap();
   useEffect(() => {
-    map.setView([MAP_SIZE / 2, MAP_SIZE / 2], -2);
-  }, [map]);
+    map.setView(mapCenter(mapConfig), -2);
+  }, [map, mapConfig]);
   return null;
 }
 
@@ -194,6 +186,7 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
   const [deleteVehicleTarget, setDeleteVehicleTarget] = useState<TrackedVehicle | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { mapConfig, loading: mapLoading } = useMapConfig(isConnected);
 
   // Load vehicles and positions
   const loadData = useCallback(async () => {
@@ -400,6 +393,9 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
                 <MapPin size={10} className="mr-1" />
                 {positions.length} On Map
               </Badge>
+              <Badge variant="default">
+                {mapLoading ? 'Map...' : mapConfig.label}
+              </Badge>
               {lastUpdate && (
                 <span className="text-xs text-surface-500">
                   {lastUpdate.toLocaleTimeString()}
@@ -551,27 +547,26 @@ export const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ isConnected 
       {/* Map */}
       <div className="flex-1 h-full">
         <MapContainer
+          key={mapRenderKey(mapConfig)}
           crs={L.CRS.Simple}
-          center={[MAP_SIZE / 2, MAP_SIZE / 2]}
+          center={mapCenter(mapConfig)}
           zoom={-2}
           minZoom={-4}
           maxZoom={2}
-          maxBounds={[[-1000, -1000], [MAP_SIZE + 1000, MAP_SIZE + 1000]]}
+          maxBounds={paddedMapBounds(mapConfig)}
           style={{ width: '100%', height: '100%', background: '#1a1a2e' }}
           attributionControl={false}
           preferCanvas={true}
         >
-          <SetView />
-          <ImageOverlay
-            url="/maps/chernarus.jpg"
-            bounds={bounds}
-          />
+          <SetView mapConfig={mapConfig} />
+          <MapImageLayer mapConfig={mapConfig} />
 
           {/* Vehicle markers */}
           {positions.map((vehicle, index) => (
             <VehicleMarker
               key={vehicle.vehicleId || `${vehicle.className || 'vehicle'}-${index}`}
               vehicle={vehicle}
+              mapConfig={mapConfig}
               onClick={() => {
                 const fullVehicle = vehicles.find(v => v.vehicleId === vehicle.vehicleId);
                 if (fullVehicle) setSelectedVehicle(fullVehicle);

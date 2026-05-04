@@ -6,6 +6,13 @@ export interface ServerConfig {
   name: string;
   apiUrl: string;
   apiKey: string;
+  mapPreset?: string;
+  mapLabel?: string;
+  mapImageUrl?: string;
+  mapWorldSizeX?: number;
+  mapWorldSizeZ?: number;
+  mapInvertX?: boolean;
+  mapInvertZ?: boolean;
   createdAt: string;
   lastUsed?: string;
 }
@@ -30,6 +37,13 @@ export interface SetupStoragePayload {
   expansionEnabled?: boolean;
   expansionTradersPath?: string;
   expansionMarketPath?: string;
+  mapPreset?: string;
+  mapLabel?: string;
+  mapImageUrl?: string;
+  mapWorldSizeX?: number;
+  mapWorldSizeZ?: number;
+  mapInvertX?: boolean;
+  mapInvertZ?: boolean;
   sftp?: RemoteStorageConfig;
   ftp?: RemoteStorageConfig;
 }
@@ -56,6 +70,7 @@ export interface RuntimeConfigResponse {
   envPath: string;
   env: RuntimeEnvValues;
   suggestions?: RuntimeEnvValues;
+  map?: ServerMapConfig;
   storage?: {
     backend: string;
   };
@@ -71,6 +86,32 @@ export interface RuntimeConfigResponse {
       path?: string;
     };
   };
+}
+
+export interface MapPresetOption {
+  id: string;
+  label: string;
+  worldSizeX: number;
+  worldSizeZ: number;
+  imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
+}
+
+export interface ServerMapConfig {
+  preset: string;
+  label: string;
+  detectedPreset: string;
+  missionPath: string;
+  imageUrl: string;
+  defaultImageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  worldSizeX: number;
+  worldSizeZ: number;
+  invertX: boolean;
+  invertZ: boolean;
+  builtinMaps: MapPresetOption[];
 }
 
 export interface RuntimeConfigUpdateResponse {

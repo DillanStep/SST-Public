@@ -17,6 +17,7 @@ Important settings:
 - `PROFILES_PATH`: the active DayZ profile folder, useful for reading server logs.
 - `API_KEY`: leave blank to generate on first startup, or set your own 32+ byte secret.
 - `JWT_SECRET`: leave blank to generate on first startup, or set your own 32+ byte secret.
+- `AUTH_DB_PATH`: optional dashboard user/session database path. Set this per server when running multiple API instances from one SST install.
 - `CORS_ORIGIN`: set to your dashboard origin for production.
 - `EXPANSION_ENABLED`: set to `1` only if you use DayZ Expansion features.
 
@@ -124,4 +125,5 @@ VITE_API_URL=http://your-api-host:3001
 
 ## Next
 
+- [Multiple Servers](Multiple%20Servers.md)
 - [First Run Checklist](First%20Run%20Checklist.md)

@@ -115,6 +115,7 @@ class SST_VehicleTracker
 	
 	static const float POSITION_UPDATE_INTERVAL_MS = 60000.0;  // Update positions every 60 seconds
 	static const float KEY_CHECK_INTERVAL_MS = 5000.0;         // Check for key/delete requests every 5 seconds
+	static const float WORLD_SCAN_MAX_XZ = 20000.0;            // Covers bundled map presets, including Deer Isle.
 	
 	void SST_VehicleTracker()
 	{
@@ -344,7 +345,7 @@ class SST_VehicleTracker
 
 		// Fallback scan only runs for uncached tracked vehicles, mostly after a restart.
 		vector minPos = "-100 -100 -100";
-		vector maxPos = "15500 1000 15500";
+		vector maxPos = Vector(WORLD_SCAN_MAX_XZ, 1000, WORLD_SCAN_MAX_XZ);
 		
 		array<EntityAI> entities = new array<EntityAI>();
 		DayZPlayerUtils.SceneGetEntitiesInBox(minPos, maxPos, entities, QueryFlags.DYNAMIC);
@@ -574,7 +575,7 @@ class SST_VehicleTracker
 		
 		// Use DayZPlayerUtils to get entities in a large box covering the map
 		vector minPos = "-100 -100 -100";
-		vector maxPos = "15500 1000 15500";
+		vector maxPos = Vector(WORLD_SCAN_MAX_XZ, 1000, WORLD_SCAN_MAX_XZ);
 		
 		array<EntityAI> entities = new array<EntityAI>();
 		DayZPlayerUtils.SceneGetEntitiesInBox(minPos, maxPos, entities, QueryFlags.DYNAMIC);

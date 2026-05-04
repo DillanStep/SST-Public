@@ -35,6 +35,7 @@ import archiveRoutes from "./routes/archive.js";
 import vehiclesRoutes from "./routes/vehicles.js";
 import updateRoutes from "./routes/updates.js";
 import { readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
+import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -78,7 +79,15 @@ const CONFIG_ENV_KEYS = [
   "EXPANSION_MARKET_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
+  "MAP_PRESET",
+  "MAP_LABEL",
+  "MAP_IMAGE_URL",
+  "MAP_WORLD_SIZE_X",
+  "MAP_WORLD_SIZE_Z",
+  "MAP_INVERT_X",
+  "MAP_INVERT_Z",
   "PROFILES_PATH",
+  "AUTH_DB_PATH",
   "DATABASE_PATH",
   "POSITION_TRACKING_INTERVAL",
   "ARCHIVE_HOUR",
@@ -103,6 +112,7 @@ const PATH_ENV_KEYS = new Set([
   "MISSION_PATH",
   "TYPES_PATH",
   "PROFILES_PATH",
+  "AUTH_DB_PATH",
   "DATABASE_PATH",
   "ARCHIVE_DB_PATH",
 ]);
@@ -114,6 +124,8 @@ const NUMBER_ENV_KEYS = new Set([
   "POSITION_TRACKING_INTERVAL",
   "ARCHIVE_HOUR",
   "ARCHIVE_MINUTE",
+  "MAP_WORLD_SIZE_X",
+  "MAP_WORLD_SIZE_Z",
 ]);
 
 function normalizeConfigPath(value) {
@@ -175,6 +187,8 @@ function buildConfigSuggestions(env) {
     POSITION_TRACKING_INTERVAL: "30000",
     ARCHIVE_HOUR: "4",
     ARCHIVE_MINUTE: "0",
+    MAP_INVERT_X: "0",
+    MAP_INVERT_Z: "0",
   };
 
   const sstPath = normalizeConfigPath(env.SST_PATH || paths.sst);
@@ -195,6 +209,15 @@ function buildConfigSuggestions(env) {
     addSuggestion(suggestions, "MISSION_PATH", missionPath);
     addSuggestion(suggestions, "TYPES_PATH", normalizeConfigPath(env.TYPES_PATH) || joinConfigPath(missionPath, "db", "types.xml"));
   }
+
+  const mapPreset = (env.MAP_PRESET || (missionPath ? detectMapPresetFromMissionPath(missionPath) : "chernarusplus"))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  const mapDefaults = getBuiltinMaps().find((map) => map.id === mapPreset) || getBuiltinMaps()[0];
+  addSuggestion(suggestions, "MAP_PRESET", mapDefaults.id);
+  addSuggestion(suggestions, "MAP_IMAGE_URL", mapDefaults.imageUrl);
+  addSuggestion(suggestions, "MAP_WORLD_SIZE_X", String(mapDefaults.worldSizeX));
+  addSuggestion(suggestions, "MAP_WORLD_SIZE_Z", String(mapDefaults.worldSizeZ));
 
   const serverRoot = missionPath.toLowerCase().includes("/mpmissions/")
     ? missionPath.slice(0, missionPath.toLowerCase().lastIndexOf("/mpmissions/"))
@@ -239,6 +262,9 @@ function buildConfigSuggestions(env) {
   if (!env.ARCHIVE_DB_PATH) {
     addSuggestion(suggestions, "ARCHIVE_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", "archive.db")));
   }
+  if (!env.AUTH_DB_PATH) {
+    addSuggestion(suggestions, "AUTH_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", "auth.db")));
+  }
 
   return suggestions;
 }
@@ -251,6 +277,14 @@ function normalizeEnvSetting(key, value) {
     normalized = normalized.toLowerCase();
     if (normalized && !["local", "ftp", "sftp"].includes(normalized)) {
       throw new Error("STORAGE_BACKEND must be local, ftp, or sftp.");
+    }
+  }
+
+  if (key === "MAP_PRESET") {
+    normalized = normalized.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const validPresets = new Set(getBuiltinMaps().map((map) => map.id));
+    if (normalized && !validPresets.has(normalized)) {
+      throw new Error(`MAP_PRESET must be one of: ${[...validPresets].join(", ")}.`);
     }
   }
 
@@ -355,6 +389,7 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
         secure: typeof process.env.FTP_SECURE === "string" ? process.env.FTP_SECURE : null,
       } : null,
     },
+    map: buildMapConfig({ env, missionPath: paths.missionFolder }),
     paths: {
       inventories: paths.inventories,
       events: paths.events,
@@ -405,6 +440,11 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
 
     res.json(response);
   });
+});
+
+app.get("/map/config", requireAuth, requireApiKey, (req, res) => {
+  const { env } = getConfigEnvSnapshot();
+  res.json(buildMapConfig({ env, missionPath: paths.missionFolder }));
 });
 
 app.put("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {

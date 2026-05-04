@@ -1,36 +1,43 @@
-# Map Image Setup
+# SST Map Assets
 
-Place your Chernarus map image here with the following requirements:
+This folder is the bundled map catalog for SST. The web client only offers
+presets that have an image in this folder.
 
-## Required File
-- **Filename:** `chernarus.jpg`
-- **Dimensions:** 15360 × 15360 pixels (exactly)
-- **Format:** JPG
+## Bundled Maps
 
-## Where to Get the Map
-1. **iZurvive** - Export from their map tools
-2. **DayZ Expansion** - Located in expansion mod files
-3. **CF Tools** - Use their exported maps
-4. **Community Resources** - Search for "DayZ Chernarus 15360" satellite map
+| Preset | Image | World Size |
+| --- | --- | --- |
+| `chernarusplus` | `chernarus.jpg` | 15360 x 15360 |
+| `enoch` | `livonia.jpg` | 12800 x 12800 |
+| `sakhal` | `sakhal.webp` | 12800 x 12800 |
+| `namalsk` | `namalsk.jpg` | 12800 x 12800 |
+| `deerisle` | `deerisle.webp` | 16384 x 16384 |
+| `esseker` | `esseker.jpg` | 12288 x 12288 |
+| `hasima` | `hasima.jpg` | 5120 x 5120 |
 
-## Coordinate System
-The map uses DayZ world coordinates:
-- X = East/West (0 → 15360)
-- Z = South/North (0 → 15360)
+The image dimensions do not need to match the world size. SST overlays each
+image across the DayZ world coordinate bounds and places markers from raw
+in-game X/Z positions.
 
-The web application automatically flips the Z axis for proper display.
+## Adding Or Fixing A Map
 
-## Validation
-After adding the map, test with known coordinates:
-- (0, 15360) = top-left
-- (15360, 15360) = top-right  
-- (0, 0) = bottom-left
-- (15360, 0) = bottom-right
-- (7680, 7680) = exact center
+1. Add the image to this folder.
+2. Add or update the preset in `apps/web/src/maps/mapConfig.ts`.
+3. Add the same preset in `apps/api/src/utils/mapConfig.js`.
+4. If markers are mirrored, set `MAP_INVERT_X` or `MAP_INVERT_Z` in Settings.
+5. If markers are scaled wrong, adjust `MAP_WORLD_SIZE_X` and `MAP_WORLD_SIZE_Z`.
 
-## For Other Maps
-For Livonia (Enoch) or Sakhal, create additional map images:
-- `livonia.png` - 12800 × 12800
-- `sakhal.png` - (check DayZ documentation for size)
+## Stitching PAA Tiles
 
-Then update the DayZMap component to select the correct map based on server config.
+If you have DayZ terrain layer tiles named like `S_000_000_lco.paa`, use the
+repo stitcher to build a dashboard map image:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\map\Stitch-PaaMap.ps1 `
+  -InputPath "C:\Path\To\Map Tiles" `
+  -OutputPath ".\apps\web\public\maps\hasima.jpg" `
+  -CropEdgePixels 16
+```
+
+`-CropEdgePixels` is useful when converted PAA tiles have visible padded edges.
+The script keeps native tile size unless the map is larger than `-MaxOutputSize`.

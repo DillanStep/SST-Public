@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   Server, Cloud, HardDrive, ChevronRight, ChevronLeft, Check, 
   AlertCircle, RefreshCw, Key, User, Lock, Wifi, 
-  CheckCircle2, XCircle
+  CheckCircle2, XCircle, Map as MapIcon
 } from 'lucide-react';
 import { Button, Input } from '../ui';
 import type { SetupStatusResponse, SetupStoragePayload, SetupTestResponse, StorageBackend } from '../../types';
+import { detectMapPresetFromMissionPath, getMapPresetDefaults, MAP_PRESET_OPTIONS } from '../../maps/mapConfig';
 
 type HostingType = 'provider' | 'dedicated' | null;
 type ConnectionStatus = 'idle' | 'testing' | 'success' | 'error';
@@ -27,6 +28,7 @@ const isAbsoluteLocalPath = (value: string) => {
 export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) => {
   // Wizard step (1-5)
   const [step, setStep] = useState(1);
+  const defaultMap = getMapPresetDefaults('chernarusplus');
   
   // Step 1: Hosting type
   const [hostingType, setHostingType] = useState<HostingType>(null);
@@ -46,6 +48,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   const [expansionTradersPath, setExpansionTradersPath] = useState('');
   const [expansionMarketPath, setExpansionMarketPath] = useState('');
   const [localPath, setLocalPath] = useState('');
+  const [mapPreset, setMapPreset] = useState(defaultMap.id);
+  const [mapLabel, setMapLabel] = useState('');
+  const [mapImageUrl, setMapImageUrl] = useState(defaultMap.imageUrl);
+  const [mapWorldSizeX, setMapWorldSizeX] = useState(String(defaultMap.worldSizeX));
+  const [mapWorldSizeZ, setMapWorldSizeZ] = useState(String(defaultMap.worldSizeZ));
+  const [mapInvertX, setMapInvertX] = useState(false);
+  const [mapInvertZ, setMapInvertZ] = useState(false);
+  const [mapAutoDetectEnabled, setMapAutoDetectEnabled] = useState(true);
   
   // URL paste helper
   const [pasteUrl, setPasteUrl] = useState('');
@@ -72,6 +82,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   // General
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const selectedMap = getMapPresetDefaults(mapPreset);
 
   const runtimeFolderWarning = (
     <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -87,6 +98,32 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       </div>
     </div>
   );
+
+  const handleMapPresetChange = useCallback((value: string, manual = true) => {
+    const nextMap = getMapPresetDefaults(value);
+    if (manual) setMapAutoDetectEnabled(false);
+    setMapPreset(nextMap.id);
+    setMapLabel('');
+    setMapImageUrl(nextMap.imageUrl);
+    setMapWorldSizeX(String(nextMap.worldSizeX));
+    setMapWorldSizeZ(String(nextMap.worldSizeZ));
+    setMapInvertX(false);
+    setMapInvertZ(false);
+  }, []);
+
+  const parseMapSize = (value: string, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+
+  useEffect(() => {
+    if (!mapAutoDetectEnabled) return;
+
+    const detectedPreset = detectMapPresetFromMissionPath(missionPath);
+    if (!detectedPreset || detectedPreset === mapPreset) return;
+
+    handleMapPresetChange(detectedPreset, false);
+  }, [missionPath, mapPreset, mapAutoDetectEnabled, handleMapPresetChange]);
 
   useEffect(() => {
     setConnectionStatus('idle');
@@ -253,6 +290,13 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         expansionEnabled,
         expansionTradersPath: hostingType === 'dedicated' ? expansionTradersPath : normalizeOptionalServerPath(expansionTradersPath),
         expansionMarketPath: hostingType === 'dedicated' ? expansionMarketPath : normalizeOptionalServerPath(expansionMarketPath),
+        mapPreset,
+        mapLabel: mapLabel.trim(),
+        mapImageUrl: mapImageUrl.trim(),
+        mapWorldSizeX: parseMapSize(mapWorldSizeX, selectedMap.worldSizeX),
+        mapWorldSizeZ: parseMapSize(mapWorldSizeZ, selectedMap.worldSizeZ),
+        mapInvertX,
+        mapInvertZ,
       };
       
       if (hostingType === 'provider') {
@@ -748,6 +792,83 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                 </div>
               )}
 
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <MapIcon size={18} className="text-surface-600" />
+                  <h3 className="text-sm font-semibold text-surface-800">Map</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Map Preset</label>
+                    <select
+                      value={mapPreset}
+                      onChange={(event) => handleMapPresetChange(event.target.value)}
+                      className="w-full rounded-lg border border-surface-300 px-3 py-2 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                    >
+                      {MAP_PRESET_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Map Label</label>
+                    <Input
+                      type="text"
+                      value={mapLabel}
+                      onChange={(event) => setMapLabel(event.target.value)}
+                      placeholder={selectedMap.label}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Map Image</label>
+                    <Input
+                      type="text"
+                      value={mapImageUrl}
+                      onChange={(event) => setMapImageUrl(event.target.value)}
+                      placeholder="/maps/chernarus.jpg"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">World Size X</label>
+                    <Input
+                      type="number"
+                      value={mapWorldSizeX}
+                      onChange={(event) => setMapWorldSizeX(event.target.value)}
+                      placeholder={String(selectedMap.worldSizeX)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">World Size Z</label>
+                    <Input
+                      type="number"
+                      value={mapWorldSizeZ}
+                      onChange={(event) => setMapWorldSizeZ(event.target.value)}
+                      placeholder={String(selectedMap.worldSizeZ)}
+                    />
+                  </div>
+                  <label className="flex items-center gap-3 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm text-surface-700">
+                    <input
+                      type="checkbox"
+                      checked={mapInvertX}
+                      onChange={(event) => setMapInvertX(event.target.checked)}
+                      className="h-4 w-4 rounded border-surface-300"
+                    />
+                    Invert X Axis
+                  </label>
+                  <label className="flex items-center gap-3 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm text-surface-700">
+                    <input
+                      type="checkbox"
+                      checked={mapInvertZ}
+                      onChange={(event) => setMapInvertZ(event.target.checked)}
+                      className="h-4 w-4 rounded border-surface-300"
+                    />
+                    Invert Z Axis
+                  </label>
+                </div>
+              </div>
+
               <div className="flex justify-between pt-4">
                 <Button variant="ghost" onClick={() => setStep(1)} icon={<ChevronLeft size={18} />}>
                   Back
@@ -823,6 +944,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                         <span className="text-surface-700 font-medium">Enabled</span>
                       </div>
                     )}
+                    <div className="flex justify-between">
+                      <span className="text-surface-500">Map:</span>
+                      <span className="text-surface-700 font-medium">{mapLabel.trim() || selectedMap.label}</span>
+                    </div>
                     <div className="flex justify-between border-t border-surface-200 pt-2 mt-2">
                       <span className="text-surface-500">Full Path:</span>
                       <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{remoteRoot === '/' ? `/${sstPath}` : `${remoteRoot}/${sstPath}`}</span>
@@ -856,6 +981,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                         <span className="text-surface-700 font-medium">Enabled</span>
                       </div>
                     )}
+                    <div className="flex justify-between">
+                      <span className="text-surface-500">Map:</span>
+                      <span className="text-surface-700 font-medium">{mapLabel.trim() || selectedMap.label}</span>
+                    </div>
                   </div>
                 )}
               </div>

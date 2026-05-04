@@ -9,6 +9,7 @@ SST is a DayZ server tooling stack:
 If you’re new, start here:
 
 - [Getting Started](Getting%20Started/index.md)
+- [Multiple Servers](Getting%20Started/Multiple%20Servers.md)
 - [First Run Checklist](Getting%20Started/First%20Run%20Checklist.md)
 - [API Overview](API/API%20Overview.md)
 - [Mod Overview](In-Game%20Integration/Mod%20Overview.md)

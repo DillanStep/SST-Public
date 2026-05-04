@@ -4,13 +4,16 @@ import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import "../appConfig.js";
 import { resolveEnvPathForWrite, upsertEnvVar } from "../utils/envFile.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Database path - stored in the API directory
-const DB_PATH = path.join(__dirname, "..", "..", "data", "auth.db");
+// Database path - stored in the API directory unless overridden per API instance.
+const DB_PATH = process.env.AUTH_DB_PATH
+  ? path.resolve(process.env.AUTH_DB_PATH)
+  : path.join(__dirname, "..", "..", "data", "auth.db");
 
 let db = null;
 

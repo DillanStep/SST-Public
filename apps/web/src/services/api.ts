@@ -68,6 +68,7 @@ import type {
   RuntimeConfigResponse,
   RuntimeConfigUpdateResponse,
   RuntimeEnvValues,
+  ServerMapConfig,
 } from '../types';
 import { getActiveServer, getServers, migrateOldConfig } from './serverManager';
 import { getAuthToken } from './auth';
@@ -166,6 +167,11 @@ class SstApi {
 
   async updateRuntimeConfig(env: RuntimeEnvValues): Promise<RuntimeConfigUpdateResponse> {
     const response = await this.client.put<RuntimeConfigUpdateResponse>('/config', { env });
+    return response.data;
+  }
+
+  async getMapConfig(): Promise<ServerMapConfig> {
+    const response = await this.client.get<ServerMapConfig>('/map/config');
     return response.data;
   }
 
@@ -560,6 +566,7 @@ export const getApiKey = () => api.getApiKey();
 export const getHealth = () => api.getHealth();
 export const getRuntimeConfig = () => api.getRuntimeConfig();
 export const updateRuntimeConfig = (env: RuntimeEnvValues) => api.updateRuntimeConfig(env);
+export const getMapConfig = () => api.getMapConfig();
 export const getDashboard = () => api.getDashboard();
 export const getPlayer = (playerId: string) => api.getPlayer(playerId);
 export const refreshDashboard = () => api.refreshDashboard();

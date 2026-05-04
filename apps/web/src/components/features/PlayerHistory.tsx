@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import L from 'leaflet';
-import { MapContainer, ImageOverlay, Polyline, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, Polyline, CircleMarker, Popup, useMap } from 'react-leaflet';
 import { 
   History, Users, MapPin, Play, Pause, RefreshCw, 
   ChevronLeft, ChevronRight, Wifi, Eye
@@ -14,12 +14,14 @@ import {
 } from '../../services/api';
 import type { TrackedPlayer, PlayerPosition, PositionStatsResponse, OnlinePlayerData } from '../../types';
 import 'leaflet/dist/leaflet.css';
+import { MapImageLayer } from '../../maps/MapImageLayer';
+import { gameToMap, mapCenter as getMapCenter, mapRenderKey, paddedMapBounds, type ActiveMapConfig } from '../../maps/mapConfig';
+import { useMapConfig } from '../../maps/useMapConfig';
 
 interface PlayerHistoryProps {
   isConnected: boolean;
 }
 
-const MAP_SIZE = 15360;
 const MAX_PATH_POINTS_PER_PLAYER = 8000;
 
 const downsamplePositions = (positions: PlayerPosition[], maxPoints: number): PlayerPosition[] => {
@@ -39,19 +41,6 @@ const downsamplePositions = (positions: PlayerPosition[], maxPoints: number): Pl
   }
 
   return sampled;
-};
-
-// Map bounds for CRS.Simple
-const CHERNARUS_BOUNDS: L.LatLngBoundsExpression = [
-  [0, 0],
-  [MAP_SIZE, MAP_SIZE]
-];
-
-// Convert DayZ game coordinates to Leaflet map coordinates
-// DayZ: X is east-west, Z is north-south
-// Leaflet CRS.Simple: [lat, lng] where lat is Y and lng is X
-const gameToMap = (x: number, z: number): [number, number] => {
-  return [z, x]; // [lat, lng] = [z, x]
 };
 
 // Time range presets
@@ -94,11 +83,11 @@ const MapController: React.FC<{ center: [number, number] | null }> = ({ center }
 };
 
 // Initial view setter
-const SetView: React.FC = () => {
+const SetView: React.FC<{ mapConfig: ActiveMapConfig }> = ({ mapConfig }) => {
   const map = useMap();
   useEffect(() => {
-    map.setView([MAP_SIZE / 2, MAP_SIZE / 2], -2);
-  }, [map]);
+    map.setView(getMapCenter(mapConfig), -2);
+  }, [map, mapConfig]);
   return null;
 };
 
@@ -121,6 +110,7 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayerData[]>([]);
   const [showLivePositions, setShowLivePositions] = useState(true);
   const liveRefreshInterval = 5; // seconds
+  const { mapConfig, loading: mapLoading } = useMapConfig(isConnected);
 
   const playerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -193,10 +183,10 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
   const pathPointsByPlayerId = useMemo(() => {
     const map = new Map<string, [number, number][]>();
     for (const [playerId, positions] of playerPaths.entries()) {
-      map.set(playerId, positions.map(p => gameToMap(p.position.x, p.position.z)));
+      map.set(playerId, positions.map(p => gameToMap(mapConfig, p.position.x, p.position.z)));
     }
     return map;
-  }, [playerPaths]);
+  }, [mapConfig, playerPaths]);
 
   // Load tracked players and stats
   const loadData = useCallback(async () => {
@@ -251,7 +241,7 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
         const firstPath = newPaths.values().next().value;
         if (firstPath && firstPath.length > 0) {
           const lastPos = firstPath[firstPath.length - 1];
-          setMapCenter(gameToMap(lastPos.position.x, lastPos.position.z));
+          setMapCenter(gameToMap(mapConfig, lastPos.position.x, lastPos.position.z));
         }
       }
     } catch (err) {
@@ -259,7 +249,7 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
     } finally {
       setLoadingPaths(false);
     }
-  }, [selectedPlayers, timeRange]);
+  }, [mapConfig, selectedPlayers, timeRange]);
 
   // Load online players for live tracking
   const loadOnlinePlayers = useCallback(async () => {
@@ -552,6 +542,9 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
               </div>
             )}
             <div className="text-surface-400">
+              {mapLoading ? 'Loading map' : mapConfig.label}
+            </div>
+            <div className="text-surface-400">
               Click players to show/hide their paths
             </div>
           </div>
@@ -586,23 +579,20 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
       {/* Map */}
       <div className="flex-1 h-full">
         <MapContainer
+          key={mapRenderKey(mapConfig)}
           crs={L.CRS.Simple}
-          center={[MAP_SIZE / 2, MAP_SIZE / 2]}
+          center={getMapCenter(mapConfig)}
           zoom={-2}
           minZoom={-4}
           maxZoom={2}
-          maxBounds={[[-1000, -1000], [MAP_SIZE + 1000, MAP_SIZE + 1000]]}
+          maxBounds={paddedMapBounds(mapConfig)}
           style={{ width: '100%', height: '100%', background: '#1a1a2e' }}
           attributionControl={false}
           preferCanvas={true}
         >
-          <SetView />
+          <SetView mapConfig={mapConfig} />
           <MapController center={mapCenter} />
-          
-          <ImageOverlay
-            url="/maps/chernarus.jpg"
-            bounds={CHERNARUS_BOUNDS}
-          />
+          <MapImageLayer mapConfig={mapConfig} />
           
           {/* Draw paths for each selected player */}
           {Array.from(playerPaths.entries()).map(([playerId, positions], pathIndex) => {
@@ -624,7 +614,7 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
                 {/* Start marker */}
                 {positions.length > 0 && (
                   <CircleMarker
-                    center={gameToMap(positions[0].position.x, positions[0].position.z)}
+                    center={gameToMap(mapConfig, positions[0].position.x, positions[0].position.z)}
                     radius={8}
                     fillColor="#22c55e"
                     color="#fff"
@@ -652,7 +642,7 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
                   
                   return (
                     <CircleMarker
-                      center={gameToMap(displayPos.position.x, displayPos.position.z)}
+                      center={gameToMap(mapConfig, displayPos.position.x, displayPos.position.z)}
                       radius={10}
                       fillColor={color}
                       color="#fff"
@@ -679,7 +669,7 @@ export const PlayerHistory: React.FC<PlayerHistoryProps> = ({ isConnected }) => 
           {showLivePositions && onlinePlayers.map((player) => (
             <CircleMarker
               key={`live-${player.playerId}`}
-              center={gameToMap(player.position.x, player.position.z)}
+              center={gameToMap(mapConfig, player.position.x, player.position.z)}
               radius={10}
               fillColor={player.isAlive ? '#22c55e' : '#ef4444'}
               color="#fff"

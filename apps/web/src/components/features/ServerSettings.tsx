@@ -1,14 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { 
   Server, Plus, Trash2, Edit2, Check, X, 
-  ExternalLink, Key, Globe, Clock, Save, RefreshCw, SlidersHorizontal
+  ExternalLink, Key, Globe, Clock, Save, RefreshCw, SlidersHorizontal, Map as MapIcon
 } from 'lucide-react';
 import { Button, Card, Badge } from '../ui';
 import {
   ACTIVE_SERVER_CHANGED_EVENT,
   SERVER_CONFIG_CHANGED_EVENT,
   getServers, 
-  addServer, 
   updateServer, 
   deleteServer, 
   getActiveServerId,
@@ -17,6 +16,8 @@ import {
 import api from '../../services/api';
 import { clearAuthTokenForServer } from '../../services/auth';
 import type { RuntimeEnvValues, ServerConfig } from '../../types';
+import { getMapPresetDefaults, MAP_PRESET_OPTIONS } from '../../maps/mapConfig';
+import { AddServerSetup } from './AddServerSetup';
 
 interface ServerSettingsProps {
   onServerChange?: () => void;
@@ -106,9 +107,22 @@ const ENV_GROUPS: EnvGroup[] = [
     ],
   },
   {
+    title: 'Map',
+    fields: [
+      { key: 'MAP_PRESET', label: 'Map Preset', type: 'select', options: MAP_PRESET_OPTIONS },
+      { key: 'MAP_LABEL', label: 'Custom Map Label' },
+      { key: 'MAP_IMAGE_URL', label: 'Map Image URL or Public Path' },
+      { key: 'MAP_WORLD_SIZE_X', label: 'World Size X', type: 'number' },
+      { key: 'MAP_WORLD_SIZE_Z', label: 'World Size Z', type: 'number' },
+      { key: 'MAP_INVERT_X', label: 'Invert X Axis', type: 'toggle' },
+      { key: 'MAP_INVERT_Z', label: 'Invert Z Axis', type: 'toggle' },
+    ],
+  },
+  {
     title: 'Logs & Tracking',
     fields: [
       { key: 'PROFILES_PATH', label: 'Profiles Path' },
+      { key: 'AUTH_DB_PATH', label: 'Auth Database Path' },
       { key: 'DATABASE_PATH', label: 'Position Database Path' },
       { key: 'POSITION_TRACKING_INTERVAL', label: 'Position Interval (ms)', type: 'number' },
       { key: 'ARCHIVE_HOUR', label: 'Archive Hour', type: 'number' },
@@ -255,41 +269,6 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     }
   };
 
-  // Add new server
-  const handleAddServer = () => {
-    if (!formName.trim()) {
-      setFormError('Server name is required');
-      return;
-    }
-    if (!formUrl.trim()) {
-      setFormError('API URL is required');
-      return;
-    }
-    if (!formKey.trim()) {
-      setFormError('API key is required');
-      return;
-    }
-
-    const wasFirstServer = servers.length === 0;
-    addServer({
-      name: formName.trim(),
-      apiUrl: formUrl.trim().replace(/\/$/, ''), // Remove trailing slash
-      apiKey: formKey.trim(),
-    });
-
-    setFormName('');
-    setFormUrl('http://localhost:3001');
-    setFormKey('');
-    setFormError('');
-    setShowAddForm(false);
-    loadServers();
-
-    if (wasFirstServer) {
-      api.loadActiveServer();
-      onServerChange?.();
-    }
-  };
-
   // Update existing server
   const handleUpdateServer = (id: string) => {
     if (!formName.trim() || !formUrl.trim() || !formKey.trim()) {
@@ -365,6 +344,27 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setConfigError('');
   };
 
+  const updateMapPresetEnvValue = (value: string) => {
+    if (!value) {
+      updateEnvValue('MAP_PRESET', '');
+      return;
+    }
+
+    const defaults = getMapPresetDefaults(value);
+    setEnvValues(prev => ({
+      ...prev,
+      MAP_PRESET: defaults.id,
+      MAP_LABEL: defaults.id === 'custom' ? prev.MAP_LABEL || '' : '',
+      MAP_IMAGE_URL: defaults.imageUrl,
+      MAP_WORLD_SIZE_X: String(defaults.worldSizeX),
+      MAP_WORLD_SIZE_Z: String(defaults.worldSizeZ),
+      MAP_INVERT_X: '0',
+      MAP_INVERT_Z: '0',
+    }));
+    setConfigMessage(`${defaults.label} map defaults applied. Review them, then Save .env to persist.`);
+    setConfigError('');
+  };
+
   const autoFillRuntimeConfig = () => {
     const filled = fillMissingEnvValues(envValues, envSuggestions);
     setEnvValues(filled.values);
@@ -425,7 +425,13 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
           <span className="block text-sm font-medium text-surface-700 mb-1">{field.label}</span>
           <select
             value={value}
-            onChange={(e) => updateEnvValue(field.key, e.target.value)}
+            onChange={(e) => {
+              if (field.key === 'MAP_PRESET') {
+                updateMapPresetEnvValue(e.target.value);
+                return;
+              }
+              updateEnvValue(field.key, e.target.value);
+            }}
             className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
           >
             <option value="">Default</option>
@@ -465,6 +471,20 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     ));
   };
 
+  if (showAddForm) {
+    return (
+      <AddServerSetup
+        onCancel={() => setShowAddForm(false)}
+        onSaved={() => {
+          setShowAddForm(false);
+          loadServers();
+          api.loadActiveServer();
+          onServerChange?.();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
     <Card compact>
@@ -478,92 +498,15 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
             <p className="text-xs sm:text-sm text-surface-500">Manage one SST API connection per DayZ server</p>
           </div>
         </div>
-        {!showAddForm && (
-          <Button onClick={() => setShowAddForm(true)} size="sm">
-            <Plus size={16} className="mr-1" />
-            Add Server
-          </Button>
-        )}
+        <Button onClick={() => setShowAddForm(true)} size="sm">
+          <Plus size={16} className="mr-1" />
+          Add Server
+        </Button>
       </div>
 
       <p className="mb-4 text-xs sm:text-sm text-surface-500">
         Hosting five servers? Run five SST API instances on different ports or hosts, then add each API URL here.
       </p>
-
-      {/* Add Server Form */}
-      {showAddForm && (
-        <div className="mb-6 p-4 bg-surface-50 rounded-lg border border-surface-200">
-          <h3 className="font-medium text-surface-800 mb-4">Add New Server</h3>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-surface-800 mb-1">
-                Server Name
-              </label>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="My DayZ Server"
-                className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-surface-800 mb-1">
-                API URL
-              </label>
-              <div className="flex items-center gap-2">
-                <Globe size={16} className="text-surface-500" />
-                <input
-                  type="text"
-                  value={formUrl}
-                  onChange={(e) => setFormUrl(e.target.value)}
-                  placeholder="http://localhost:3001"
-                  className="flex-1 px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-surface-800 mb-1">
-                API Key
-              </label>
-              <div className="flex items-center gap-2">
-                <Key size={16} className="text-surface-500" />
-                <input
-                  type="password"
-                  value={formKey}
-                  onChange={(e) => setFormKey(e.target.value)}
-                  placeholder="Enter API key"
-                  className="flex-1 px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
-                />
-              </div>
-            </div>
-            
-            {formError && (
-              <p className="text-sm text-red-500">{formError}</p>
-            )}
-            
-            <div className="flex gap-2">
-              <Button onClick={handleAddServer}>
-                <Check size={16} className="mr-1" />
-                Save Server
-              </Button>
-              <Button variant="secondary" onClick={() => {
-                setShowAddForm(false);
-                setFormName('');
-                setFormUrl('http://localhost:3001');
-                setFormKey('');
-                setFormError('');
-              }}>
-                <X size={16} className="mr-1" />
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Server List */}
       {servers.length > 0 ? (
@@ -657,6 +600,12 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
                       <Key size={12} />
                       <span className="font-mono text-xs">••••••••{server.apiKey.slice(-4)}</span>
                     </div>
+                    {server.mapPreset && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <MapIcon size={12} />
+                        <span>{server.mapLabel || getMapPresetDefaults(server.mapPreset).label}</span>
+                      </div>
+                    )}
                     {server.lastUsed && (
                       <div className="flex items-center gap-2 text-xs">
                         <Clock size={12} />
