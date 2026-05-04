@@ -4,7 +4,7 @@
 
 - A working DayZ dedicated server.
 - Permission to install and load server-side mods.
-- Write access to the server profile directory. SST writes data under `$profile:SST/`.
+- Write access to the server storage directory. SST writes data under `$storage:SST/`.
 - Access to edit startup parameters such as `-profiles`, `-mod`, `-serverMod`, and `-scrAllowFileWrite`, or the equivalent fields in your host panel.
 - A test/staging server is strongly recommended before enabling SST on a live community.
 
@@ -27,4 +27,4 @@
 - HTTPS for any public dashboard/API endpoint.
 - Firewall rules that only expose the ports you intend to expose.
 - Backups for API SQLite data if you rely on history/archive features.
-- Backups of the DayZ profile `SST/` folder before testing admin commands on a live server.
+- Backups of the DayZ storage `SST/` folder before testing admin commands on a live server.

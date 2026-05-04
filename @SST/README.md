@@ -12,12 +12,16 @@ This folder is the ready-to-install server-side DayZ mod package for SST.
 ```
 
 3. Start the server once.
-4. Confirm the DayZ profile folder now contains an `SST/` runtime data folder.
+4. Confirm the DayZ storage folder now contains an `SST/` runtime data folder.
 
-The dashboard should point at the generated profile data folder, not the
-`@SST` mod package. For example, if the server is launched with
-`-profiles=Server1` from the DayZ server root, SST data is created under
-`Server1/SST`.
+The dashboard should point at the generated storage data folder, not the
+`@SST` mod package. If possible, launch DayZ with a stable storage root:
+
+```text
+-profiles=Server1 -storage=Server1Storage -serverMod=@SST -scrAllowFileWrite
+```
+
+Then point the API at `Server1Storage/SST`.
 
 Expected runtime paths include `SST/api/online_players.json`,
 `SST/api/server_items.json`, `SST/inventories/`, `SST/events/`,

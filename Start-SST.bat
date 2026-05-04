@@ -1,9 +1,11 @@
 @echo off
-title SST Dashboard Launcher
+setlocal
+title SST - DayZ Management Suite
 
 echo.
 echo ============================================================
-echo SST Dashboard Launcher
+echo  SST - DayZ Management Suite
+echo  Dashboard Launcher
 echo ============================================================
 echo.
 
@@ -11,9 +13,8 @@ set "SCRIPT_DIR=%~dp0"
 set "API_DIR=%SCRIPT_DIR%apps\api"
 set "WEB_DIR=%SCRIPT_DIR%apps\web"
 
-echo Checking paths...
-echo SCRIPT_DIR = %SCRIPT_DIR%
-echo API_DIR = %API_DIR%
+echo Project: %SCRIPT_DIR%
+echo API:     %API_DIR%
 echo.
 
 REM Check Node.js
@@ -29,13 +30,12 @@ if errorlevel 1 (
 echo.
 
 REM Check API exists
-echo Checking API folder...
 if not exist "%API_DIR%\src\server.js" (
     echo ERROR: API not found at %API_DIR%
     pause
     exit /b 1
 )
-echo API found.
+echo API files found.
 echo.
 
 REM Check/install dependencies
@@ -53,7 +53,7 @@ echo Checking if API is already running...
 netstat -ano | findstr ":3001.*LISTENING" > nul
 if not errorlevel 1 (
     echo.
-    echo API is already running on port 3001!
+    echo SST API is already running on port 3001.
     echo Opening browser to existing server...
     echo.
     goto :open_browser
@@ -88,7 +88,7 @@ if exist "%WEB_DIR%\dist\index.html" (
 
 echo.
 echo ============================================================
-echo SST is running at http://localhost:3001
+echo  SST is running at http://localhost:3001
 echo Close the API window to stop.
 echo ============================================================
 echo.

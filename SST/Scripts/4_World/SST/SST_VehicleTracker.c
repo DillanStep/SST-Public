@@ -11,7 +11,7 @@
 #ifdef EXPANSIONMODVEHICLE
 
 // ----------------------------------------------------------------------------
-// JSON-serializable data models (written under $profile:SST)
+// JSON-serializable data models (written under $storage:SST)
 // ----------------------------------------------------------------------------
 
 class SST_VehicleKeyData
@@ -100,36 +100,33 @@ class SST_VehicleTracker
 {
 	protected static ref SST_VehicleTracker s_Instance;
 	
-	static const string VEHICLES_FOLDER = "$profile:SST/vehicles/";
-	static const string PURCHASES_FILE = "$profile:SST/vehicles/purchases.json";
-	static const string TRACKED_FILE = "$profile:SST/vehicles/tracked.json";
-	static const string KEY_QUEUE_FILE = "$profile:SST/api/key_grants.json";
-	static const string KEY_RESULTS_FILE = "$profile:SST/api/key_grants_results.json";
-	static const string DELETE_QUEUE_FILE = "$profile:SST/api/vehicle_delete.json";
-	static const string DELETE_RESULTS_FILE = "$profile:SST/api/vehicle_delete_results.json";
+	static string VEHICLES_FOLDER = SST_RuntimePaths.VEHICLES_FOLDER + "/";
+	static string PURCHASES_FILE = SST_RuntimePaths.VehicleFile("purchases.json");
+	static string TRACKED_FILE = SST_RuntimePaths.VehicleFile("tracked.json");
+	static string KEY_QUEUE_FILE = SST_RuntimePaths.ApiFile("key_grants.json");
+	static string KEY_RESULTS_FILE = SST_RuntimePaths.ApiFile("key_grants_results.json");
+	static string DELETE_QUEUE_FILE = SST_RuntimePaths.ApiFile("vehicle_delete.json");
+	static string DELETE_RESULTS_FILE = SST_RuntimePaths.ApiFile("vehicle_delete_results.json");
 	
 	protected ref map<string, ref SST_TrackedVehicle> m_TrackedVehicles;
+	protected ref map<string, EntityAI> m_TrackedVehicleEntities;
 	protected ref array<ref SST_VehiclePurchaseData> m_Purchases;
-	protected float m_UpdateTimer;
-	protected float m_KeyCheckTimer;
+	protected bool m_Scheduled;
 	
-	static const float POSITION_UPDATE_INTERVAL = 60.0;  // Update positions every 60 seconds
-	static const float KEY_CHECK_INTERVAL = 5.0;         // Check for key requests every 5 seconds
+	static const float POSITION_UPDATE_INTERVAL_MS = 60000.0;  // Update positions every 60 seconds
+	static const float KEY_CHECK_INTERVAL_MS = 5000.0;         // Check for key/delete requests every 5 seconds
 	
 	void SST_VehicleTracker()
 	{
 		m_TrackedVehicles = new map<string, ref SST_TrackedVehicle>();
+		m_TrackedVehicleEntities = new map<string, EntityAI>();
 		m_Purchases = new array<ref SST_VehiclePurchaseData>();
-		m_UpdateTimer = 0;
-		m_KeyCheckTimer = 0;
+		m_Scheduled = false;
 		
 		// Create folders
-		if (!FileExist("$profile:SST"))
-			MakeDirectory("$profile:SST");
-		if (!FileExist(VEHICLES_FOLDER))
-			MakeDirectory(VEHICLES_FOLDER);
-		if (!FileExist("$profile:SST/api"))
-			MakeDirectory("$profile:SST/api");
+		SST_PersistenceCore.EnsureDirectory(SST_RuntimePaths.STORAGE_ROOT);
+		SST_PersistenceCore.EnsureDirectory(VEHICLES_FOLDER);
+		SST_PersistenceCore.EnsureDirectory(SST_RuntimePaths.API_FOLDER);
 			
 		// Load existing data
 		LoadTrackedVehicles();
@@ -154,6 +151,99 @@ class SST_VehicleTracker
 			hour.ToStringLen(2),
 			minute.ToStringLen(2),
 			second.ToStringLen(2));
+	}
+
+	void Start()
+	{
+		if (m_Scheduled)
+			return;
+
+		m_Scheduled = true;
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(UpdateVehiclePositionsAndSchedule, POSITION_UPDATE_INTERVAL_MS, false);
+		GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ProcessRequestsAndSchedule, KEY_CHECK_INTERVAL_MS, false);
+	}
+
+	protected void UpdateVehiclePositionsAndSchedule()
+	{
+		UpdateVehiclePositions();
+
+		if (m_Scheduled)
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(UpdateVehiclePositionsAndSchedule, POSITION_UPDATE_INTERVAL_MS, false);
+	}
+
+	protected void ProcessRequestsAndSchedule()
+	{
+		ProcessKeyRequests();
+		ProcessDeleteRequests();
+
+		if (m_Scheduled)
+			GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(ProcessRequestsAndSchedule, KEY_CHECK_INTERVAL_MS, false);
+	}
+
+	protected string GetVehicleIdFromEntity(EntityAI entity)
+	{
+		if (!entity)
+			return "";
+
+		ExpansionVehicle vehicle = ExpansionVehicle.Get(entity);
+		if (!vehicle || !vehicle.HasKey())
+			return "";
+
+		int a, b, c, d;
+		vehicle.GetMasterKeyPersistentID(a, b, c, d);
+		return string.Format("%1-%2-%3-%4", a, b, c, d);
+	}
+
+	protected void CacheVehicleEntity(string vehicleId, EntityAI entity)
+	{
+		if (vehicleId == "" || !entity)
+			return;
+
+		m_TrackedVehicleEntities.Set(vehicleId, entity);
+	}
+
+	protected EntityAI GetCachedVehicleEntity(string vehicleId)
+	{
+		if (!m_TrackedVehicleEntities.Contains(vehicleId))
+			return null;
+
+		EntityAI entity = m_TrackedVehicleEntities.Get(vehicleId);
+		if (!entity)
+		{
+			m_TrackedVehicleEntities.Remove(vehicleId);
+			return null;
+		}
+
+		ExpansionVehicle vehicle = ExpansionVehicle.Get(entity);
+		if (!vehicle || !vehicle.HasKey())
+		{
+			m_TrackedVehicleEntities.Remove(vehicleId);
+			return null;
+		}
+
+		return entity;
+	}
+
+	protected bool ApplyVehicleSnapshot(string vehicleId, EntityAI entity)
+	{
+		if (!entity)
+			return false;
+
+		SST_TrackedVehicle tracked = m_TrackedVehicles.Get(vehicleId);
+		if (!tracked)
+			return false;
+
+		CacheVehicleEntity(vehicleId, entity);
+
+		vector position = entity.GetPosition();
+		bool isDestroyed = entity.IsRuined();
+		if (tracked.lastPosition == position && tracked.isDestroyed == isDestroyed)
+			return false;
+
+		tracked.lastPosition = position;
+		tracked.lastUpdateTime = GetUTCTimestamp();
+		tracked.isDestroyed = isDestroyed;
+		return true;
 	}
 	
 	// Called when a vehicle is purchased with a key
@@ -212,6 +302,7 @@ class SST_VehicleTracker
 		tracked.traderZone = traderZone;
 		
 		m_TrackedVehicles.Set(vehicleId, tracked);
+		CacheVehicleEntity(vehicleId, vehicleEntity);
 		SaveTrackedVehicles();
 		
 		Print("[SST] Vehicle purchased and tracked: " + vehicleEntity.GetType() + " by " + identity.GetName() + " (ID: " + vehicleId + ")");
@@ -227,9 +318,31 @@ class SST_VehicleTracker
 			return;
 			
 		bool needsSave = false;
-		
-		// Use DayZPlayerUtils to get entities in a large box covering the map
-		// DayZ maps are typically around 15360m x 15360m
+		bool needsWorldScan = false;
+
+		for (int i = 0; i < m_TrackedVehicles.Count(); i++)
+		{
+			string trackedVehicleId = m_TrackedVehicles.GetKey(i);
+			EntityAI cachedEntity = GetCachedVehicleEntity(trackedVehicleId);
+			if (cachedEntity)
+			{
+				if (ApplyVehicleSnapshot(trackedVehicleId, cachedEntity))
+					needsSave = true;
+			}
+			else
+			{
+				needsWorldScan = true;
+			}
+		}
+
+		if (!needsWorldScan)
+		{
+			if (needsSave)
+				SaveTrackedVehicles();
+			return;
+		}
+
+		// Fallback scan only runs for uncached tracked vehicles, mostly after a restart.
 		vector minPos = "-100 -100 -100";
 		vector maxPos = "15500 1000 15500";
 		
@@ -241,24 +354,12 @@ class SST_VehicleTracker
 			if (!entity)
 				continue;
 			
-			// Check if this is a vehicle with expansion component
-			ExpansionVehicle vehicle = ExpansionVehicle.Get(entity);
-			if (!vehicle || !vehicle.HasKey())
+			string vehicleId = GetVehicleIdFromEntity(entity);
+			if (vehicleId == "")
 				continue;
 			
-			// Get the vehicle's key ID
-			int a, b, c, d;
-			vehicle.GetMasterKeyPersistentID(a, b, c, d);
-			string vehicleId = string.Format("%1-%2-%3-%4", a, b, c, d);
-			
-			SST_TrackedVehicle tracked = m_TrackedVehicles.Get(vehicleId);
-			if (tracked)
-			{
-				tracked.lastPosition = entity.GetPosition();
-				tracked.lastUpdateTime = GetUTCTimestamp();
-				tracked.isDestroyed = entity.IsRuined();
+			if (m_TrackedVehicles.Contains(vehicleId) && ApplyVehicleSnapshot(vehicleId, entity))
 				needsSave = true;
-			}
 		}
 		
 		if (needsSave)
@@ -271,13 +372,13 @@ class SST_VehicleTracker
 		if (!GetGame().IsServer())
 			return;
 			
-		if (!FileExist(KEY_QUEUE_FILE))
+		if (!SST_PersistenceCore.FileExists(KEY_QUEUE_FILE))
 			return;
 			
 		// Load queue
 		string errorMsg;
 		ref SST_KeyGenerationQueue queue = new SST_KeyGenerationQueue();
-		if (!JsonFileLoader<SST_KeyGenerationQueue>.LoadFile(KEY_QUEUE_FILE, queue, errorMsg))
+		if (!SST_Persistence<SST_KeyGenerationQueue>.LoadJson(KEY_QUEUE_FILE, queue, errorMsg))
 			return;
 			
 		if (queue.requests.Count() == 0)
@@ -297,7 +398,7 @@ class SST_VehicleTracker
 		
 		// Clear the queue
 		ref SST_KeyGenerationQueue emptyQueue = new SST_KeyGenerationQueue();
-		JsonFileLoader<SST_KeyGenerationQueue>.SaveFile(KEY_QUEUE_FILE, emptyQueue, errorMsg);
+		SST_Persistence<SST_KeyGenerationQueue>.SaveJson(KEY_QUEUE_FILE, emptyQueue, errorMsg);
 	}
 	
 	protected void ProcessSingleKeyRequest(SST_KeyGenerationRequest request)
@@ -457,6 +558,14 @@ class SST_VehicleTracker
 	
 	protected ExpansionVehicle FindVehicleById(string vehicleId)
 	{
+		EntityAI cachedEntity = GetCachedVehicleEntity(vehicleId);
+		if (cachedEntity)
+		{
+			ExpansionVehicle cachedVehicle = ExpansionVehicle.Get(cachedEntity);
+			if (cachedVehicle)
+				return cachedVehicle;
+		}
+
 		// Parse the vehicle ID - handles negative numbers
 		// Format: A-B-C-D where any value can be negative (e.g., "123-456-789--123" means D=-123)
 		int a, b, c, d;
@@ -483,7 +592,10 @@ class SST_VehicleTracker
 			vehicle.GetMasterKeyPersistentID(va, vb, vc, vd);
 			
 			if (va == a && vb == b && vc == c && vd == d)
+			{
+				CacheVehicleEntity(vehicleId, entity);
 				return vehicle;
+			}
 		}
 		
 		return null;
@@ -494,8 +606,8 @@ class SST_VehicleTracker
 		string errorMsg;
 		// Append results to results file
 		ref SST_KeyGenerationQueue existingResults = new SST_KeyGenerationQueue();
-		if (FileExist(KEY_RESULTS_FILE))
-			JsonFileLoader<SST_KeyGenerationQueue>.LoadFile(KEY_RESULTS_FILE, existingResults, errorMsg);
+		if (SST_PersistenceCore.FileExists(KEY_RESULTS_FILE))
+			SST_Persistence<SST_KeyGenerationQueue>.LoadJson(KEY_RESULTS_FILE, existingResults, errorMsg);
 		
 		foreach (SST_KeyGenerationRequest request : queue.requests)
 		{
@@ -506,7 +618,7 @@ class SST_VehicleTracker
 		while (existingResults.requests.Count() > 100)
 			existingResults.requests.Remove(0);
 			
-		JsonFileLoader<SST_KeyGenerationQueue>.SaveFile(KEY_RESULTS_FILE, existingResults, errorMsg);
+		SST_Persistence<SST_KeyGenerationQueue>.SaveJson(KEY_RESULTS_FILE, existingResults, errorMsg);
 	}
 	
 	// ============================================================================
@@ -515,12 +627,12 @@ class SST_VehicleTracker
 	
 	void ProcessDeleteRequests()
 	{
-		if (!FileExist(DELETE_QUEUE_FILE))
+		if (!SST_PersistenceCore.FileExists(DELETE_QUEUE_FILE))
 			return;
 			
 		string errorMsg;
 		ref SST_VehicleDeleteQueue queue = new SST_VehicleDeleteQueue();
-		if (!JsonFileLoader<SST_VehicleDeleteQueue>.LoadFile(DELETE_QUEUE_FILE, queue, errorMsg))
+		if (!SST_Persistence<SST_VehicleDeleteQueue>.LoadJson(DELETE_QUEUE_FILE, queue, errorMsg))
 			return;
 			
 		if (queue.requests.Count() == 0)
@@ -540,7 +652,7 @@ class SST_VehicleTracker
 		
 		// Clear the queue
 		ref SST_VehicleDeleteQueue emptyQueue = new SST_VehicleDeleteQueue();
-		JsonFileLoader<SST_VehicleDeleteQueue>.SaveFile(DELETE_QUEUE_FILE, emptyQueue, errorMsg);
+		SST_Persistence<SST_VehicleDeleteQueue>.SaveJson(DELETE_QUEUE_FILE, emptyQueue, errorMsg);
 	}
 	
 	protected void ProcessSingleDeleteRequest(SST_VehicleDeleteRequest request)
@@ -573,6 +685,8 @@ class SST_VehicleTracker
 		if (wasTracked)
 		{
 			m_TrackedVehicles.Remove(request.vehicleId);
+			if (m_TrackedVehicleEntities.Contains(request.vehicleId))
+				m_TrackedVehicleEntities.Remove(request.vehicleId);
 			SaveTrackedVehicles();
 			Print("[SST] Removed from tracking: " + request.vehicleId);
 		}
@@ -607,8 +721,8 @@ class SST_VehicleTracker
 		string errorMsg;
 		// Append results to results file
 		ref SST_VehicleDeleteQueue existingResults = new SST_VehicleDeleteQueue();
-		if (FileExist(DELETE_RESULTS_FILE))
-			JsonFileLoader<SST_VehicleDeleteQueue>.LoadFile(DELETE_RESULTS_FILE, existingResults, errorMsg);
+		if (SST_PersistenceCore.FileExists(DELETE_RESULTS_FILE))
+			SST_Persistence<SST_VehicleDeleteQueue>.LoadJson(DELETE_RESULTS_FILE, existingResults, errorMsg);
 		
 		foreach (SST_VehicleDeleteRequest request : queue.requests)
 		{
@@ -619,7 +733,7 @@ class SST_VehicleTracker
 		while (existingResults.requests.Count() > 100)
 			existingResults.requests.Remove(0);
 			
-		JsonFileLoader<SST_VehicleDeleteQueue>.SaveFile(DELETE_RESULTS_FILE, existingResults, errorMsg);
+		SST_Persistence<SST_VehicleDeleteQueue>.SaveJson(DELETE_RESULTS_FILE, existingResults, errorMsg);
 	}
 	
 	void SavePurchases()
@@ -627,7 +741,7 @@ class SST_VehicleTracker
 		string errorMsg;
 		// Create wrapper object
 		ref array<ref SST_VehiclePurchaseData> purchases = m_Purchases;
-		JsonFileLoader<array<ref SST_VehiclePurchaseData>>.SaveFile(PURCHASES_FILE, purchases, errorMsg);
+		SST_Persistence<array<ref SST_VehiclePurchaseData>>.SaveJson(PURCHASES_FILE, purchases, errorMsg);
 	}
 	
 	void SaveTrackedVehicles()
@@ -641,17 +755,17 @@ class SST_VehicleTracker
 			vehicles.Insert(m_TrackedVehicles.GetElement(i));
 		}
 		
-		JsonFileLoader<array<ref SST_TrackedVehicle>>.SaveFile(TRACKED_FILE, vehicles, errorMsg);
+		SST_Persistence<array<ref SST_TrackedVehicle>>.SaveJson(TRACKED_FILE, vehicles, errorMsg);
 	}
 	
 	void LoadTrackedVehicles()
 	{
-		if (!FileExist(TRACKED_FILE))
+		if (!SST_PersistenceCore.FileExists(TRACKED_FILE))
 			return;
 		
 		string errorMsg;
 		ref array<ref SST_TrackedVehicle> vehicles = new array<ref SST_TrackedVehicle>();
-		if (JsonFileLoader<array<ref SST_TrackedVehicle>>.LoadFile(TRACKED_FILE, vehicles, errorMsg))
+		if (SST_Persistence<array<ref SST_TrackedVehicle>>.LoadJson(TRACKED_FILE, vehicles, errorMsg))
 		{
 			foreach (SST_TrackedVehicle vehicle : vehicles)
 			{
@@ -661,33 +775,15 @@ class SST_VehicleTracker
 		}
 	}
 	
-	// Called periodically to update tracking and process requests
-	void OnUpdate(float deltaTime)
-	{
-		if (!GetGame().IsServer())
-			return;
-			
-		m_UpdateTimer += deltaTime;
-		m_KeyCheckTimer += deltaTime;
-		
-		if (m_UpdateTimer >= POSITION_UPDATE_INTERVAL)
-		{
-			m_UpdateTimer = 0;
-			UpdateVehiclePositions();
-		}
-		
-		if (m_KeyCheckTimer >= KEY_CHECK_INTERVAL)
-		{
-			m_KeyCheckTimer = 0;
-			ProcessKeyRequests();
-			ProcessDeleteRequests();
-		}
-	}
-	
 	// Static helper to log purchase
 	static void LogVehiclePurchase(PlayerBase player, EntityAI vehicleEntity, ExpansionCarKey key, string keyClassName, int price, string traderName, string traderZone)
 	{
 		GetInstance().OnVehiclePurchased(player, vehicleEntity, key, keyClassName, price, traderName, traderZone);
+	}
+
+	static void StartTracking()
+	{
+		GetInstance().Start();
 	}
 	
 	// Static helper to check if a vehicle is already tracked

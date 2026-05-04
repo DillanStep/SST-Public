@@ -2,7 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Wifi, WifiOff, ChevronDown, Server, Check, RefreshCw } from 'lucide-react';
 import { getHealth, getDashboard } from '../../services/api';
 import api from '../../services/api';
-import { getActiveServer, getServers, setActiveServerId } from '../../services/serverManager';
+import {
+  ACTIVE_SERVER_CHANGED_EVENT,
+  SERVER_CONFIG_CHANGED_EVENT,
+  getActiveServer,
+  getServers,
+  setActiveServerId,
+} from '../../services/serverManager';
 import type { ServerConfig } from '../../types';
 
 interface ConnectionBarProps {
@@ -23,6 +29,13 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hasAttemptedAutoConnect = useRef(false);
 
+  const resetConnectionState = useCallback(() => {
+    setStatus('idle');
+    setPlayerCount(0);
+    hasAttemptedAutoConnect.current = false;
+    onDisconnected();
+  }, [onDisconnected]);
+
   // Load servers
   const loadServers = useCallback(() => {
     const allServers = getServers();
@@ -34,6 +47,37 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
   useEffect(() => {
     loadServers();
   }, [loadServers]);
+
+  useEffect(() => {
+    const handleServerConfigChanged = () => {
+      const nextActive = getActiveServer();
+      const activeConnectionChanged = Boolean(
+        activeServer &&
+        nextActive &&
+        activeServer.id === nextActive.id &&
+        (activeServer.apiUrl !== nextActive.apiUrl || activeServer.apiKey !== nextActive.apiKey)
+      );
+
+      loadServers();
+
+      if (activeConnectionChanged) {
+        resetConnectionState();
+      }
+    };
+
+    const handleActiveServerChanged = () => {
+      loadServers();
+      resetConnectionState();
+    };
+
+    window.addEventListener(SERVER_CONFIG_CHANGED_EVENT, handleServerConfigChanged);
+    window.addEventListener(ACTIVE_SERVER_CHANGED_EVENT, handleActiveServerChanged);
+
+    return () => {
+      window.removeEventListener(SERVER_CONFIG_CHANGED_EVENT, handleServerConfigChanged);
+      window.removeEventListener(ACTIVE_SERVER_CHANGED_EVENT, handleActiveServerChanged);
+    };
+  }, [activeServer, loadServers, resetConnectionState]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -66,6 +110,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
       setStatus('connected');
       onConnected();
     } catch {
+      setPlayerCount(0);
       setStatus('error');
       onDisconnected();
     }
@@ -79,15 +124,15 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
     }
   }, [activeServer, status, connect]);
 
-  const handleServerSelect = async (server: ServerConfig) => {
+  const handleServerSelect = (server: ServerConfig) => {
+    if (server.id === activeServer?.id) {
+      setDropdownOpen(false);
+      return;
+    }
+
     setActiveServerId(server.id);
     setActiveServerState(server);
     setDropdownOpen(false);
-    setStatus('idle');
-    hasAttemptedAutoConnect.current = false;
-    
-    // Connect to the new server
-    await connect(server);
   };
 
   const handleReconnect = () => {

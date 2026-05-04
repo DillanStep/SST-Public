@@ -40,6 +40,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   const [remoteRoot, setRemoteRoot] = useState('/');
   const [sstPath, setSstPath] = useState('');
   const [profilesPath, setProfilesPath] = useState('');
+  const [missionPath, setMissionPath] = useState('');
+  const [typesPath, setTypesPath] = useState('');
+  const [expansionEnabled, setExpansionEnabled] = useState(false);
+  const [expansionTradersPath, setExpansionTradersPath] = useState('');
+  const [expansionMarketPath, setExpansionMarketPath] = useState('');
   const [localPath, setLocalPath] = useState('');
   
   // URL paste helper
@@ -74,7 +79,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       <div className="space-y-2">
         <p className="font-medium">Start the DayZ server with @SST before testing.</p>
         <p>
-          The mod creates a runtime folder at $profile:SST after it has loaded. Start DayZ with -scrAllowFileWrite, then point this field at that generated folder, not the @SST mod package or repo source folder.
+          The mod creates a runtime folder at $storage:SST after it has loaded. Start DayZ with -scrAllowFileWrite, then point this field at the mission storage SST folder, not the @SST mod package or repo source folder.
         </p>
         <p className="text-xs text-amber-700">
           Expected contents include api/online_players.json, api/server_items.json, inventories/, events/, life_events/, and optional trades/ or vehicles/ data when those features are used.
@@ -87,7 +92,23 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
     setConnectionStatus('idle');
     setTestResult(null);
     setTestDetails(null);
-  }, [hostingType, backend, host, port, username, password, remoteRoot, sstPath, profilesPath, localPath]);
+  }, [
+    hostingType,
+    backend,
+    host,
+    port,
+    username,
+    password,
+    remoteRoot,
+    sstPath,
+    profilesPath,
+    missionPath,
+    typesPath,
+    expansionEnabled,
+    expansionTradersPath,
+    expansionMarketPath,
+    localPath,
+  ]);
 
   // Parse pasted URL (for hosting providers like HostHavoc)
   const parseUrl = () => {
@@ -215,10 +236,23 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         finalProfilesPath = finalProfilesPath.slice(normalizedRoot.length).replace(/^\/+/, '');
       }
 
+      const normalizeOptionalServerPath = (value: string) => {
+        let normalized = value.replace(/\\/g, '/').replace(/^\/+/, '');
+        if (normalizedRoot && normalizedRoot !== '/' && normalized.startsWith(normalizedRoot)) {
+          normalized = normalized.slice(normalizedRoot.length).replace(/^\/+/, '');
+        }
+        return normalized;
+      };
+
       const payload: SetupStoragePayload = {
         backend: hostingType === 'dedicated' ? 'local' : backend, 
         sstPath: hostingType === 'dedicated' ? localPath : finalSstPath,
-        profilesPath: hostingType === 'dedicated' ? '' : finalProfilesPath
+        profilesPath: hostingType === 'dedicated' ? profilesPath : finalProfilesPath,
+        missionPath: hostingType === 'dedicated' ? missionPath : normalizeOptionalServerPath(missionPath),
+        typesPath: hostingType === 'dedicated' ? typesPath : normalizeOptionalServerPath(typesPath),
+        expansionEnabled,
+        expansionTradersPath: hostingType === 'dedicated' ? expansionTradersPath : normalizeOptionalServerPath(expansionTradersPath),
+        expansionMarketPath: hostingType === 'dedicated' ? expansionMarketPath : normalizeOptionalServerPath(expansionMarketPath),
       };
       
       if (hostingType === 'provider') {
@@ -344,9 +378,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-surface-700 rounded-2xl shadow-lg mb-4">
-            <Server className="w-8 h-8 text-white" />
-          </div>
+          <img src="/banners/LOGO-mark.png" alt="SST" className="mx-auto mb-4 h-16 w-16 object-contain" />
           <h1 className="text-2xl font-bold text-surface-800">SST Dashboard Setup</h1>
           <p className="text-surface-500 mt-2">Let's configure your DayZ server connection</p>
         </div>
@@ -583,26 +615,135 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                     />
                     <p className="text-xs text-surface-400 mt-1">Path to server profiles folder (for logs). Leave empty to skip log features.</p>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Mission Files Path (Optional)</label>
+                    <Input
+                      type="text"
+                      value={missionPath}
+                      onChange={(e) => setMissionPath(e.target.value)}
+                      placeholder="HostHavocDayZServer/mpmissions/dayzOffline.chernarusplus"
+                    />
+                    <p className="text-xs text-surface-400 mt-1">Folder containing db/types.xml and mission economy files.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Custom Types.xml Path (Optional)</label>
+                    <Input
+                      type="text"
+                      value={typesPath}
+                      onChange={(e) => setTypesPath(e.target.value)}
+                      placeholder="HostHavocDayZServer/mpmissions/dayzOffline.chernarusplus/db/types.xml"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm text-surface-700">
+                    <input
+                      type="checkbox"
+                      checked={expansionEnabled}
+                      onChange={(e) => setExpansionEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-surface-300"
+                    />
+                    <span>Enable DayZ Expansion paths</span>
+                  </label>
+
+                  {expansionEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Traders Path</label>
+                        <Input
+                          type="text"
+                          value={expansionTradersPath}
+                          onChange={(e) => setExpansionTradersPath(e.target.value)}
+                          placeholder="HostHavocDayZServer/profiles/ExpansionMod/Traders"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Market Path</label>
+                        <Input
+                          type="text"
+                          value={expansionMarketPath}
+                          onChange={(e) => setExpansionMarketPath(e.target.value)}
+                          placeholder="HostHavocDayZServer/profiles/ExpansionMod/Market"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 /* Local/Dedicated Setup */
-                <div>
-                  <label className="block text-sm font-medium text-surface-600 mb-2">
-                    SST Runtime Folder Path
-                  </label>
-                  <Input
-                    type="text"
-                    value={localPath}
-                    onChange={(e) => setLocalPath(e.target.value)}
-                    placeholder="C:\\DayZServer\\profiles\\SST"
-                  />
-                  <p className="text-xs text-surface-400 mt-2">
-                    Enter the full path to the generated SST runtime folder in your DayZ profiles directory.
-                  </p>
-                  {localPath.trim().length > 0 && !isAbsoluteLocalPath(localPath) && (
-                    <p className="text-xs text-red-600 mt-2">
-                      Use a full path like C:\DayZServer\profiles\SST, not a placeholder or relative folder name.
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">
+                      SST Runtime Folder Path
+                    </label>
+                    <Input
+                      type="text"
+                      value={localPath}
+                      onChange={(e) => setLocalPath(e.target.value)}
+                      placeholder="C:\\DayZServer\\mpmissions\\dayzOffline.chernarusplus\\storage_1\\SST"
+                    />
+                    <p className="text-xs text-surface-400 mt-2">
+                      Enter the full path to the generated SST runtime folder in mission storage.
                     </p>
+                    {localPath.trim().length > 0 && !isAbsoluteLocalPath(localPath) && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Use a full path like C:\DayZServer\mpmissions\dayzOffline.chernarusplus\storage_1\SST, not a placeholder or relative folder name.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Mission Files Path (Optional)</label>
+                    <Input
+                      type="text"
+                      value={missionPath}
+                      onChange={(e) => setMissionPath(e.target.value)}
+                      placeholder="C:\\DayZServer\\mpmissions\\dayzOffline.chernarusplus"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Profiles Path (Optional)</label>
+                    <Input
+                      type="text"
+                      value={profilesPath}
+                      onChange={(e) => setProfilesPath(e.target.value)}
+                      placeholder="C:\\DayZServer\\Server1"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm text-surface-700">
+                    <input
+                      type="checkbox"
+                      checked={expansionEnabled}
+                      onChange={(e) => setExpansionEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-surface-300"
+                    />
+                    <span>Enable DayZ Expansion paths</span>
+                  </label>
+
+                  {expansionEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Traders Path</label>
+                        <Input
+                          type="text"
+                          value={expansionTradersPath}
+                          onChange={(e) => setExpansionTradersPath(e.target.value)}
+                          placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\Traders"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Market Path</label>
+                        <Input
+                          type="text"
+                          value={expansionMarketPath}
+                          onChange={(e) => setExpansionMarketPath(e.target.value)}
+                          placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\Market"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -664,6 +805,24 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                         <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{profilesPath}</span>
                       </div>
                     )}
+                    {missionPath && (
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Mission Path:</span>
+                        <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{missionPath}</span>
+                      </div>
+                    )}
+                    {typesPath && (
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Types.xml:</span>
+                        <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{typesPath}</span>
+                      </div>
+                    )}
+                    {expansionEnabled && (
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Expansion:</span>
+                        <span className="text-surface-700 font-medium">Enabled</span>
+                      </div>
+                    )}
                     <div className="flex justify-between border-t border-surface-200 pt-2 mt-2">
                       <span className="text-surface-500">Full Path:</span>
                       <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{remoteRoot === '/' ? `/${sstPath}` : `${remoteRoot}/${sstPath}`}</span>
@@ -679,6 +838,24 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       <span className="text-surface-500">Path:</span>
                       <span className="text-surface-700 font-medium text-right break-all">{localPath}</span>
                     </div>
+                    {missionPath && (
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Mission Path:</span>
+                        <span className="text-surface-700 font-medium text-right break-all">{missionPath}</span>
+                      </div>
+                    )}
+                    {profilesPath && (
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Profiles Path:</span>
+                        <span className="text-surface-700 font-medium text-right break-all">{profilesPath}</span>
+                      </div>
+                    )}
+                    {expansionEnabled && (
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Expansion:</span>
+                        <span className="text-surface-700 font-medium">Enabled</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

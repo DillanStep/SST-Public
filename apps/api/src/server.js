@@ -34,10 +34,255 @@ import positionsRoutes from "./routes/positions.js";
 import archiveRoutes from "./routes/archive.js";
 import vehiclesRoutes from "./routes/vehicles.js";
 import updateRoutes from "./routes/updates.js";
+import { readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || "0.0.0.0"; // Listen on all interfaces
+
+const CONFIG_ENV_KEYS = [
+  "PORT",
+  "HOST",
+  "STORAGE_BACKEND",
+  "SST_API_PROVIDER_CONFIG",
+  "HOST_PROVIDER",
+  "FTP_HOST",
+  "FTP_PORT",
+  "FTP_USER",
+  "FTP_PASSWORD",
+  "FTP_SECURE",
+  "FTP_ROOT",
+  "SFTP_HOST",
+  "SFTP_PORT",
+  "SFTP_USER",
+  "SFTP_PASSWORD",
+  "SFTP_ROOT",
+  "API_KEY",
+  "JWT_SECRET",
+  "SST_AUTO_CREATE_ADMIN",
+  "INITIAL_ADMIN_USERNAME",
+  "INITIAL_ADMIN_PASSWORD",
+  "CORS_ORIGIN",
+  "SST_DISABLE_UPDATE_CHECK",
+  "SST_UPDATE_REPO",
+  "SST_ALLOW_REMOTE_UPDATE",
+  "SST_PATH",
+  "INVENTORIES_PATH",
+  "EVENTS_PATH",
+  "LIFE_EVENTS_PATH",
+  "TRADES_PATH",
+  "API_PATH",
+  "ONLINE_PLAYERS_PATH",
+  "EXPANSION_ENABLED",
+  "EXPANSION_TRADERS_PATH",
+  "EXPANSION_MARKET_PATH",
+  "MISSION_PATH",
+  "TYPES_PATH",
+  "PROFILES_PATH",
+  "DATABASE_PATH",
+  "POSITION_TRACKING_INTERVAL",
+  "ARCHIVE_HOUR",
+  "ARCHIVE_MINUTE",
+  "ARCHIVE_DB_PATH",
+];
+
+const CONFIG_ENV_KEY_SET = new Set(CONFIG_ENV_KEYS);
+const PATH_ENV_KEYS = new Set([
+  "SST_API_PROVIDER_CONFIG",
+  "FTP_ROOT",
+  "SFTP_ROOT",
+  "SST_PATH",
+  "INVENTORIES_PATH",
+  "EVENTS_PATH",
+  "LIFE_EVENTS_PATH",
+  "TRADES_PATH",
+  "API_PATH",
+  "ONLINE_PLAYERS_PATH",
+  "EXPANSION_TRADERS_PATH",
+  "EXPANSION_MARKET_PATH",
+  "MISSION_PATH",
+  "TYPES_PATH",
+  "PROFILES_PATH",
+  "DATABASE_PATH",
+  "ARCHIVE_DB_PATH",
+]);
+
+const NUMBER_ENV_KEYS = new Set([
+  "PORT",
+  "FTP_PORT",
+  "SFTP_PORT",
+  "POSITION_TRACKING_INTERVAL",
+  "ARCHIVE_HOUR",
+  "ARCHIVE_MINUTE",
+]);
+
+function normalizeConfigPath(value) {
+  if (!value) return "";
+  return String(value).trim().replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+function joinConfigPath(base, ...parts) {
+  const cleanBase = normalizeConfigPath(base);
+  const cleanParts = parts
+    .map((part) => String(part || "").replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean);
+
+  if (!cleanBase) return cleanParts.join("/");
+  return [cleanBase, ...cleanParts].join("/");
+}
+
+function dirnameConfigPath(value) {
+  const normalized = normalizeConfigPath(value);
+  if (!normalized) return "";
+  const idx = normalized.lastIndexOf("/");
+  if (idx <= 0) return normalized.startsWith("/") ? "/" : "";
+  return normalized.slice(0, idx);
+}
+
+function pathExists(value) {
+  try {
+    return Boolean(value) && existsSync(value);
+  } catch {
+    return false;
+  }
+}
+
+function firstExistingPath(candidates) {
+  return candidates.find(pathExists) || "";
+}
+
+function addSuggestion(suggestions, key, value) {
+  const normalized = PATH_ENV_KEYS.has(key) ? normalizeConfigPath(value) : String(value ?? "").trim();
+  if (normalized) {
+    suggestions[key] = normalized;
+  }
+}
+
+function buildConfigSuggestions(env) {
+  const suggestions = {
+    PORT: "3001",
+    HOST: "0.0.0.0",
+    STORAGE_BACKEND: env.STORAGE_BACKEND || "local",
+    FTP_PORT: "21",
+    FTP_SECURE: "true",
+    FTP_ROOT: "/",
+    SFTP_PORT: "22",
+    SFTP_ROOT: "/",
+    SST_AUTO_CREATE_ADMIN: "0",
+    SST_DISABLE_UPDATE_CHECK: "0",
+    SST_UPDATE_REPO: "DillanStep/SST-Public",
+    SST_ALLOW_REMOTE_UPDATE: "0",
+    POSITION_TRACKING_INTERVAL: "30000",
+    ARCHIVE_HOUR: "4",
+    ARCHIVE_MINUTE: "0",
+  };
+
+  const sstPath = normalizeConfigPath(env.SST_PATH || paths.sst);
+  if (sstPath) {
+    addSuggestion(suggestions, "SST_PATH", sstPath);
+    addSuggestion(suggestions, "INVENTORIES_PATH", joinConfigPath(sstPath, "inventories"));
+    addSuggestion(suggestions, "EVENTS_PATH", joinConfigPath(sstPath, "events"));
+    addSuggestion(suggestions, "LIFE_EVENTS_PATH", joinConfigPath(sstPath, "life_events"));
+    addSuggestion(suggestions, "TRADES_PATH", joinConfigPath(sstPath, "trades"));
+    addSuggestion(suggestions, "API_PATH", joinConfigPath(sstPath, "api"));
+    addSuggestion(suggestions, "ONLINE_PLAYERS_PATH", joinConfigPath(sstPath, "api", "online_players.json"));
+    addSuggestion(suggestions, "DATABASE_PATH", joinConfigPath(sstPath, "data", "sst_tracking.db"));
+  }
+
+  const storageMatch = sstPath.match(/^(.*)\/storage_[^/]+\/SST$/i);
+  const missionPath = normalizeConfigPath(env.MISSION_PATH) || (storageMatch ? storageMatch[1] : "");
+  if (missionPath) {
+    addSuggestion(suggestions, "MISSION_PATH", missionPath);
+    addSuggestion(suggestions, "TYPES_PATH", normalizeConfigPath(env.TYPES_PATH) || joinConfigPath(missionPath, "db", "types.xml"));
+  }
+
+  const serverRoot = missionPath.toLowerCase().includes("/mpmissions/")
+    ? missionPath.slice(0, missionPath.toLowerCase().lastIndexOf("/mpmissions/"))
+    : "";
+
+  let profilesPath = normalizeConfigPath(env.PROFILES_PATH);
+  if (!profilesPath && serverRoot && (env.STORAGE_BACKEND || "local") === "local") {
+    profilesPath = firstExistingPath([
+      joinConfigPath(serverRoot, "Server1"),
+      joinConfigPath(serverRoot, "profiles"),
+      joinConfigPath(serverRoot, "profile"),
+      joinConfigPath(serverRoot, "config"),
+      joinConfigPath(serverRoot, "logs"),
+    ]);
+  }
+  if (profilesPath) {
+    addSuggestion(suggestions, "PROFILES_PATH", profilesPath);
+  }
+
+  const expansionBase = normalizeConfigPath(env.EXPANSION_TRADERS_PATH)
+    ? dirnameConfigPath(env.EXPANSION_TRADERS_PATH)
+    : profilesPath
+      ? joinConfigPath(profilesPath, "ExpansionMod")
+      : serverRoot
+        ? firstExistingPath([
+          joinConfigPath(serverRoot, "Server1", "ExpansionMod"),
+          joinConfigPath(serverRoot, "profiles", "ExpansionMod"),
+        ])
+        : "";
+
+  const expansionTraders = normalizeConfigPath(env.EXPANSION_TRADERS_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Traders") : "");
+  const expansionMarket = normalizeConfigPath(env.EXPANSION_MARKET_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Market") : "");
+  if (expansionTraders) {
+    addSuggestion(suggestions, "EXPANSION_TRADERS_PATH", expansionTraders);
+  }
+  if (expansionMarket) {
+    addSuggestion(suggestions, "EXPANSION_MARKET_PATH", expansionMarket);
+  }
+
+  suggestions.EXPANSION_ENABLED = env.EXPANSION_ENABLED || (pathExists(expansionTraders) || pathExists(expansionMarket) ? "1" : "0");
+
+  if (!env.ARCHIVE_DB_PATH) {
+    addSuggestion(suggestions, "ARCHIVE_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", "archive.db")));
+  }
+
+  return suggestions;
+}
+
+function normalizeEnvSetting(key, value) {
+  const raw = value === undefined || value === null ? "" : String(value);
+  let normalized = raw.replace(/[\r\n]/g, "").trim();
+
+  if (key === "STORAGE_BACKEND") {
+    normalized = normalized.toLowerCase();
+    if (normalized && !["local", "ftp", "sftp"].includes(normalized)) {
+      throw new Error("STORAGE_BACKEND must be local, ftp, or sftp.");
+    }
+  }
+
+  if (NUMBER_ENV_KEYS.has(key) && normalized && !/^\d+$/.test(normalized)) {
+    throw new Error(`${key} must be a whole number.`);
+  }
+
+  if (PATH_ENV_KEYS.has(key)) {
+    normalized = normalized.replace(/\\/g, "/").replace(/\/+$/, "");
+    if ((key === "FTP_ROOT" || key === "SFTP_ROOT") && !normalized) {
+      normalized = "/";
+    }
+  }
+
+  return normalized;
+}
+
+function getConfigEnvSnapshot() {
+  const envPath = resolveEnvPathForWrite();
+  const fileVars = readEnvVars(envPath);
+  const env = {};
+
+  for (const key of CONFIG_ENV_KEYS) {
+    env[key] = fileVars[key] ?? process.env[key] ?? "";
+  }
+
+  if (!env.API_KEY) {
+    env.API_KEY = getApiKey();
+  }
+
+  return { envPath, env };
+}
 
 // Configure CORS to allow requests from any origin (or specify your dashboard URL)
 const corsOptions = {
@@ -86,8 +331,13 @@ app.use("/setup", setupRoutes);
 // Config check - admin only, shows configured paths
 app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
   const backend = getStorageBackend();
+  const { envPath, env } = getConfigEnvSnapshot();
+  const suggestions = buildConfigSuggestions(env);
 
   const response = {
+    envPath,
+    env,
+    suggestions,
     storage: {
       backend,
       // Helpful non-secret hints for remote backends
@@ -155,6 +405,52 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
 
     res.json(response);
   });
+});
+
+app.put("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
+  const updates = req.body?.env;
+  if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+    return res.status(400).json({ error: "env object is required" });
+  }
+
+  const { envPath, env: currentEnv } = getConfigEnvSnapshot();
+  const updated = [];
+
+  try {
+    for (const [key, value] of Object.entries(updates)) {
+      if (!CONFIG_ENV_KEY_SET.has(key)) {
+        return res.status(400).json({ error: `Unsupported env key: ${key}` });
+      }
+
+      const normalized = normalizeEnvSetting(key, value);
+      if ((currentEnv[key] ?? "") === normalized) {
+        continue;
+      }
+
+      upsertEnvVar(envPath, key, normalized);
+      updated.push(key);
+    }
+
+    res.json({
+      ok: true,
+      envPath,
+      updated,
+      restartRequired: updated.length > 0,
+      restartInMs: updated.length > 0 ? 1500 : 0,
+      message: updated.length > 0
+        ? "Saved settings to .env. Restarting API to apply changes."
+        : "No settings changed.",
+    });
+
+    if (updated.length > 0) {
+      setTimeout(() => {
+        console.log("[Config] Settings saved from dashboard. Restarting API to apply changes...");
+        process.exit(0);
+      }, 1500);
+    }
+  } catch (err) {
+    res.status(400).json({ error: "Failed to save configuration", details: err?.message || String(err) });
+  }
 });
 
 // Auth routes - no session required (login/logout)

@@ -5,11 +5,11 @@
  * SST uses a simple file-based bridge between the DayZ server runtime and the external API:
  *
  *   1) API -> Server (commands)
- *      - The API writes a JSON "queue" file under: $profile:SST/api/
+ *      - The API writes a JSON "queue" file under: $storage:SST/api/
  *      - The server periodically reads the queue, executes requests, then writes a results file.
  *
  *   2) Server -> API (exports)
- *      - The server writes JSON snapshots/logs under: $profile:SST/
+ *      - The server writes JSON snapshots/logs under: $storage:SST/
  *      - The API reads those JSON files and exposes them via HTTP endpoints.
  *
  * This template shows both directions, with a consistent request schema and processing loop.
@@ -111,16 +111,14 @@ class SST_TemplateExport
 class SST_TemplateApi
 {
 	// Uses the same paths as SST_TemplateService.
-	static const string PROFILE_ROOT = "$profile:SST";
-	static const string API_FOLDER = "$profile:SST/api";
-	static const string QUEUE_FILE = "$profile:SST/api/template_queue.json";
+	static string PROFILE_ROOT = SST_RuntimePaths.STORAGE_ROOT;
+	static string API_FOLDER = SST_RuntimePaths.API_FOLDER;
+	static string QUEUE_FILE = SST_RuntimePaths.ApiFile("template_queue.json");
 
 	static void EnsureFolders()
 	{
-		if (!FileExist(PROFILE_ROOT))
-			MakeDirectory(PROFILE_ROOT);
-		if (!FileExist(API_FOLDER))
-			MakeDirectory(API_FOLDER);
+		SST_PersistenceCore.EnsureDirectory(PROFILE_ROOT);
+		SST_PersistenceCore.EnsureDirectory(API_FOLDER);
 	}
 
 	/**
@@ -156,9 +154,9 @@ class SST_TemplateApi
 		ref SST_TemplateQueue queue;
 		string errorMsg;
 
-		if (FileExist(QUEUE_FILE))
+		if (SST_PersistenceCore.FileExists(QUEUE_FILE))
 		{
-			JsonFileLoader<SST_TemplateQueue>.LoadFile(QUEUE_FILE, queue, errorMsg);
+			SST_Persistence<SST_TemplateQueue>.LoadJson(QUEUE_FILE, queue, errorMsg);
 		}
 
 		if (!queue)
@@ -168,7 +166,7 @@ class SST_TemplateApi
 
 		queue.requests.Insert(req);
 
-		if (!JsonFileLoader<SST_TemplateQueue>.SaveFile(QUEUE_FILE, queue, errorMsg))
+		if (!SST_Persistence<SST_TemplateQueue>.SaveJson(QUEUE_FILE, queue, errorMsg))
 		{
 			Print("[SST] TemplateApi: failed to write queue: " + errorMsg);
 			return false;
@@ -195,7 +193,7 @@ class SST_TemplateApi
 	{
 		EnsureFolders();
 		string errorMsg;
-		if (!JsonFileLoader<SST_TemplateQueue>.SaveFile(filePath, data, errorMsg))
+		if (!SST_Persistence<SST_TemplateQueue>.SaveJson(filePath, data, errorMsg))
 		{
 			Print("[SST] TemplateApi: failed to save JSON: " + errorMsg);
 			return false;
@@ -218,14 +216,14 @@ class SST_TemplateService
 	protected static ref SST_TemplateService s_Instance;
 
 	// File paths (API reads/writes these)
-	static const string PROFILE_ROOT = "$profile:SST";
-	static const string API_FOLDER = "$profile:SST/api";
+	static string PROFILE_ROOT = SST_RuntimePaths.STORAGE_ROOT;
+	static string API_FOLDER = SST_RuntimePaths.API_FOLDER;
 
-	static const string QUEUE_FILE = "$profile:SST/api/template_queue.json";
-	static const string RESULT_FILE = "$profile:SST/api/template_results.json";
+	static string QUEUE_FILE = SST_RuntimePaths.ApiFile("template_queue.json");
+	static string RESULT_FILE = SST_RuntimePaths.ApiFile("template_results.json");
 
 	// Optional export (Server -> API)
-	static const string EXPORT_FILE = "$profile:SST/template_export.json";
+	static string EXPORT_FILE = SST_RuntimePaths.STORAGE_ROOT + "/template_export.json";
 
 	// Poll intervals (milliseconds)
 	static const float QUEUE_POLL_INTERVAL_MS = 2000.0;
@@ -255,10 +253,8 @@ class SST_TemplateService
 		m_Initialized = true;
 
 		// Ensure folders exist
-		if (!FileExist(PROFILE_ROOT))
-			MakeDirectory(PROFILE_ROOT);
-		if (!FileExist(API_FOLDER))
-			MakeDirectory(API_FOLDER);
+		SST_PersistenceCore.EnsureDirectory(PROFILE_ROOT);
+		SST_PersistenceCore.EnsureDirectory(API_FOLDER);
 
 		if (!GetGame().IsServer())
 			return;
@@ -285,13 +281,13 @@ class SST_TemplateService
 		if (!GetGame().IsServer())
 			return;
 
-		if (!FileExist(QUEUE_FILE))
+		if (!SST_PersistenceCore.FileExists(QUEUE_FILE))
 			return;
 
 		ref SST_TemplateQueue queue;
 		string errorMsg;
 
-		if (!JsonFileLoader<SST_TemplateQueue>.LoadFile(QUEUE_FILE, queue, errorMsg))
+		if (!SST_Persistence<SST_TemplateQueue>.LoadJson(QUEUE_FILE, queue, errorMsg))
 		{
 			Print("[SST] TemplateService: failed to load queue: " + errorMsg);
 			return;
@@ -315,14 +311,14 @@ class SST_TemplateService
 			return;
 
 		// Write results (same structure; requests are now annotated with status/result)
-		if (!JsonFileLoader<SST_TemplateQueue>.SaveFile(RESULT_FILE, queue, errorMsg))
+		if (!SST_Persistence<SST_TemplateQueue>.SaveJson(RESULT_FILE, queue, errorMsg))
 		{
 			Print("[SST] TemplateService: failed to save results: " + errorMsg);
 		}
 
 		// Clear queue (so API can write new commands cleanly)
 		ref SST_TemplateQueue emptyQueue = new SST_TemplateQueue();
-		JsonFileLoader<SST_TemplateQueue>.SaveFile(QUEUE_FILE, emptyQueue, errorMsg);
+		SST_Persistence<SST_TemplateQueue>.SaveJson(QUEUE_FILE, emptyQueue, errorMsg);
 	}
 
 	/**
@@ -392,7 +388,7 @@ class SST_TemplateService
 		snapshot.entryCount = snapshot.entries.Count();
 
 		string errorMsg;
-		if (!JsonFileLoader<SST_TemplateExport>.SaveFile(EXPORT_FILE, snapshot, errorMsg))
+		if (!SST_Persistence<SST_TemplateExport>.SaveJson(EXPORT_FILE, snapshot, errorMsg))
 		{
 			Print("[SST] TemplateService: failed to save export: " + errorMsg);
 		}

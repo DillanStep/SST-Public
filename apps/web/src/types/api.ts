@@ -25,6 +25,11 @@ export interface SetupStoragePayload {
   backend: StorageBackend;
   sstPath: string;
   profilesPath?: string;
+  missionPath?: string;
+  typesPath?: string;
+  expansionEnabled?: boolean;
+  expansionTradersPath?: string;
+  expansionMarketPath?: string;
   sftp?: RemoteStorageConfig;
   ftp?: RemoteStorageConfig;
 }
@@ -43,6 +48,38 @@ export interface SetupTestResponse {
 
 export interface SetupStatusResponse {
   apiKey?: string;
+}
+
+export type RuntimeEnvValues = Record<string, string>;
+
+export interface RuntimeConfigResponse {
+  envPath: string;
+  env: RuntimeEnvValues;
+  suggestions?: RuntimeEnvValues;
+  storage?: {
+    backend: string;
+  };
+  checks?: {
+    onlinePlayers?: {
+      ok: boolean;
+      error?: string | null;
+      path?: string;
+    };
+    apiDir?: {
+      ok: boolean;
+      error?: string | null;
+      path?: string;
+    };
+  };
+}
+
+export interface RuntimeConfigUpdateResponse {
+  ok: boolean;
+  envPath: string;
+  updated: string[];
+  restartRequired: boolean;
+  restartInMs: number;
+  message: string;
 }
 
 export interface InventoryItem {
@@ -230,6 +267,7 @@ export interface PlayerData {
   inventory: PlayerInventory | null;
   events: PlayerEventsLog | null;
   lifeEvents: LifeEventsLog | null;
+  online?: OnlinePlayerData | null;
 }
 
 export interface DashboardResponse {
@@ -238,6 +276,7 @@ export interface DashboardResponse {
   recentDeaths: LifeEvent[];
   lastUpdate: string;
   refreshTimeMs: number;
+  onlineCount?: number;
   playerCount: number;
 }
 

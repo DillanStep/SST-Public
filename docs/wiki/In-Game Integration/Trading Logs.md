@@ -4,7 +4,7 @@ Trade logs are exported when Expansion Market is enabled.
 
 ## Output
 
-- folder: `$profile:SST/trades/`
+- folder: `$storage:SST/trades/`
 - file: `<steam64>_trades.json`
 
 ## Implementation

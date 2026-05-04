@@ -56,8 +56,23 @@ async function loadGrantResults() {
   }
 }
 
-async function discoverPlayerIds() {
+async function loadOnlinePlayers() {
+  try {
+    const data = JSON.parse(await readFile(paths.onlinePlayers, "utf8"));
+    return Array.isArray(data.players) ? data.players : [];
+  } catch {
+    return [];
+  }
+}
+
+async function discoverPlayerIds(onlinePlayers = []) {
   const playerIds = new Set();
+
+  for (const player of onlinePlayers) {
+    if (player?.playerId) {
+      playerIds.add(String(player.playerId));
+    }
+  }
   
   try {
     const invFiles = await readdir(paths.inventories);
@@ -93,7 +108,13 @@ async function refreshCache() {
   const startTime = Date.now();
   
   try {
-    const playerIds = await discoverPlayerIds();
+    const onlinePlayers = await loadOnlinePlayers();
+    const onlineById = new Map(
+      onlinePlayers
+        .filter((player) => player?.playerId)
+        .map((player) => [String(player.playerId), player])
+    );
+    const playerIds = await discoverPlayerIds(onlinePlayers);
     
     // Load all player data in parallel
     const playerDataPromises = playerIds.map(async (playerId) => {
@@ -102,7 +123,7 @@ async function refreshCache() {
         loadPlayerEvents(playerId),
         loadPlayerLifeEvents(playerId)
       ]);
-      return { playerId, inventory, events, lifeEvents };
+      return { playerId, inventory, events, lifeEvents, online: onlineById.get(playerId) || null };
     });
 
     const playerDataResults = await Promise.all(playerDataPromises);
@@ -111,8 +132,8 @@ async function refreshCache() {
     const players = {};
     const allDeaths = [];
     
-    for (const { playerId, inventory, events, lifeEvents } of playerDataResults) {
-      players[playerId] = { inventory, events, lifeEvents };
+    for (const { playerId, inventory, events, lifeEvents, online } of playerDataResults) {
+      players[playerId] = { inventory, events, lifeEvents, online };
       
       // Collect deaths for recent deaths list
       if (lifeEvents?.events) {
@@ -135,6 +156,7 @@ async function refreshCache() {
       recentDeaths,
       lastUpdate: new Date().toISOString(),
       refreshTimeMs: Date.now() - startTime,
+      onlineCount: onlinePlayers.filter((player) => player?.isOnline === 1 || player?.isOnline === true).length,
       playerCount: Object.keys(players).length
     };
 
@@ -199,7 +221,7 @@ router.get("/deaths", (req, res) => {
 // POST /dashboard/refresh - force immediate refresh
 router.post("/refresh", async (req, res) => {
   await refreshCache();
-  res.json({ status: "REFRESHED", lastUpdate: cache.lastUpdate });
+  res.json(cache);
 });
 
 export default router;

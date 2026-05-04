@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Discord community support
+    url: https://discord.gg/jv52WVbFdj
+    about: Ask setup questions, get community help, and discuss SST releases.
   - name: Setup and support guide
     url: https://github.com/DillanStep/SST-Public/blob/main/SUPPORT.md
     about: Read this before opening a support request.

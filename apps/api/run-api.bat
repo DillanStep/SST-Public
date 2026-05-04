@@ -1,12 +1,13 @@
 @echo off
-title SST API Server
+title SST API - DayZ Management Suite
 
 cd /d "%~dp0"
 
 :loop
 echo.
 echo ============================================================
-echo Starting SST API...
+echo  SST API - DayZ Management Suite
+echo  http://localhost:3001
 echo ============================================================
 echo.
 
@@ -14,7 +15,7 @@ node src/server.js
 
 echo.
 echo ============================================================
-echo API stopped. Restarting in 3 seconds...
+echo  SST API stopped. Restarting in 3 seconds...
 echo (Press Ctrl+C to exit)
 echo ============================================================
 

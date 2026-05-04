@@ -12,7 +12,7 @@ Examples:
 
 ## Output
 
-- folder: `$profile:SST/life_events/`
+- folder: `$storage:SST/life_events/`
 - file: `<steam64>_life.json`
 
 ## Implementation

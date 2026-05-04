@@ -2,7 +2,7 @@
 
 The Node API is the bridge between:
 
-- SST mod JSON exports under `$profile:SST/`
+- SST mod JSON exports under `$storage:SST/`
 - the dashboard (React web client)
 
 It exposes HTTP endpoints for:

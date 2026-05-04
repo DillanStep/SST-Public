@@ -22,17 +22,17 @@ Only compiled when Expansion Vehicles is present:
 
 ### Tracked vehicles
 
-- Folder: `$profile:SST/vehicles/`
-- Tracked state: `$profile:SST/vehicles/tracked.json`
-- Purchase history: `$profile:SST/vehicles/purchases.json`
+- Folder: `$storage:SST/vehicles/`
+- Tracked state: `$storage:SST/vehicles/tracked.json`
+- Purchase history: `$storage:SST/vehicles/purchases.json`
 
 ### API queues/results
 
-- Key queue: `$profile:SST/api/key_grants.json`
-- Key results: `$profile:SST/api/key_grants_results.json`
+- Key queue: `$storage:SST/api/key_grants.json`
+- Key results: `$storage:SST/api/key_grants_results.json`
 
-- Delete queue: `$profile:SST/api/vehicle_delete.json`
-- Delete results: `$profile:SST/api/vehicle_delete_results.json`
+- Delete queue: `$storage:SST/api/vehicle_delete.json`
+- Delete results: `$storage:SST/api/vehicle_delete_results.json`
 
 ---
 

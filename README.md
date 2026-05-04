@@ -1,6 +1,10 @@
 # SST Public
 
+[Join the SUDO Gaming Discord](https://discord.gg/jv52WVbFdj) for community support, setup help, and release discussion.
+
 SST is a source-available, non-commercial DayZ server management suite. It combines a server-side DayZ mod, a Node/Express API, and a React dashboard so server owners can inspect player data, manage items and vehicles, review logs, and work with common DayZ Expansion economy files.
+
+**Works best with DayZ Expansion.** SST can still run core player, inventory, vehicle, log, and command features without Expansion, but the market, trader, pricing, and economy tools are designed around DayZ Expansion server files.
 
 ## Release Status
 
@@ -27,7 +31,7 @@ SST has three parts:
 The mod is intended to be installed as a **server-side mod**. Players should not need to install SST on their client when your server host supports server-side mods through `-serverMod`.
 
 ```text
-DayZ server + SST mod  ->  $profile:SST JSON files  ->  SST API  ->  Web dashboard
+DayZ server + SST mod  ->  $storage:SST JSON files  ->  SST API  ->  Web dashboard
 Dashboard actions      ->  SST API command queue   ->  SST mod  ->  DayZ server
 ```
 
@@ -51,7 +55,74 @@ SST is ready for community testing and contribution, but it should be treated as
 - Node.js 18 or newer for the API and dashboard.
 - Windows for DayZ server tooling and the setup wizard.
 - SFTP/FTP credentials if the DayZ server is hosted by a provider.
-- Access to the DayZ server profile folder. This is the folder passed to DayZ with `-profiles=...`; after the mod runs it should contain `SST/`.
+- Access to the DayZ server storage folder. SST writes runtime JSON under `$storage:SST`; if your host lets you set DayZ launch parameters, use `-storage=...` to put that folder somewhere easy for the API to reach.
+- Recommended: DayZ Expansion for the best economy, market, trader, and pricing-management experience.
+
+## Download And First Setup
+
+If you downloaded SST as a ZIP or release package, start here.
+
+### 1. Extract SST
+
+Extract the full folder somewhere you can write to, such as:
+
+```text
+C:\SST-Public-main
+```
+
+Keep the folder structure intact. The root folder should contain files such as:
+
+```text
+Install-SST.bat
+Start-SST.bat
+@SST/
+apps/
+docs/
+```
+
+Use `@SST/` for the ready-to-install DayZ server mod. The `SST/` folder is the mod source for developers and people rebuilding the PBO.
+
+### 2. Install Node.js
+
+Install Node.js 18 or newer from:
+
+```text
+https://nodejs.org/
+```
+
+After installing Node.js, reopen any terminal windows so `node` and `npm` are available.
+
+### 3. Install The SST App
+
+From the extracted SST root folder, double-click:
+
+```text
+Install-SST.bat
+```
+
+This installs the API and dashboard dependencies, builds the dashboard, and creates `apps/api/.env` if it does not already exist.
+
+### 4. Install The DayZ Server Mod
+
+Copy the included `@SST/` folder to your DayZ server root and load it as a server-side mod:
+
+```text
+-profiles=Server1 -serverMod=@SST -scrAllowFileWrite
+```
+
+Start the DayZ server once. SST must run on the DayZ server before the dashboard can connect, because the mod creates the `$storage:SST` folder that the API reads.
+
+### 5. Start SST
+
+Double-click:
+
+```text
+Start-SST.bat
+```
+
+This starts the API and opens the dashboard. In the browser setup, choose Local, SFTP, or FTP storage, then point SST at the `SST/` folder created by the DayZ server mod.
+
+For the shortest standalone checklist, see [apps/QUICK-START.md](apps/QUICK-START.md).
 
 ## Quick Start
 
@@ -71,11 +142,21 @@ Keep your normal client-required mods in `-mod`, and keep SST in `-serverMod`. I
 
 If you rebuild from source, build the PBOs from `SST/` using your normal DayZ tools workflow and place the output in `@SST/Addons/`.
 
-Start the DayZ server once, then check the active DayZ profile folder. SST writes to `$profile:SST`, so the real folder depends on your `-profiles` parameter:
+Start the DayZ server once, then check the DayZ storage root. SST writes to `$storage:SST`, so the easiest setup is to add a stable `-storage=` launch parameter:
 
-- `-profiles=Server1` usually means `<DayZServerRoot>/Server1/SST`
-- `-profiles=profiles` usually means `<DayZServerRoot>/profiles/SST`
-- `-profiles=D:\DayZServer\profiles` means `D:\DayZServer\profiles\SST`
+```text
+-profiles=Server1 -storage=Server1Storage -serverMod=@SST -scrAllowFileWrite
+```
+
+Then point the API at:
+
+```text
+<DayZServerRoot>/Server1Storage/SST
+```
+
+If you do not set `-storage=`, the storage root is controlled by DayZ/your host and is commonly exposed near the mission persistence storage. In hosted panels, look for the folder where `storage_*` or server storage files live, then find the generated `SST/` folder inside it.
+
+Older SST builds wrote under `$profile:SST`. Leave the old profile `SST/` folder in place for the first boot after updating: the mod will read legacy files and migrate them into `$storage:SST` as they are loaded. After updating, set the API `SST_PATH` to the new storage `SST/` folder.
 
 SST should create:
 
@@ -109,12 +190,12 @@ SST_ALLOW_REMOTE_UPDATE=0
 
 ### 2. Choose Local, FTP, or SFTP Storage
 
-The API needs to read the `SST/` folder created by the mod.
+The API needs to read the `$storage:SST` folder created by the mod.
 
 First, find where the mod created its files.
 
 1. Start the DayZ server with `@SST` loaded.
-2. Open your DayZ server profile folder.
+2. Open your DayZ server storage folder. If possible, set `-storage=Server1Storage` so this location is obvious.
 3. Look for a folder named `SST`.
 4. Inside it you should see folders such as `api`, `inventories`, `events`, `life_events`, `trades`, and `vehicles`.
 5. That folder is your `SST_PATH`.
@@ -129,7 +210,7 @@ Example:
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server1/SST
+SST_PATH=C:/DayZServer/Server1Storage/SST
 ```
 
 Use forward slashes `/` in the path, even on Windows. Do not use backslashes.
@@ -137,7 +218,7 @@ Use forward slashes `/` in the path, even on Windows. Do not use backslashes.
 Good:
 
 ```env
-SST_PATH=C:/DayZServer/Server1/SST
+SST_PATH=C:/DayZServer/Server1Storage/SST
 ```
 
 Avoid:
@@ -284,7 +365,7 @@ At minimum, set:
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server1/SST
+SST_PATH=C:/DayZServer/Server1Storage/SST
 ```
 
 Or, for hosted SFTP:
@@ -391,6 +472,28 @@ http://localhost:3001
 
 If the dashboard asks for an API key, use the `API_KEY` from `apps/api/.env`. If you left it blank, restart the API once and check `.env`; SST should write the generated key there.
 
+### Multiple DayZ Servers
+
+The dashboard can save and switch between multiple SST API connections.
+
+For each DayZ server you host, run a separate SST API instance with its own `.env` values:
+
+- `SST_PATH` points to that server's `SST/` folder.
+- `PORT` uses a unique port, such as `3001`, `3002`, `3003`, `3004`, and `3005`.
+- `API_KEY`, `JWT_SECRET`, and auth data stay separate for that server.
+
+Then open the dashboard, go to Settings, and add each API URL. For example:
+
+```text
+Server 1 -> http://localhost:3001
+Server 2 -> http://localhost:3002
+Server 3 -> http://localhost:3003
+Server 4 -> http://localhost:3004
+Server 5 -> http://localhost:3005
+```
+
+When switching servers in the dashboard, SST keeps the saved connection and login token separate for each server.
+
 ### 5. Use SST
 
 After the mod, API, and dashboard are connected, admins can:
@@ -441,7 +544,7 @@ npm run dev
 The API reads configuration from `apps/api/.env`. Important settings:
 
 - `STORAGE_BACKEND`: `local`, `ftp`, or `sftp`.
-- `SST_PATH`: path to the DayZ profile `SST` folder.
+- `SST_PATH`: path to the DayZ storage `SST` folder.
 - `API_KEY`: generated on first API startup if left blank.
 - `JWT_SECRET`: generated on first API startup if left blank.
 - `CORS_ORIGIN`: set this when the dashboard runs on a separate origin.
@@ -453,7 +556,7 @@ Do not commit `.env`, database files, logs, `node_modules`, or build output. The
 If the dashboard is empty or cannot connect:
 
 1. Confirm the DayZ server loaded the SST server-side mod.
-2. Confirm the DayZ profile folder contains `SST/`.
+2. Confirm the DayZ storage folder contains `SST/`.
 3. Confirm the API can reach that folder through local disk, FTP, or SFTP.
 4. Check `http://localhost:3001/health`.
 5. Check the browser console and API logs.

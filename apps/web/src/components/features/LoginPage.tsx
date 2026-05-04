@@ -3,7 +3,7 @@ import { Server, LogIn, Eye, EyeOff, AlertCircle, Settings, Check, RefreshCw, Ch
 import { Button, Input } from '../ui';
 import { getAuthStatus, login, setupFirstAdmin } from '../../services/auth';
 import type { User } from '../../services/auth';
-import { getActiveServer, addServer, setActiveServerId, updateServer } from '../../services/serverManager';
+import { getActiveServer, getServers, addServer, setActiveServerId, updateServer } from '../../services/serverManager';
 import type { ServerConfig, SetupStatusResponse, SetupStoragePayload, SetupTestResponse, StorageBackend } from '../../types';
 import { SetupWizard } from './SetupWizard';
 
@@ -25,6 +25,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   
   // Server configuration state
   const [activeServer, setActiveServer] = useState<ServerConfig | null>(null);
+  const [savedServers, setSavedServers] = useState<ServerConfig[]>([]);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [serverName, setServerName] = useState('');
   const [serverUrl, setServerUrl] = useState('');
@@ -76,6 +77,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             apiKey: setupData.apiKey || '',
           });
           setActiveServerId(autoServer.id);
+          setSavedServers(getServers());
           setActiveServer(autoServer);
           setServerName('Local SST Server');
           setServerUrl(url);
@@ -98,6 +100,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   useEffect(() => {
     setMounted(true);
     const server = getActiveServer();
+    setSavedServers(getServers());
     setActiveServer(server);
     
     // Helper to check setup status directly (bypasses API key requirement from localhost)
@@ -112,6 +115,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             // Update server with API key if we have one
             if (data.apiKey && server?.id) {
               updateServer(server.id, { apiKey: data.apiKey });
+              setSavedServers(getServers());
               setActiveServer({ ...server, apiKey: data.apiKey });
             }
             return true;
@@ -219,6 +223,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     });
     
     setActiveServerId(newServer.id);
+    setSavedServers(getServers());
     setActiveServer(newServer);
     setShowServerConfig(false);
     setError(null);
@@ -232,6 +237,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       })
       .catch(() => {
         // Ignore; user can use Test Connection to diagnose
+      })
+      .finally(() => setCheckingAuthStatus(false));
+  };
+
+  const handleSelectSavedServer = (server: ServerConfig) => {
+    setActiveServerId(server.id);
+    setActiveServer(server);
+    setServerName(server.name);
+    setServerUrl(server.apiUrl);
+    setServerApiKey(server.apiKey);
+    setShowServerConfig(false);
+    setError(null);
+    setConnectionStatus('idle');
+    setSetupRequired(false);
+
+    setCheckingAuthStatus(true);
+    getAuthStatus()
+      .then((s) => {
+        const required = Boolean(s.setupRequired);
+        setSetupRequired(required);
+        setAllowNoApiKey(required);
+      })
+      .catch(() => {
+        // Ignore; user can sign in or open server settings again.
       })
       .finally(() => setCheckingAuthStatus(false));
   };
@@ -356,6 +385,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       const status = await callSetupStatus(baseUrl);
       if (status?.apiKey && activeServer?.id) {
         updateServer(activeServer.id, { apiKey: status.apiKey });
+        setSavedServers(getServers());
         setActiveServer({ ...activeServer, apiKey: status.apiKey });
       }
 
@@ -450,6 +480,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       });
       if (updated) {
         setActiveServer(updated);
+        setSavedServers(getServers());
       }
     } else if (activeServer?.apiUrl) {
       // No ID but we have an apiUrl - create a new server config
@@ -461,6 +492,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       if (newServer) {
         setActiveServerId(newServer.id);
         setActiveServer(newServer);
+        setSavedServers(getServers());
       }
     }
     // Setup is done, reload to login
@@ -491,7 +523,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         {/* Banner Image - compact, no extra flex growth */}
         <div className="flex items-center justify-center p-4 lg:p-6">
           <img 
-            src="/banners/Banner-03.png" 
+            src="/banners/LOGO.png"
             alt="SST Dashboard"
             className="w-full max-w-xl h-auto object-contain"
           />
@@ -541,9 +573,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         <div className="w-full max-w-md">
           {/* Mobile Logo - hidden on desktop since banner section shows it */}
           <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-surface-700 rounded-2xl shadow-lg mb-4">
-              <Server className="w-8 h-8 text-white" />
-            </div>
+            <img src="/banners/LOGO-mark.png" alt="SST" className="mx-auto mb-4 h-16 w-16 object-contain" />
             <h1 className="text-2xl font-bold text-surface-800">SST Dashboard</h1>
           </div>
 
@@ -597,6 +627,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                   <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-sm animate-fade-in">
                     <Check size={18} className="flex-shrink-0" />
                     <span>Connection successful!</span>
+                  </div>
+                )}
+
+                {savedServers.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-surface-700">Saved servers</div>
+                    <div className="space-y-2">
+                      {savedServers.map((server) => (
+                        <button
+                          key={server.id}
+                          type="button"
+                          onClick={() => handleSelectSavedServer(server)}
+                          className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${
+                            activeServer?.id === server.id
+                              ? 'border-surface-800 bg-surface-100'
+                              : 'border-surface-200 bg-white hover:border-surface-300 hover:bg-surface-50'
+                          }`}
+                        >
+                          <span className="block truncate text-sm font-medium text-surface-800">{server.name}</span>
+                          <span className="block truncate text-xs text-surface-500">{server.apiUrl}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 

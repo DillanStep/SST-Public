@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
   Server, Plus, Trash2, Edit2, Check, X, 
-  ExternalLink, Key, Globe, Clock
+  ExternalLink, Key, Globe, Clock, Save, RefreshCw, SlidersHorizontal
 } from 'lucide-react';
 import { Button, Card, Badge } from '../ui';
-import { 
+import {
+  ACTIVE_SERVER_CHANGED_EVENT,
+  SERVER_CONFIG_CHANGED_EVENT,
   getServers, 
   addServer, 
   updateServer, 
@@ -13,11 +15,143 @@ import {
   setActiveServerId 
 } from '../../services/serverManager';
 import api from '../../services/api';
-import type { ServerConfig } from '../../types';
+import { clearAuthTokenForServer } from '../../services/auth';
+import type { RuntimeEnvValues, ServerConfig } from '../../types';
 
 interface ServerSettingsProps {
   onServerChange?: () => void;
 }
+
+type EnvFieldType = 'text' | 'password' | 'number' | 'select' | 'toggle';
+
+interface EnvField {
+  key: string;
+  label: string;
+  type?: EnvFieldType;
+  options?: { value: string; label: string }[];
+}
+
+interface EnvGroup {
+  title: string;
+  fields: EnvField[];
+}
+
+const ENV_GROUPS: EnvGroup[] = [
+  {
+    title: 'Server',
+    fields: [
+      { key: 'PORT', label: 'API Port', type: 'number' },
+      { key: 'HOST', label: 'API Host' },
+      { key: 'CORS_ORIGIN', label: 'CORS Origin' },
+    ],
+  },
+  {
+    title: 'Storage',
+    fields: [
+      {
+        key: 'STORAGE_BACKEND',
+        label: 'Storage Backend',
+        type: 'select',
+        options: [
+          { value: 'local', label: 'Local' },
+          { value: 'sftp', label: 'SFTP' },
+          { value: 'ftp', label: 'FTP' },
+        ],
+      },
+      { key: 'SST_PATH', label: 'SST Runtime Path' },
+      { key: 'SST_API_PROVIDER_CONFIG', label: 'Provider Config Path' },
+      { key: 'HOST_PROVIDER', label: 'Host Provider' },
+    ],
+  },
+  {
+    title: 'SFTP',
+    fields: [
+      { key: 'SFTP_HOST', label: 'Host' },
+      { key: 'SFTP_PORT', label: 'Port', type: 'number' },
+      { key: 'SFTP_USER', label: 'Username' },
+      { key: 'SFTP_PASSWORD', label: 'Password', type: 'password' },
+      { key: 'SFTP_ROOT', label: 'Remote Root' },
+    ],
+  },
+  {
+    title: 'FTP',
+    fields: [
+      { key: 'FTP_HOST', label: 'Host' },
+      { key: 'FTP_PORT', label: 'Port', type: 'number' },
+      { key: 'FTP_USER', label: 'Username' },
+      { key: 'FTP_PASSWORD', label: 'Password', type: 'password' },
+      { key: 'FTP_SECURE', label: 'FTPS', type: 'toggle' },
+      { key: 'FTP_ROOT', label: 'Remote Root' },
+    ],
+  },
+  {
+    title: 'Data Paths',
+    fields: [
+      { key: 'INVENTORIES_PATH', label: 'Inventories Path' },
+      { key: 'EVENTS_PATH', label: 'Item Events Path' },
+      { key: 'LIFE_EVENTS_PATH', label: 'Life Events Path' },
+      { key: 'TRADES_PATH', label: 'Trades Path' },
+      { key: 'API_PATH', label: 'API Queue Path' },
+      { key: 'ONLINE_PLAYERS_PATH', label: 'Online Players File' },
+    ],
+  },
+  {
+    title: 'Mission & Expansion',
+    fields: [
+      { key: 'MISSION_PATH', label: 'Mission Files Path' },
+      { key: 'TYPES_PATH', label: 'Types.xml Path' },
+      { key: 'EXPANSION_ENABLED', label: 'DayZ Expansion', type: 'toggle' },
+      { key: 'EXPANSION_TRADERS_PATH', label: 'Expansion Traders Path' },
+      { key: 'EXPANSION_MARKET_PATH', label: 'Expansion Market Path' },
+    ],
+  },
+  {
+    title: 'Logs & Tracking',
+    fields: [
+      { key: 'PROFILES_PATH', label: 'Profiles Path' },
+      { key: 'DATABASE_PATH', label: 'Position Database Path' },
+      { key: 'POSITION_TRACKING_INTERVAL', label: 'Position Interval (ms)', type: 'number' },
+      { key: 'ARCHIVE_HOUR', label: 'Archive Hour', type: 'number' },
+      { key: 'ARCHIVE_MINUTE', label: 'Archive Minute', type: 'number' },
+      { key: 'ARCHIVE_DB_PATH', label: 'Archive Database Path' },
+    ],
+  },
+  {
+    title: 'Security & Updates',
+    fields: [
+      { key: 'API_KEY', label: 'API Key', type: 'password' },
+      { key: 'JWT_SECRET', label: 'JWT Secret', type: 'password' },
+      { key: 'SST_AUTO_CREATE_ADMIN', label: 'Auto Create Admin', type: 'toggle' },
+      { key: 'INITIAL_ADMIN_USERNAME', label: 'Initial Admin Username' },
+      { key: 'INITIAL_ADMIN_PASSWORD', label: 'Initial Admin Password', type: 'password' },
+      { key: 'SST_DISABLE_UPDATE_CHECK', label: 'Disable Update Checks', type: 'toggle' },
+      { key: 'SST_UPDATE_REPO', label: 'Update Repo' },
+      { key: 'SST_ALLOW_REMOTE_UPDATE', label: 'Allow Remote Updates', type: 'toggle' },
+    ],
+  },
+];
+
+const isToggleOn = (value: string | undefined) => value === '1' || value === 'true';
+
+const fillMissingEnvValues = (
+  values: RuntimeEnvValues,
+  suggestions: RuntimeEnvValues = {}
+) => {
+  const nextValues = { ...values };
+  let filledCount = 0;
+
+  for (const [key, suggestedValue] of Object.entries(suggestions)) {
+    const currentValue = String(nextValues[key] ?? '').trim();
+    const normalizedSuggestion = String(suggestedValue ?? '').trim();
+
+    if (!currentValue && normalizedSuggestion) {
+      nextValues[key] = normalizedSuggestion;
+      filledCount += 1;
+    }
+  }
+
+  return { values: nextValues, filledCount };
+};
 
 export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }) => {
   const [servers, setServers] = useState<ServerConfig[]>([]);
@@ -35,15 +169,69 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | null>>({});
 
+  // Active API .env state
+  const [envValues, setEnvValues] = useState<RuntimeEnvValues>({});
+  const [envSuggestions, setEnvSuggestions] = useState<RuntimeEnvValues>({});
+  const [envPath, setEnvPath] = useState('');
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configError, setConfigError] = useState('');
+  const [configMessage, setConfigMessage] = useState('');
+  const [openEnvGroups, setOpenEnvGroups] = useState<Record<string, boolean>>({});
+
   // Load servers
-  const loadServers = () => {
+  const loadServers = useCallback(() => {
     setServers(getServers());
     setActiveId(getActiveServerId());
-  };
+  }, []);
+
+  const loadRuntimeConfig = useCallback(async () => {
+    if (!getActiveServerId()) {
+      setEnvValues({});
+      setEnvSuggestions({});
+      setEnvPath('');
+      return;
+    }
+
+    setConfigLoading(true);
+    setConfigError('');
+    setConfigMessage('');
+
+    try {
+      api.loadActiveServer();
+      const config = await api.getRuntimeConfig();
+      const suggestions = config.suggestions || {};
+      const filled = fillMissingEnvValues(config.env || {}, suggestions);
+      setEnvValues(filled.values);
+      setEnvSuggestions(suggestions);
+      setEnvPath(config.envPath || '');
+      if (filled.filledCount > 0) {
+        setConfigMessage(`Auto-filled ${filled.filledCount} unset settings from known server paths. Review them, then Save .env to persist.`);
+      }
+    } catch (err) {
+      setConfigError(err instanceof Error ? err.message : 'Failed to load server settings');
+    } finally {
+      setConfigLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadServers();
-  }, []);
+  }, [loadServers]);
+
+  useEffect(() => {
+    loadRuntimeConfig();
+  }, [activeId, loadRuntimeConfig]);
+
+  useEffect(() => {
+    window.addEventListener(SERVER_CONFIG_CHANGED_EVENT, loadServers);
+    window.addEventListener(ACTIVE_SERVER_CHANGED_EVENT, loadServers);
+
+    return () => {
+      window.removeEventListener(SERVER_CONFIG_CHANGED_EVENT, loadServers);
+      window.removeEventListener(ACTIVE_SERVER_CHANGED_EVENT, loadServers);
+    };
+  }, [loadServers]);
 
   // Test a server connection
   const testConnection = async (server: ServerConfig) => {
@@ -82,6 +270,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       return;
     }
 
+    const wasFirstServer = servers.length === 0;
     addServer({
       name: formName.trim(),
       apiUrl: formUrl.trim().replace(/\/$/, ''), // Remove trailing slash
@@ -94,6 +283,11 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setFormError('');
     setShowAddForm(false);
     loadServers();
+
+    if (wasFirstServer) {
+      api.loadActiveServer();
+      onServerChange?.();
+    }
   };
 
   // Update existing server
@@ -103,11 +297,19 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       return;
     }
 
+    const currentServer = servers.find(server => server.id === id);
+    const nextApiUrl = formUrl.trim().replace(/\/$/, '');
+    const apiUrlChanged = Boolean(currentServer && currentServer.apiUrl !== nextApiUrl);
+
     updateServer(id, {
       name: formName.trim(),
-      apiUrl: formUrl.trim().replace(/\/$/, ''),
+      apiUrl: nextApiUrl,
       apiKey: formKey.trim(),
     });
+
+    if (apiUrlChanged) {
+      clearAuthTokenForServer(id);
+    }
 
     setEditingId(null);
     setFormError('');
@@ -128,7 +330,6 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       
       if (id === activeId) {
         api.loadActiveServer();
-        onServerChange?.();
       }
     }
   };
@@ -138,7 +339,6 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setActiveServerId(id);
     setActiveId(id);
     api.loadActiveServer();
-    onServerChange?.();
   };
 
   // Start editing a server
@@ -159,7 +359,114 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setFormError('');
   };
 
+  const updateEnvValue = (key: string, value: string) => {
+    setEnvValues(prev => ({ ...prev, [key]: value }));
+    setConfigMessage('');
+    setConfigError('');
+  };
+
+  const autoFillRuntimeConfig = () => {
+    const filled = fillMissingEnvValues(envValues, envSuggestions);
+    setEnvValues(filled.values);
+    setConfigError('');
+    setConfigMessage(
+      filled.filledCount > 0
+        ? `Auto-filled ${filled.filledCount} blank settings. Review them, then Save .env to persist.`
+        : 'No blank settings needed auto-fill.'
+    );
+  };
+
+  const saveRuntimeConfig = async () => {
+    setConfigSaving(true);
+    setConfigError('');
+    setConfigMessage('');
+
+    try {
+      const result = await api.updateRuntimeConfig(envValues);
+      const activeServer = servers.find(server => server.id === activeId);
+
+      if (activeServer && envValues.API_KEY && envValues.API_KEY !== activeServer.apiKey) {
+        updateServer(activeServer.id, { apiKey: envValues.API_KEY });
+        api.configure(activeServer.apiUrl, envValues.API_KEY);
+        loadServers();
+      }
+
+      setConfigMessage(result.message || 'Settings saved.');
+    } catch (err) {
+      setConfigError(err instanceof Error ? err.message : 'Failed to save server settings');
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  const renderEnvField = (field: EnvField) => {
+    const value = envValues[field.key] ?? '';
+
+    if (field.type === 'toggle') {
+      return (
+        <label key={field.key} className="flex items-center justify-between gap-3 rounded-lg border border-surface-200 bg-white px-3 py-2">
+          <span>
+            <span className="block text-sm font-medium text-surface-700">{field.label}</span>
+            <code className="text-[11px] text-surface-400">{field.key}</code>
+          </span>
+          <input
+            type="checkbox"
+            checked={isToggleOn(value)}
+            onChange={(e) => updateEnvValue(field.key, e.target.checked ? '1' : '0')}
+            className="h-4 w-4 rounded border-surface-300"
+          />
+        </label>
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <label key={field.key} className="block">
+          <span className="block text-sm font-medium text-surface-700 mb-1">{field.label}</span>
+          <select
+            value={value}
+            onChange={(e) => updateEnvValue(field.key, e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+          >
+            <option value="">Default</option>
+            {field.options?.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <code className="text-[11px] text-surface-400">{field.key}</code>
+        </label>
+      );
+    }
+
+    return (
+      <label key={field.key} className="block">
+        <span className="block text-sm font-medium text-surface-700 mb-1">{field.label}</span>
+        <input
+          type={field.type || 'text'}
+          value={value}
+          onChange={(e) => updateEnvValue(field.key, e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none"
+        />
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <code className="text-[11px] text-surface-400">{field.key}</code>
+          {!value && envSuggestions[field.key] && (
+            <span className="truncate text-[11px] text-surface-400">
+              Suggested: {envSuggestions[field.key]}
+            </span>
+          )}
+        </span>
+      </label>
+    );
+  };
+
+  const handleEnvGroupToggle = (title: string, isOpen: boolean) => {
+    setOpenEnvGroups(prev => (
+      prev[title] === isOpen ? prev : { ...prev, [title]: isOpen }
+    ));
+  };
+
   return (
+    <div className="space-y-6">
     <Card compact>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
@@ -168,7 +475,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-bold text-surface-800">Server Management</h2>
-            <p className="text-xs sm:text-sm text-surface-500">Manage your DayZ server connections</p>
+            <p className="text-xs sm:text-sm text-surface-500">Manage one SST API connection per DayZ server</p>
           </div>
         </div>
         {!showAddForm && (
@@ -178,6 +485,10 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
           </Button>
         )}
       </div>
+
+      <p className="mb-4 text-xs sm:text-sm text-surface-500">
+        Hosting five servers? Run five SST API instances on different ports or hosts, then add each API URL here.
+      </p>
 
       {/* Add Server Form */}
       {showAddForm && (
@@ -386,6 +697,77 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
         </div>
       )}
     </Card>
+    <Card compact>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-surface-100 rounded-lg">
+            <SlidersHorizontal className="h-5 w-5 text-surface-700" />
+          </div>
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-surface-800">Active Server .env</h2>
+            <p className="text-xs sm:text-sm text-surface-500">Edit runtime settings for the selected SST API instance</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={loadRuntimeConfig} loading={configLoading}>
+            <RefreshCw size={14} className="mr-1" />
+            Reload
+          </Button>
+          <Button size="sm" variant="secondary" onClick={autoFillRuntimeConfig} disabled={!activeId || configLoading}>
+            <Check size={14} className="mr-1" />
+            Auto-fill blanks
+          </Button>
+          <Button size="sm" onClick={saveRuntimeConfig} loading={configSaving} disabled={!activeId || configLoading}>
+            <Save size={14} className="mr-1" />
+            Save .env
+          </Button>
+        </div>
+      </div>
+
+      {envPath && (
+        <div className="mb-4 text-xs text-surface-500">
+          Writing to <code className="rounded bg-surface-100 px-1.5 py-0.5">{envPath}</code>
+        </div>
+      )}
+
+      {configError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {configError}
+        </div>
+      )}
+
+      {configMessage && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {configMessage}
+        </div>
+      )}
+
+      {!activeId ? (
+        <div className="text-center py-10 text-surface-500">
+          <Server size={40} className="mx-auto mb-3 opacity-50" />
+          <p>Select or add a server before editing its runtime settings.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {ENV_GROUPS.map((group, index) => (
+            <details
+              key={group.title}
+              open={openEnvGroups[group.title] ?? index < 2}
+              onToggle={(event) => handleEnvGroupToggle(group.title, event.currentTarget.open)}
+              className="rounded-lg border border-surface-200 bg-surface-50"
+            >
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-surface-800">
+                {group.title}
+              </summary>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-surface-200 p-4">
+                {group.fields.map(renderEnvField)}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+    </Card>
+    </div>
   );
 };
 

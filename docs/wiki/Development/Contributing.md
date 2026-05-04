@@ -41,7 +41,7 @@ If you’re not sure where a change belongs, open an issue/discussion first with
 Mod scripts are built/packed via the DayZ mod toolchain; most code changes can be validated by:
 
 - Running a local server with the mod enabled
-- Watching `$profile:SST/` for expected JSON output
+- Watching `$storage:SST/` for expected JSON output
 - Confirming the API ingests/serves the new output
 
 ## Pull requests

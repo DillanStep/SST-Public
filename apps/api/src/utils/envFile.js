@@ -20,6 +20,39 @@ export function resolveEnvPathForWrite() {
   return candidates.find((p) => fs.existsSync(p)) || candidates[candidates.length - 1];
 }
 
+export function readEnvVars(filePath) {
+  let existing = "";
+  try {
+    if (fs.existsSync(filePath)) {
+      existing = fs.readFileSync(filePath, "utf8");
+    }
+  } catch {
+    existing = "";
+  }
+
+  const values = {};
+  for (const rawLine of existing.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const separator = line.indexOf("=");
+    if (separator <= 0) continue;
+
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    values[key] = value;
+  }
+
+  return values;
+}
+
 export function upsertEnvVar(filePath, key, value) {
   let existing = "";
   try {

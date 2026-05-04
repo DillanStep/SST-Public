@@ -89,7 +89,7 @@ function parseSstPathFromLocal(sstPath) {
   const base = normalizeLocalPath(sstPath);
   if (!base) return null;
   if (!isAbsoluteLocalPath(base)) {
-    throw setupError("Local SST path must be a full path to the generated profile SST folder, for example C:/DayZServer/Server1/SST.");
+    throw setupError("Local SST path must be a full path to the generated storage SST folder, for example C:/DayZServer/mpmissions/dayzOffline.chernarusplus/storage_1/SST.");
   }
 
   const apiDir = path.join(base, "api");
@@ -168,7 +168,7 @@ async function validateOnlinePlayers(storage, parsed) {
   } catch (err) {
     if (isNotFoundError(err)) {
       throw setupError(
-        `Could not find SST online players file at '${checkedPath}'. Check that the path points to the DayZ profile SST folder. The @SST server mod must run once with -scrAllowFileWrite first to create $profile:SST/api/online_players.json.`,
+        `Could not find SST online players file at '${checkedPath}'. Check that the path points to the DayZ storage SST folder. The @SST server mod must run once with -scrAllowFileWrite first to create $storage:SST/api/online_players.json.`,
         404,
         "ENOENT"
       );
@@ -221,7 +221,13 @@ router.get("/status", (req, res) => {
       },
       paths: {
         sst: process.env.SST_PATH || "",
+        mission: process.env.MISSION_PATH || "",
+        types: process.env.TYPES_PATH || "",
+        profiles: process.env.PROFILES_PATH || "",
+        expansionTraders: process.env.EXPANSION_TRADERS_PATH || "",
+        expansionMarket: process.env.EXPANSION_MARKET_PATH || "",
       },
+      expansionEnabled: process.env.EXPANSION_ENABLED || "0",
     },
   });
 });
@@ -333,7 +339,18 @@ router.post("/test", async (req, res) => {
 });
 
 router.post("/apply", (req, res) => {
-  const { backend, sftp, ftp, sstPath, profilesPath } = req.body || {};
+  const {
+    backend,
+    sftp,
+    ftp,
+    sstPath,
+    profilesPath,
+    missionPath,
+    typesPath,
+    expansionEnabled,
+    expansionTradersPath,
+    expansionMarketPath,
+  } = req.body || {};
 
   const chosenBackend = String(backend || "").toLowerCase();
   if (!chosenBackend || !["local", "ftp", "sftp"].includes(chosenBackend)) {
@@ -356,6 +373,26 @@ router.post("/apply", (req, res) => {
     // Save profiles path if provided
     if (profilesPath && typeof profilesPath === "string" && profilesPath.trim()) {
       upsertEnvVar(envPath, "PROFILES_PATH", normalizePosix(profilesPath));
+    }
+
+    if (missionPath && typeof missionPath === "string" && missionPath.trim()) {
+      upsertEnvVar(envPath, "MISSION_PATH", normalizePosix(missionPath));
+    }
+
+    if (typesPath && typeof typesPath === "string" && typesPath.trim()) {
+      upsertEnvVar(envPath, "TYPES_PATH", normalizePosix(typesPath));
+    }
+
+    if (expansionEnabled !== undefined) {
+      upsertEnvVar(envPath, "EXPANSION_ENABLED", expansionEnabled ? "1" : "0");
+    }
+
+    if (expansionTradersPath && typeof expansionTradersPath === "string" && expansionTradersPath.trim()) {
+      upsertEnvVar(envPath, "EXPANSION_TRADERS_PATH", normalizePosix(expansionTradersPath));
+    }
+
+    if (expansionMarketPath && typeof expansionMarketPath === "string" && expansionMarketPath.trim()) {
+      upsertEnvVar(envPath, "EXPANSION_MARKET_PATH", normalizePosix(expansionMarketPath));
     }
 
     if (chosenBackend === "sftp") {
