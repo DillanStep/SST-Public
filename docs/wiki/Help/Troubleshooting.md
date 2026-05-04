@@ -14,18 +14,18 @@
 
 ## Nothing updates / data looks stale
 
-- Check the DayZ server `$profile` folder for SST output.
-- Confirm the API is pointed at the same `$profile` path it’s reading from.
+- Check the DayZ server `$storage:SST` folder for SST output.
+- Confirm the API is pointed at the same storage `SST/` path the mod is writing to.
 - Verify file permissions allow the API process to read/write those folders.
 
 ## No `SST` folder was created
 
 - Confirm `@SST` is actually loaded by the DayZ server.
-- Check the active `-profiles` folder, not only a folder literally named `profiles`.
-- If your startup has `-profiles=Server1`, check `<DayZServerRoot>/Server1/SST`.
-- If your startup has `-profiles=D:\DayZServer\profiles`, check `D:\DayZServer\profiles\SST`.
+- Check the active storage root, not only the profile folder.
+- If your startup has `-storage=Server1Storage`, check `<DayZServerRoot>/Server1Storage/SST`.
+- If your startup has `-storage=D:\DayZServer\storage`, check `D:\DayZServer\storage\SST`.
 - Read the latest `.RPT` and `script_*.log` for SST script errors.
-- Make sure the server has permission to write to the profile folder.
+- Make sure the server has permission to write to the storage folder.
 
 ## Setup test cannot find `online_players.json`
 
@@ -45,7 +45,7 @@ SST_PATH:   HostHavocDayZServer/SST
 ## Command queue not executing
 
 - Confirm the mod is running server-side.
-- Check `$profile:SST/api/` (or your configured queue dir) for queued JSON.
+- Check `$storage:SST/api/` (or your configured queue dir) for queued JSON.
 - Ensure the mod is polling and writing results back.
 
 ## Players are kicked for missing or extra mods

@@ -23,6 +23,15 @@ function getJwtSecret() {
 const JWT_SECRET = getJwtSecret();
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
+function extractAuthToken(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    return authHeader.substring(7);
+  }
+
+  return req.cookies?.auth_token;
+}
+
 // Auth status (requires API key at the app mount)
 router.get("/status", (req, res) => {
   try {
@@ -153,7 +162,7 @@ router.post("/setup", (req, res) => {
 // Logout
 router.post("/logout", (req, res) => {
   try {
-    const token = req.cookies?.auth_token;
+    const token = extractAuthToken(req);
     
     if (token) {
       const session = sessionOps.getByToken(token);
@@ -174,7 +183,7 @@ router.post("/logout", (req, res) => {
 // Check session / get current user
 router.get("/me", (req, res) => {
   try {
-    const token = req.cookies?.auth_token;
+    const token = extractAuthToken(req);
     
     if (!token) {
       return res.status(401).json({ error: "Not authenticated" });
@@ -212,7 +221,7 @@ router.get("/me", (req, res) => {
 // Change password (for current user)
 router.post("/change-password", (req, res) => {
   try {
-    const token = req.cookies?.auth_token;
+    const token = extractAuthToken(req);
     if (!token) {
       return res.status(401).json({ error: "Not authenticated" });
     }

@@ -1,4 +1,5 @@
 import "./appConfig.js";
+import { existsSync } from "fs";
 
 function normalizeEnvPath(value) {
   if (!value) return "";
@@ -18,6 +19,28 @@ function dirnamePosix(pathValue) {
   const idx = p.lastIndexOf("/");
   if (idx <= 0) return p.startsWith("/") ? "/" : "";
   return p.slice(0, idx);
+}
+
+function joinPosix(base, ...parts) {
+  const cleanBase = normalizeEnvPath(base);
+  const cleanParts = parts
+    .map((part) => String(part || "").replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean);
+
+  if (!cleanBase) return cleanParts.join("/");
+  return [cleanBase, ...cleanParts].join("/");
+}
+
+function pathExists(pathValue) {
+  try {
+    return Boolean(pathValue) && existsSync(pathValue);
+  } catch {
+    return false;
+  }
+}
+
+function firstExistingPath(candidates) {
+  return candidates.find(pathExists) || "";
 }
 
 function deriveSstBasePath() {
@@ -41,13 +64,42 @@ function deriveSstBasePath() {
   );
 }
 
+function deriveMissionPathFromSstPath() {
+  const sstPath = deriveSstBasePath();
+  const storageMatch = sstPath.match(/^(.*)\/storage_[^/]+\/SST$/i);
+  return storageMatch ? storageMatch[1] : "";
+}
+
+function deriveProfilesPath(missionPath) {
+  const explicit = normalizeEnvPath(process.env.PROFILES_PATH);
+  if (explicit) return explicit;
+
+  if ((process.env.STORAGE_BACKEND || "local").toLowerCase() !== "local") {
+    return "";
+  }
+
+  const normalizedMissionPath = normalizeEnvPath(missionPath);
+  const marker = "/mpmissions/";
+  const markerIndex = normalizedMissionPath.toLowerCase().lastIndexOf(marker);
+  if (markerIndex === -1) return "";
+
+  const serverRoot = normalizedMissionPath.slice(0, markerIndex);
+  return firstExistingPath([
+    joinPosix(serverRoot, "Server1"),
+    joinPosix(serverRoot, "profiles"),
+    joinPosix(serverRoot, "profile"),
+    joinPosix(serverRoot, "config"),
+    joinPosix(serverRoot, "logs"),
+  ]);
+}
+
 // Default base paths - MUST be configured in .env for your server
 // These defaults will NOT work - you must set SST_PATH in your .env file
 const derivedBasePath = deriveSstBasePath();
 const defaultBasePath = derivedBasePath || "./profiles/SST";
 const defaultExpansionPath = normalizeEnvPath(process.env.EXPANSION_TRADERS_PATH)?.replace(/\/Traders$/, "") || "./profiles/ExpansionMod";
-const defaultMissionPath = normalizeEnvPath(process.env.MISSION_PATH) || "./mpmissions/dayzOffline.chernarusplus";
-const defaultProfilesPath = normalizeEnvPath(process.env.PROFILES_PATH) || "./profiles";
+const defaultMissionPath = normalizeEnvPath(process.env.MISSION_PATH) || deriveMissionPathFromSstPath() || "./mpmissions/dayzOffline.chernarusplus";
+const defaultProfilesPath = deriveProfilesPath(defaultMissionPath) || "./profiles";
 
 // .env values take priority, then fall back to defaults
 export const paths = {
@@ -104,4 +156,3 @@ export function logConfig() {
   }
   console.log(`  - Profiles: ${paths.profiles}`);
 }
-

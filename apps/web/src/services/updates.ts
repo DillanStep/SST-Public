@@ -1,4 +1,4 @@
-import { getActiveServer } from './serverManager';
+import { getActiveServer, getServers } from './serverManager';
 import { getAuthToken } from './auth';
 
 export interface UpdateRelease {
@@ -55,6 +55,10 @@ function getHeaders(contentTypeJson = false): Record<string, string> {
   return headers;
 }
 
+function getCredentials(): RequestCredentials {
+  return !getAuthToken() && getServers().length > 1 ? 'omit' : 'include';
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
@@ -76,7 +80,7 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
   }
 
   const response = await fetch(`${baseUrl}/updates/status`, {
-    credentials: 'include',
+    credentials: getCredentials(),
     headers: getHeaders(),
   });
 
@@ -91,7 +95,7 @@ export async function startUpdateInstall(): Promise<UpdateInstallStatus> {
 
   const response = await fetch(`${baseUrl}/updates/install`, {
     method: 'POST',
-    credentials: 'include',
+    credentials: getCredentials(),
     headers: getHeaders(true),
     body: JSON.stringify({}),
   });
@@ -106,7 +110,7 @@ export async function getUpdateInstallStatus(): Promise<UpdateInstallStatus> {
   }
 
   const response = await fetch(`${baseUrl}/updates/install/status`, {
-    credentials: 'include',
+    credentials: getCredentials(),
     headers: getHeaders(),
   });
 

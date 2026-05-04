@@ -7,7 +7,7 @@ This guide is written for DayZ community server owners. It assumes you can edit 
 Set SST up in this order:
 
 1. Install and start the DayZ server-side mod.
-2. Confirm the mod generated the `SST` profile folder.
+2. Confirm the mod generated the `$storage:SST` folder.
 3. Configure and start the Node API.
 4. Start the web dashboard and create the first admin account.
 
@@ -26,32 +26,35 @@ The repository includes a ready-to-install server-side mod in `@SST/`.
 Example local startup parameters:
 
 ```text
--profiles=Server1 -serverMod=@SST -scrAllowFileWrite
+-profiles=Server1 -storage=Server1Storage -serverMod=@SST -scrAllowFileWrite
 ```
 
 Example with public client mods plus SST:
 
 ```text
--profiles=Server1 -mod=@CF;@Dabs Framework;@DayZ-Expansion-Core -serverMod=@SST -scrAllowFileWrite
+-profiles=Server1 -storage=Server1Storage -mod=@CF;@Dabs Framework;@DayZ-Expansion-Core -serverMod=@SST -scrAllowFileWrite
 ```
 
 SST is intended for `-serverMod`. Do not put `@SST` in the public client mod list unless your host requires that field for server-side mods.
 
 ## 2. Find The SST Data Folder
 
-SST writes files to `$profile:SST`, where `$profile` is the folder set by DayZ's `-profiles` parameter.
+SST writes files to `$storage:SST`. DayZ's `-storage=` launch parameter controls the storage root; setting it makes the API path predictable.
 
 Common examples:
 
 ```text
 -profiles=Server1
-<DayZServerRoot>/Server1/SST
+-storage=Server1Storage
+<DayZServerRoot>/Server1Storage/SST
 
 -profiles=profiles
-<DayZServerRoot>/profiles/SST
+-storage=storage
+<DayZServerRoot>/storage/SST
 
 -profiles=D:\DayZServer\profiles
-D:\DayZServer\profiles\SST
+-storage=D:\DayZServer\storage
+D:\DayZServer\storage\SST
 ```
 
 After the server has run with SST loaded, the folder should contain:
@@ -113,7 +116,7 @@ Set at least:
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server1/SST
+SST_PATH=C:/DayZServer/Server1Storage/SST
 PROFILES_PATH=C:/DayZServer/Server1
 ```
 

@@ -20,11 +20,11 @@ This is the exact same “bridge” pattern used by existing SST features like p
 
 ## Files created at runtime
 
-The template uses these paths (all relative to the DayZ profile):
+The template uses these paths (all relative to DayZ `$storage`):
 
-- Queue (API → server): `$profile:SST/api/template_queue.json`
-- Results (server → API): `$profile:SST/api/template_results.json`
-- Optional export (server → API snapshot): `$profile:SST/template_export.json`
+- Queue (API → server): `$storage:SST/api/template_queue.json`
+- Results (server → API): `$storage:SST/api/template_results.json`
+- Optional export (server → API snapshot): `$storage:SST/template_export.json`
 
 You should rename these filenames for your feature.
 
@@ -106,7 +106,7 @@ SST_TemplateService.Start();
 
 Internally it:
 
-- Ensures `$profile:SST` and `$profile:SST/api` exist
+- Ensures `$storage:SST` and `$storage:SST/api` exist
 - Guards server-only execution with `GetGame().IsServer()`
 - Uses `CallLater` to poll the queue periodically
 
@@ -124,7 +124,7 @@ GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM)
 ### 1) Load queue JSON
 
 ```c
-if (!JsonFileLoader<SST_TemplateQueue>.LoadFile(QUEUE_FILE, queue, errorMsg))
+if (!SST_Persistence<SST_TemplateQueue>.LoadJson(QUEUE_FILE, queue, errorMsg))
 	return;
 ```
 
@@ -217,7 +217,7 @@ entry.message = "Template export is running";
 snapshot.entries.Insert(entry);
 snapshot.entryCount = snapshot.entries.Count();
 
-JsonFileLoader<SST_TemplateExport>.SaveFile(EXPORT_FILE, snapshot, errorMsg);
+SST_Persistence<SST_TemplateExport>.SaveJson(EXPORT_FILE, snapshot, errorMsg);
 ```
 
 ---

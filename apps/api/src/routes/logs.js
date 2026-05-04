@@ -60,6 +60,20 @@ function parseLogDate(filename) {
   return null;
 }
 
+async function getNewestLogFile(fileNames) {
+  const filesWithInfo = await Promise.all(
+    fileNames.map(async (fileName) => ({
+      fileName,
+      info: await getFileInfo(`${paths.profiles}/${fileName}`)
+    }))
+  );
+
+  const existingFiles = filesWithInfo.filter(file => file.info);
+  existingFiles.sort((a, b) => new Date(b.info.modified) - new Date(a.info.modified));
+
+  return existingFiles.find(file => file.info.size > 0) || existingFiles[0] || null;
+}
+
 // GET /logs/types - list available log types
 router.get("/types", async (req, res) => {
   res.json({
@@ -205,11 +219,14 @@ router.get("/latest/script", async (req, res) => {
       return res.status(404).json({ error: "No script logs found" });
     }
     
-    // Sort by filename (which includes date) to get newest
-    scriptLogs.sort().reverse();
-    const newestLog = scriptLogs[0];
+    const newest = await getNewestLogFile(scriptLogs);
+    if (!newest) {
+      return res.status(404).json({ error: "No script logs found" });
+    }
+
+    const newestLog = newest.fileName;
     const filePath = `${paths.profiles}/${newestLog}`;
-    const info = await getFileInfo(filePath);
+    const info = newest.info;
     
     // Check if we need to refresh cache (different file or > 10 seconds old)
     const needsRefresh = 
@@ -258,12 +275,15 @@ router.get("/latest/crash", async (req, res) => {
       return res.status(404).json({ error: "No crash logs found" });
     }
     
-    // Sort by filename to get newest
-    crashLogs.sort().reverse();
-    const newestLog = crashLogs[0];
+    const newest = await getNewestLogFile(crashLogs);
+    if (!newest) {
+      return res.status(404).json({ error: "No crash logs found" });
+    }
+
+    const newestLog = newest.fileName;
     const filePath = `${paths.profiles}/${newestLog}`;
     
-    const info = await getFileInfo(filePath);
+    const info = newest.info;
     const content = await readFile(filePath, "utf8");
     
     res.json({
@@ -290,12 +310,15 @@ router.get("/latest/rpt", async (req, res) => {
       return res.status(404).json({ error: "No RPT logs found" });
     }
     
-    // Sort by filename to get newest
-    rptLogs.sort().reverse();
-    const newestLog = rptLogs[0];
+    const newest = await getNewestLogFile(rptLogs);
+    if (!newest) {
+      return res.status(404).json({ error: "No RPT logs found" });
+    }
+
+    const newestLog = newest.fileName;
     const filePath = `${paths.profiles}/${newestLog}`;
     
-    const info = await getFileInfo(filePath);
+    const info = newest.info;
     const result = await readLastLines(filePath, maxLines);
     
     res.json({

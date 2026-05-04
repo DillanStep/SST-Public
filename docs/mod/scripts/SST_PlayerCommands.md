@@ -8,8 +8,8 @@ Source file: [SST/Scripts/4_World/SST/SST_PlayerCommands.c](../../../SST/Scripts
 
 ## Files used
 
-- Queue (API → server): `$profile:SST/api/player_commands.json`
-- Results (server → API): `$profile:SST/api/player_commands_results.json`
+- Queue (API → server): `$storage:SST/api/player_commands.json`
+- Results (server → API): `$storage:SST/api/player_commands_results.json`
 
 Queue schema:
 

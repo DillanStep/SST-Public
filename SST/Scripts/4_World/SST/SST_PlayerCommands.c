@@ -5,8 +5,8 @@
  * Reads queued commands (heal, teleport, direct message, broadcast) from JSON,
  * executes them on the server, and writes results back to the results file.
  *
- * Queue file:   $profile:SST/api/player_commands.json
- * Results file: $profile:SST/api/player_commands_results.json
+ * Queue file:   $storage:SST/api/player_commands.json
+ * Results file: $storage:SST/api/player_commands_results.json
  */
 
 // ============================================================================
@@ -42,16 +42,14 @@ class SST_PlayerCommandQueue
 class SST_PlayerCommands
 {
 	protected static ref SST_PlayerCommands s_Instance;
-	static const string COMMAND_QUEUE_FILE = "$profile:SST/api/player_commands.json";
-	static const string COMMAND_RESULTS_FILE = "$profile:SST/api/player_commands_results.json";
+	static string COMMAND_QUEUE_FILE = SST_RuntimePaths.ApiFile("player_commands.json");
+	static string COMMAND_RESULTS_FILE = SST_RuntimePaths.ApiFile("player_commands_results.json");
 	static const float CHECK_INTERVAL = 2000.0; // Check every 2 seconds for faster response
 	
 	void SST_PlayerCommands()
 	{
-		if (!FileExist("$profile:SST"))
-			MakeDirectory("$profile:SST");
-		if (!FileExist("$profile:SST/api"))
-			MakeDirectory("$profile:SST/api");
+		SST_PersistenceCore.EnsureDirectory(SST_RuntimePaths.STORAGE_ROOT);
+		SST_PersistenceCore.EnsureDirectory(SST_RuntimePaths.API_FOLDER);
 	}
 	
 	static SST_PlayerCommands GetInstance()
@@ -83,13 +81,13 @@ class SST_PlayerCommands
 		if (!GetGame().IsServer())
 			return;
 		
-		if (!FileExist(COMMAND_QUEUE_FILE))
+		if (!SST_PersistenceCore.FileExists(COMMAND_QUEUE_FILE))
 			return;
 		
 		ref SST_PlayerCommandQueue commandQueue;
 		string errorMsg;
 		
-		if (!JsonFileLoader<SST_PlayerCommandQueue>.LoadFile(COMMAND_QUEUE_FILE, commandQueue, errorMsg))
+		if (!SST_Persistence<SST_PlayerCommandQueue>.LoadJson(COMMAND_QUEUE_FILE, commandQueue, errorMsg))
 		{
 			Print("[SST] ERROR: Failed to load command queue: " + errorMsg);
 			return;
@@ -112,14 +110,14 @@ class SST_PlayerCommands
 		if (hasChanges)
 		{
 			// Save updated queue with results
-			if (!JsonFileLoader<SST_PlayerCommandQueue>.SaveFile(COMMAND_RESULTS_FILE, commandQueue, errorMsg))
+			if (!SST_Persistence<SST_PlayerCommandQueue>.SaveJson(COMMAND_RESULTS_FILE, commandQueue, errorMsg))
 			{
 				Print("[SST] ERROR: Failed to save command results: " + errorMsg);
 			}
 			
 			// Clear the original queue file
 			ref SST_PlayerCommandQueue emptyQueue = new SST_PlayerCommandQueue();
-			JsonFileLoader<SST_PlayerCommandQueue>.SaveFile(COMMAND_QUEUE_FILE, emptyQueue, errorMsg);
+			SST_Persistence<SST_PlayerCommandQueue>.SaveJson(COMMAND_QUEUE_FILE, emptyQueue, errorMsg);
 		}
 	}
 	

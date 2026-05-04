@@ -9,18 +9,18 @@ This is the shortest path to get SST running on a Windows DayZ server or admin P
 - Load SST as a server-side mod, for example:
 
 ```text
--profiles=Server1 -serverMod=@SST -scrAllowFileWrite
+-profiles=Server1 -storage=Server1Storage -serverMod=@SST -scrAllowFileWrite
 ```
 
 Keep normal player/client mods in `-mod`. Keep `@SST` in `-serverMod` unless your host specifically requires a different field.
 
-Start the DayZ server once before configuring the app. SST creates its files under the active DayZ profile folder:
+Start the DayZ server once before configuring the app. SST creates its files under the DayZ storage root:
 
 ```text
-<DayZServerRoot>/Server1/SST
+<DayZServerRoot>/Server1Storage/SST
 ```
 
-The exact path depends on your `-profiles` value. If `-profiles=profiles`, use `<DayZServerRoot>/profiles/SST`. If `-profiles` is an absolute path, use that path plus `/SST`.
+The exact path depends on `-storage=`. If your host does not expose `-storage=`, look for the generated `SST/` folder wherever your host exposes DayZ storage/persistence files.
 
 Inside the folder you should see:
 
@@ -73,7 +73,7 @@ In the dashboard:
 For local files, use forward slashes:
 
 ```text
-C:/DayZServer/Server1/SST
+C:/DayZServer/Server1Storage/SST
 ```
 
 For hosted servers, stop the path at the `SST` folder. Do not include `/api/online_players.json`.

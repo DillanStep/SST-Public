@@ -282,7 +282,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                   // Get inventory count from the nested structure
                   const invData = playerData.inventory?.players?.[0];
                   const invCount = invData?.inventory?.length || 0;
-                  const playerName = invData?.playerName || playerId.substring(0, 12) + '...';
+                  const playerName = invData?.playerName || playerData.online?.playerName || playerId.substring(0, 12) + '...';
+                  const isOnline = playerData.online?.isOnline;
                   const eventCount = playerData.events?.events?.length || 0;
                   const lifeEventCount = playerData.lifeEvents?.events?.length || 0;
                   
@@ -293,7 +294,10 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                     >
                       <td className="py-3 px-4">
                         <div>
-                          <div className="text-amethyst font-medium">{playerName}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-amethyst font-medium">{playerName}</span>
+                            {isOnline && <Badge variant="success">Online</Badge>}
+                          </div>
                           <code className="text-primary-500 bg-surface-100 px-2 py-0.5 rounded text-xs">
                             {playerId}
                           </code>

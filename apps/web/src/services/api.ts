@@ -65,8 +65,11 @@ import type {
   KeyGenerationRequest,
   KeyGenerationResponse,
   KeyResultsResponse,
+  RuntimeConfigResponse,
+  RuntimeConfigUpdateResponse,
+  RuntimeEnvValues,
 } from '../types';
-import { getActiveServer, migrateOldConfig } from './serverManager';
+import { getActiveServer, getServers, migrateOldConfig } from './serverManager';
 import { getAuthToken } from './auth';
 
 // Default API base URL
@@ -94,6 +97,9 @@ class SstApi {
       const token = getAuthToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        config.withCredentials = true;
+      } else if (getServers().length > 1) {
+        config.withCredentials = false;
       }
       return config;
     });
@@ -150,6 +156,16 @@ class SstApi {
   // Health check - no auth required
   async getHealth(): Promise<HealthResponse> {
     const response = await this.client.get<HealthResponse>('/health');
+    return response.data;
+  }
+
+  async getRuntimeConfig(): Promise<RuntimeConfigResponse> {
+    const response = await this.client.get<RuntimeConfigResponse>('/config');
+    return response.data;
+  }
+
+  async updateRuntimeConfig(env: RuntimeEnvValues): Promise<RuntimeConfigUpdateResponse> {
+    const response = await this.client.put<RuntimeConfigUpdateResponse>('/config', { env });
     return response.data;
   }
 
@@ -542,6 +558,8 @@ export const setApiKey = (key: string) => api.setApiKey(key);
 export const getApiKey = () => api.getApiKey();
 
 export const getHealth = () => api.getHealth();
+export const getRuntimeConfig = () => api.getRuntimeConfig();
+export const updateRuntimeConfig = (env: RuntimeEnvValues) => api.updateRuntimeConfig(env);
 export const getDashboard = () => api.getDashboard();
 export const getPlayer = (playerId: string) => api.getPlayer(playerId);
 export const refreshDashboard = () => api.refreshDashboard();

@@ -23,7 +23,7 @@ All of these write JSON for the API/dashboard to consume.
 
 ### Output
 
-- Folder: `$profile:SST/events/`
+- Folder: `$storage:SST/events/`
 - File pattern: `<steam64>_events.json`
 
 The schema types are defined in [SST_ATMExportManager.c](SST_ATMExportManager.md).
@@ -47,7 +47,7 @@ The logger keeps only the most recent 100 events per player.
 
 ### Output
 
-- Folder: `$profile:SST/life_events/`
+- Folder: `$storage:SST/life_events/`
 - File pattern: `<steam64>_life.json`
 
 ### How to log
@@ -67,8 +67,8 @@ It keeps the most recent 50 events per player.
 
 ### Files
 
-- Queue: `$profile:SST/api/item_grants.json`
-- Results: `$profile:SST/api/item_grants_results.json`
+- Queue: `$storage:SST/api/item_grants.json`
+- Results: `$storage:SST/api/item_grants_results.json`
 
 The Node API writes `{ "requests": [...] }` with each request matching `SST_ItemGrantRequest` in [SST_ATMExportManager.c](SST_ATMExportManager.md).
 

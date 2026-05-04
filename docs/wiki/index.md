@@ -2,7 +2,7 @@
 
 SST is a DayZ server tooling stack:
 
-- **In-game mod** exports server state to JSON under `$profile:SST/` and processes JSON “queues” under `$profile:SST/api/`
+- **In-game mod** exports server state to JSON under `$storage:SST/` and processes JSON “queues” under `$storage:SST/api/`
 - **Node API** reads those JSON exports and exposes them as HTTP endpoints, and writes queue requests for the mod to process
 - **Web dashboard** consumes the Node API
 

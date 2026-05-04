@@ -9,7 +9,7 @@ This avoids needing custom network protocols and makes debugging easy (you can o
 
 ## Runtime folders
 
-SST writes under `$profile:SST/`.
+SST writes under `$storage:SST/`.
 
 Key folders:
 

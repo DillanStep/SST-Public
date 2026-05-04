@@ -1,10 +1,11 @@
 import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { LayoutDashboard, Search, Users, Settings, Menu, X, Server, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy } from 'lucide-react';
 import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
-import { getActiveServer } from './services/serverManager';
+import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId } from './services/serverManager';
 import { checkAuth, logout, type User } from './services/auth';
+import api from './services/api';
 
 type TabType = 'dashboard' | 'items' | 'players' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
 const DISCORD_SUPPORT_URL = 'https://discord.gg/jv52WVbFdj';
@@ -35,6 +36,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeServerName, setActiveServerName] = useState<string>('');
+  const [activeServerId, setActiveServerIdState] = useState<string | null>(() => getActiveServerId());
   
   // Auth state
   const [user, setUser] = useState<User | null>(null);
@@ -87,20 +89,39 @@ function App() {
     setIsConnected(false);
   };
 
-  // Load active server name
-  const loadActiveServerName = useCallback(() => {
+  // Load active server summary
+  const loadActiveServerSummary = useCallback(() => {
     const server = getActiveServer();
     setActiveServerName(server?.name || '');
+    setActiveServerIdState(server?.id || getActiveServerId());
   }, []);
 
   useEffect(() => {
-    loadActiveServerName();
-  }, [loadActiveServerName]);
+    loadActiveServerSummary();
+  }, [loadActiveServerSummary]);
 
   // Handle server change from settings
-  const handleServerChange = useCallback(() => {
-    loadActiveServerName();
-  }, [loadActiveServerName]);
+  const handleServerChange = useCallback(async () => {
+    loadActiveServerSummary();
+    api.loadActiveServer();
+    setIsConnected(false);
+
+    try {
+      const result = await checkAuth();
+      setUser(result?.user ?? null);
+    } catch {
+      setUser(null);
+    }
+  }, [loadActiveServerSummary]);
+
+  useEffect(() => {
+    const handleActiveServerChanged = () => {
+      void handleServerChange();
+    };
+
+    window.addEventListener(ACTIVE_SERVER_CHANGED_EVENT, handleActiveServerChanged);
+    return () => window.removeEventListener(ACTIVE_SERVER_CHANGED_EVENT, handleActiveServerChanged);
+  }, [handleServerChange]);
 
   const tabs: { id: TabType; label: string; icon: ReactNode; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -147,9 +168,9 @@ function App() {
         <div className="h-14 bg-white border-b border-surface-200 flex items-center px-4 gap-4 flex-shrink-0 z-[1002]">
           <div className="flex items-center">
             <img 
-              src="/banners/Banner-03.png" 
+              src="/banners/LOGO.png"
               alt="SST Dashboard" 
-              className="h-10 w-auto object-contain"
+              className="h-9 w-auto max-w-52 object-contain"
             />
           </div>
           
@@ -202,7 +223,7 @@ function App() {
         
         {/* Full Page Content */}
         <div className="flex-1">
-          <Suspense fallback={<FeatureLoading />}>
+          <Suspense key={activeServerId || 'no-server'} fallback={<FeatureLoading />}>
           {activeTab === 'map' && <FullPageMap isConnected={isConnected} />}
           {activeTab === 'history' && <PlayerHistory isConnected={isConnected} />}
           {activeTab === 'vehicles' && <VehicleDashboard isConnected={isConnected} />}
@@ -221,9 +242,9 @@ function App() {
         {/* Logo */}
         <div className="flex items-center justify-center px-4 h-16 border-b border-surface-200">
           <img 
-            src="/banners/Banner-03.png" 
+            src={sidebarOpen ? "/banners/LOGO.png" : "/banners/LOGO-mark.png"}
             alt="SST Dashboard" 
-            className={`h-10 w-auto object-contain transition-all duration-300 ${sidebarOpen ? 'max-w-full' : 'max-w-12'}`}
+            className={`object-contain transition-all duration-300 ${sidebarOpen ? 'h-10 w-auto max-w-full' : 'h-10 w-10'}`}
           />
         </div>
 
@@ -329,9 +350,7 @@ function App() {
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-surface-200">
         <div className="flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-surface-800 rounded-xl">
-              <Server className="h-4 w-4 text-white" />
-            </div>
+            <img src="/banners/LOGO-mark.png" alt="SST" className="h-9 w-9 object-contain" />
             <h1 className="text-base font-bold text-surface-800">SST Dashboard</h1>
           </div>
           <div className="flex items-center gap-3">
@@ -399,7 +418,7 @@ function App() {
         </div>
 
         <div className="p-4 sm:p-5 lg:p-6 pt-18 md:pt-5 space-y-5">
-          <Suspense fallback={<FeatureLoading />}>
+          <Suspense key={activeServerId || 'no-server'} fallback={<FeatureLoading />}>
             {activeTab === 'dashboard' && (
               <PlayerDashboard isConnected={isConnected} />
             )}

@@ -3,6 +3,19 @@ import type { ServerConfig } from '../types';
 const STORAGE_KEY = 'sst-servers';
 const ACTIVE_SERVER_KEY = 'sst-active-server';
 
+export const SERVER_CONFIG_CHANGED_EVENT = 'sst:servers-changed';
+export const ACTIVE_SERVER_CHANGED_EVENT = 'sst:active-server-changed';
+
+const emitServerConfigChanged = (): void => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(SERVER_CONFIG_CHANGED_EVENT));
+};
+
+const emitActiveServerChanged = (serverId: string | null): void => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(ACTIVE_SERVER_CHANGED_EVENT, { detail: { serverId } }));
+};
+
 // Generate a unique ID
 const generateId = (): string => {
   return `server-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -22,6 +35,7 @@ export const getServers = (): ServerConfig[] => {
 // Save all servers
 const saveServers = (servers: ServerConfig[]): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(servers));
+  emitServerConfigChanged();
 };
 
 // Get active server ID
@@ -42,6 +56,7 @@ export const setActiveServerId = (id: string | null): void => {
   } else {
     localStorage.removeItem(ACTIVE_SERVER_KEY);
   }
+  emitActiveServerChanged(id);
 };
 
 // Get the active server config

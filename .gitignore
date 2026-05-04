@@ -12,6 +12,8 @@ Profiles/**/Users/*
 texHeaders.bin
 dayz.bin
 
+build/
+
 .vscode/
 .idea/
 

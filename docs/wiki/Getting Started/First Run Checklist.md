@@ -8,8 +8,8 @@ Use this checklist after installing the mod, API, and dashboard.
 - `@SST` is loaded as a server-side mod (`-serverMod` or your host's server mod field).
 - Normal player/client mods are loaded in `-mod`, and their `.bikey` files are present in the server `keys` folder.
 - DayZ script/RPT logs do not show SST script errors.
-- `$profile:SST/` exists. Remember that `$profile` is whatever you passed to `-profiles`.
-- `$profile:SST/api/online_players.json` appears after players join.
+- `$storage:SST/` exists. Set `-storage=...` if you want a predictable storage root.
+- `$storage:SST/api/online_players.json` appears after players join.
 - Inventory, event, life event, and trade folders appear when those features are used.
 - If using Expansion vehicles, `SST/vehicles/tracked.json` appears after a tracked vehicle purchase/key pairing.
 
@@ -39,7 +39,7 @@ Use this checklist after installing the mod, API, and dashboard.
 - Confirm `.env`, database files, logs, and `node_modules` are not committed.
 - Restrict API access with firewall, VPN, reverse proxy, or HTTPS auth.
 - Back up `apps/api/data/` if you care about auth/audit/archive data.
-- Back up your DayZ profile `SST/` folder before testing destructive commands on a live server.
+- Back up your DayZ storage `SST/` folder before testing destructive commands on a live server.
 
 ## If Something Fails
 

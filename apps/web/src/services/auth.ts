@@ -1,4 +1,4 @@
-import { getActiveServer } from './serverManager';
+import { getActiveServer, getActiveServerId, getServers } from './serverManager';
 
 export interface User {
   id: number;
@@ -29,28 +29,93 @@ export interface AuthStatusResponse {
   setupRequired: boolean;
 }
 
-// Token storage keys
-const TOKEN_KEY = 'sst-auth-token';
-const TOKEN_KEY_SESSION = 'sst-auth-token-session';
+// Token storage keys. Older SST builds used one global token; new builds scope
+// tokens by saved server ID so switching between servers cannot reuse a login.
+const LEGACY_TOKEN_KEY = 'sst-auth-token';
+const LEGACY_TOKEN_KEY_SESSION = 'sst-auth-token-session';
+const TOKEN_KEY_PREFIX = 'sst-auth-token';
+const TOKEN_KEY_SESSION_PREFIX = 'sst-auth-token-session';
+
+function getScopedTokenKeys(serverId = getActiveServerId()): { local: string; session: string } {
+  const suffix = serverId ? `:${serverId}` : ':default';
+  return {
+    local: `${TOKEN_KEY_PREFIX}${suffix}`,
+    session: `${TOKEN_KEY_SESSION_PREFIX}${suffix}`,
+  };
+}
+
+function getLegacyAuthToken(): string | null {
+  return localStorage.getItem(LEGACY_TOKEN_KEY) ?? sessionStorage.getItem(LEGACY_TOKEN_KEY_SESSION);
+}
+
+function migrateLegacyTokenToActiveServer(): string | null {
+  const legacyLocalToken = localStorage.getItem(LEGACY_TOKEN_KEY);
+  const legacySessionToken = sessionStorage.getItem(LEGACY_TOKEN_KEY_SESSION);
+  const legacyToken = legacyLocalToken ?? legacySessionToken;
+  if (!legacyToken) return null;
+
+  const keys = getScopedTokenKeys();
+  if (legacyLocalToken) {
+    localStorage.setItem(keys.local, legacyLocalToken);
+  } else if (legacySessionToken) {
+    sessionStorage.setItem(keys.session, legacySessionToken);
+  }
+
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  sessionStorage.removeItem(LEGACY_TOKEN_KEY_SESSION);
+  return legacyToken;
+}
+
+function canUseLegacyToken(): boolean {
+  return getServers().length <= 1;
+}
+
+function shouldOmitAuthCookies(token: string | null): boolean {
+  return !token && getServers().length > 1;
+}
+
+function authCredentials(token: string | null): RequestCredentials {
+  return shouldOmitAuthCookies(token) ? 'omit' : 'include';
+}
 
 // Get/set auth token for cross-origin requests
 export function getAuthToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY_SESSION);
+  const keys = getScopedTokenKeys();
+  const scopedToken = localStorage.getItem(keys.local) ?? sessionStorage.getItem(keys.session);
+  if (scopedToken) return scopedToken;
+
+  return canUseLegacyToken() ? migrateLegacyTokenToActiveServer() ?? getLegacyAuthToken() : null;
 }
 
 export function setAuthToken(token: string | null, remember: boolean = true): void {
+  const keys = getScopedTokenKeys();
+
   if (token) {
     if (remember) {
-      localStorage.setItem(TOKEN_KEY, token);
-      sessionStorage.removeItem(TOKEN_KEY_SESSION);
+      localStorage.setItem(keys.local, token);
+      sessionStorage.removeItem(keys.session);
     } else {
-      sessionStorage.setItem(TOKEN_KEY_SESSION, token);
-      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.setItem(keys.session, token);
+      localStorage.removeItem(keys.local);
     }
+
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY_SESSION);
   } else {
-    localStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(TOKEN_KEY_SESSION);
+    localStorage.removeItem(keys.local);
+    sessionStorage.removeItem(keys.session);
+
+    if (canUseLegacyToken()) {
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      sessionStorage.removeItem(LEGACY_TOKEN_KEY_SESSION);
+    }
   }
+}
+
+export function clearAuthTokenForServer(serverId: string | null): void {
+  const keys = getScopedTokenKeys(serverId);
+  localStorage.removeItem(keys.local);
+  sessionStorage.removeItem(keys.session);
 }
 
 // Get base URL for auth requests
@@ -87,6 +152,18 @@ function buildHeaders(options?: { contentTypeJson?: boolean; includeAuth?: boole
   }
 
   return headers;
+}
+
+function buildAuthenticatedFetchOptions(contentTypeJson = false): {
+  headers: Record<string, string>;
+  credentials: RequestCredentials;
+} {
+  const token = getAuthToken();
+
+  return {
+    headers: buildHeaders({ contentTypeJson, includeAuth: true }),
+    credentials: authCredentials(token),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -163,11 +240,11 @@ export async function login(username: string, password: string, remember: boolea
 
 export async function logout(): Promise<void> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions();
   
   await fetch(`${baseUrl}/auth/logout`, {
     method: 'POST',
-    credentials: 'include',
-    headers: buildHeaders({ includeAuth: true }),
+    ...authOptions,
   });
   
   // Clear stored token
@@ -179,13 +256,13 @@ export async function checkAuth(): Promise<AuthCheckResponse | null> {
   if (!baseUrl) return null;
   
   try {
+    const authOptions = buildAuthenticatedFetchOptions();
     // Add timeout to prevent hanging
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
     const response = await fetch(`${baseUrl}/auth/me`, {
-      credentials: 'include',
-      headers: buildHeaders({ includeAuth: true }),
+      ...authOptions,
       signal: controller.signal,
     });
     
@@ -207,12 +284,11 @@ export async function checkAuth(): Promise<AuthCheckResponse | null> {
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   const baseUrl = getAuthBaseUrl();
-  const headers = buildHeaders({ contentTypeJson: true, includeAuth: true });
+  const authOptions = buildAuthenticatedFetchOptions(true);
   
   const response = await fetch(`${baseUrl}/auth/change-password`, {
     method: 'POST',
-    headers,
-    credentials: 'include',
+    ...authOptions,
     body: JSON.stringify({ currentPassword, newPassword }),
   });
   
@@ -225,9 +301,9 @@ export async function changePassword(currentPassword: string, newPassword: strin
 // User Management API calls (admin only)
 export async function getUsers(): Promise<{ users: AuthUser[] }> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions();
   const response = await fetch(`${baseUrl}/users`, {
-    credentials: 'include',
-    headers: buildHeaders({ includeAuth: true }),
+    ...authOptions,
   });
   
   if (!response.ok) {
@@ -240,10 +316,10 @@ export async function getUsers(): Promise<{ users: AuthUser[] }> {
 
 export async function createUser(username: string, password: string, role: string): Promise<{ user: AuthUser }> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions(true);
   const response = await fetch(`${baseUrl}/users`, {
     method: 'POST',
-    headers: buildHeaders({ contentTypeJson: true, includeAuth: true }),
-    credentials: 'include',
+    ...authOptions,
     body: JSON.stringify({ username, password, role }),
   });
   
@@ -257,10 +333,10 @@ export async function createUser(username: string, password: string, role: strin
 
 export async function updateUser(id: number, updates: Partial<AuthUser>): Promise<{ user: AuthUser }> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions(true);
   const response = await fetch(`${baseUrl}/users/${id}`, {
     method: 'PUT',
-    headers: buildHeaders({ contentTypeJson: true, includeAuth: true }),
-    credentials: 'include',
+    ...authOptions,
     body: JSON.stringify(updates),
   });
   
@@ -274,10 +350,10 @@ export async function updateUser(id: number, updates: Partial<AuthUser>): Promis
 
 export async function resetUserPassword(id: number, newPassword: string): Promise<void> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions(true);
   const response = await fetch(`${baseUrl}/users/${id}/reset-password`, {
     method: 'POST',
-    headers: buildHeaders({ contentTypeJson: true, includeAuth: true }),
-    credentials: 'include',
+    ...authOptions,
     body: JSON.stringify({ newPassword }),
   });
   
@@ -289,10 +365,10 @@ export async function resetUserPassword(id: number, newPassword: string): Promis
 
 export async function deleteUser(id: number): Promise<void> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions();
   const response = await fetch(`${baseUrl}/users/${id}`, {
     method: 'DELETE',
-    credentials: 'include',
-    headers: buildHeaders({ includeAuth: true }),
+    ...authOptions,
   });
   
   if (!response.ok) {
@@ -313,9 +389,9 @@ export interface AuditLogEntry {
 
 export async function getAuditLog(limit = 100): Promise<{ logs: AuditLogEntry[] }> {
   const baseUrl = getAuthBaseUrl();
+  const authOptions = buildAuthenticatedFetchOptions();
   const response = await fetch(`${baseUrl}/users/audit/log?limit=${limit}`, {
-    credentials: 'include',
-    headers: buildHeaders({ includeAuth: true }),
+    ...authOptions,
   });
   
   if (!response.ok) {
