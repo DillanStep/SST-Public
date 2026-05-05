@@ -25,10 +25,10 @@ async function withClient(connectOptions, fn) {
   }
 }
 
-export function createSftpStorage({ backend, config }) {
-  const host = config?.host || process.env.SFTP_HOST;
-  const username = config?.user || config?.username || process.env.SFTP_USER;
-  const password = config?.password || process.env.SFTP_PASSWORD;
+export function createSftpStorage({ backend, config, env = process.env }) {
+  const host = config?.host || env.SFTP_HOST || process.env.SFTP_HOST;
+  const username = config?.user || config?.username || env.SFTP_USER || process.env.SFTP_USER;
+  const password = config?.password || env.SFTP_PASSWORD || process.env.SFTP_PASSWORD;
 
   if (!host || !username || !password) {
     throw new Error(
@@ -36,8 +36,8 @@ export function createSftpStorage({ backend, config }) {
     );
   }
 
-  const port = config?.port ? Number(config.port) : process.env.SFTP_PORT ? Number(process.env.SFTP_PORT) : 22;
-  const remoteRoot = config?.root || process.env.SFTP_ROOT || "/";
+  const port = config?.port ? Number(config.port) : env.SFTP_PORT ? Number(env.SFTP_PORT) : process.env.SFTP_PORT ? Number(process.env.SFTP_PORT) : 22;
+  const remoteRoot = config?.root || env.SFTP_ROOT || process.env.SFTP_ROOT || "/";
 
   const connectOptions = {
     host,

@@ -1,33 +1,45 @@
 import { createStorage } from "./storageFactory.js";
+import { getServerContext } from "../serverContext.js";
 
 // A tiny wrapper that mimics a subset of `fs/promises` but can be backed by
 // local filesystem or remote FTP.
-const storage = createStorage();
+const storageByContextId = new Map();
+
+function getStorage() {
+  const context = getServerContext();
+  const cacheKey = context?.id || "default";
+
+  if (!storageByContextId.has(cacheKey)) {
+    storageByContextId.set(cacheKey, createStorage(context));
+  }
+
+  return storageByContextId.get(cacheKey);
+}
 
 export async function readFile(filePath, encoding) {
-  return storage.readFile(filePath, encoding);
+  return getStorage().readFile(filePath, encoding);
 }
 
 export async function writeFile(filePath, data, encoding) {
-  return storage.writeFile(filePath, data, encoding);
+  return getStorage().writeFile(filePath, data, encoding);
 }
 
 export async function readdir(dirPath) {
-  return storage.readdir(dirPath);
+  return getStorage().readdir(dirPath);
 }
 
 export async function stat(filePath) {
-  return storage.stat(filePath);
+  return getStorage().stat(filePath);
 }
 
 export async function mkdir(dirPath, options) {
-  return storage.mkdir(dirPath, options);
+  return getStorage().mkdir(dirPath, options);
 }
 
 export async function unlink(filePath) {
-  return storage.unlink(filePath);
+  return getStorage().unlink(filePath);
 }
 
 export function getStorageBackend() {
-  return storage.backend;
+  return getStorage().backend;
 }

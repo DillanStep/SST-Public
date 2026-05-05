@@ -5,12 +5,20 @@ import cookieParser from "cookie-parser";
 import { existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { readFile, stat, getStorageBackend } from "./storage/fs.js";
+import { stat, getStorageBackend } from "./storage/fs.js";
 
 import { requireApiKey, getApiKey, getApiKeyMeta } from "./middleware/auth.js";
 import { positionDb } from "./db/database.js";
 import { initArchiveDb, scheduleArchive } from "./db/archiveDb.js";
-import { paths, features, logConfig } from "./config.js";
+import {
+  getConfiguredServerProfiles,
+  getRuntimeContext,
+  getRuntimeEnvSnapshot,
+  paths,
+  features,
+  logConfig,
+} from "./config.js";
+import { getAllServerContexts, runWithServerContext, serverContextMiddleware } from "./serverContext.js";
 import { initAuthDb } from "./auth/authDb.js";
 import { userOps } from "./auth/authDb.js";
 import { requireAuth, requireAdmin } from "./auth/authMiddleware.js";
@@ -33,9 +41,11 @@ import logsRoutes from "./routes/logs.js";
 import positionsRoutes from "./routes/positions.js";
 import archiveRoutes from "./routes/archive.js";
 import vehiclesRoutes from "./routes/vehicles.js";
+import leaderboardRoutes from "./routes/leaderboard.js";
 import updateRoutes from "./routes/updates.js";
 import { readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
+import { getOnlinePlayersSnapshot } from "./utils/onlinePlayers.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -74,6 +84,7 @@ const CONFIG_ENV_KEYS = [
   "TRADES_PATH",
   "API_PATH",
   "ONLINE_PLAYERS_PATH",
+  "ONLINE_PLAYERS_STALE_AFTER_MS",
   "EXPANSION_ENABLED",
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
@@ -122,6 +133,7 @@ const NUMBER_ENV_KEYS = new Set([
   "FTP_PORT",
   "SFTP_PORT",
   "POSITION_TRACKING_INTERVAL",
+  "ONLINE_PLAYERS_STALE_AFTER_MS",
   "ARCHIVE_HOUR",
   "ARCHIVE_MINUTE",
   "MAP_WORLD_SIZE_X",
@@ -185,6 +197,7 @@ function buildConfigSuggestions(env) {
     SST_UPDATE_REPO: "DillanStep/SST-Public",
     SST_ALLOW_REMOTE_UPDATE: "0",
     POSITION_TRACKING_INTERVAL: "30000",
+    ONLINE_PLAYERS_STALE_AFTER_MS: "120000",
     ARCHIVE_HOUR: "4",
     ARCHIVE_MINUTE: "0",
     MAP_INVERT_X: "0",
@@ -207,7 +220,9 @@ function buildConfigSuggestions(env) {
   const missionPath = normalizeConfigPath(env.MISSION_PATH) || (storageMatch ? storageMatch[1] : "");
   if (missionPath) {
     addSuggestion(suggestions, "MISSION_PATH", missionPath);
-    addSuggestion(suggestions, "TYPES_PATH", normalizeConfigPath(env.TYPES_PATH) || joinConfigPath(missionPath, "db", "types.xml"));
+    if (env.TYPES_PATH) {
+      addSuggestion(suggestions, "TYPES_PATH", normalizeConfigPath(env.TYPES_PATH));
+    }
   }
 
   const mapPreset = (env.MAP_PRESET || (missionPath ? detectMapPresetFromMissionPath(missionPath) : "chernarusplus"))
@@ -305,10 +320,11 @@ function normalizeEnvSetting(key, value) {
 function getConfigEnvSnapshot() {
   const envPath = resolveEnvPathForWrite();
   const fileVars = readEnvVars(envPath);
+  const runtimeEnv = getRuntimeEnvSnapshot();
   const env = {};
 
   for (const key of CONFIG_ENV_KEYS) {
-    env[key] = fileVars[key] ?? process.env[key] ?? "";
+    env[key] = runtimeEnv[key] ?? fileVars[key] ?? process.env[key] ?? "";
   }
 
   if (!env.API_KEY) {
@@ -322,7 +338,7 @@ function getConfigEnvSnapshot() {
 const corsOptions = {
   origin: process.env.CORS_ORIGIN || true, // Set CORS_ORIGIN in .env for production
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-SST-Server", "X-SST-Provider"],
   credentials: true, // Important for cookies
 };
 app.use(cors(corsOptions));
@@ -339,6 +355,15 @@ if (existsSync(webDistPath)) {
 // Health check - no auth required
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+app.use(serverContextMiddleware);
+
+app.get("/servers", requireApiKey, (req, res) => {
+  res.json({
+    active: getRuntimeContext().id,
+    profiles: getConfiguredServerProfiles(),
+  });
 });
 
 function isLocalRequest(req) {
@@ -365,28 +390,30 @@ app.use("/setup", setupRoutes);
 // Config check - admin only, shows configured paths
 app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
   const backend = getStorageBackend();
+  const runtimeContext = getRuntimeContext();
   const { envPath, env } = getConfigEnvSnapshot();
   const suggestions = buildConfigSuggestions(env);
 
   const response = {
     envPath,
+    profile: runtimeContext.id,
     env,
     suggestions,
     storage: {
       backend,
       // Helpful non-secret hints for remote backends
       sftp: backend === "sftp" ? {
-        host: process.env.SFTP_HOST || null,
-        port: process.env.SFTP_PORT ? Number(process.env.SFTP_PORT) : null,
-        root: process.env.SFTP_ROOT || null,
-        user: process.env.SFTP_USER || null,
+        host: env.SFTP_HOST || null,
+        port: env.SFTP_PORT ? Number(env.SFTP_PORT) : null,
+        root: env.SFTP_ROOT || null,
+        user: env.SFTP_USER || null,
       } : null,
       ftp: backend === "ftp" || backend === "ftps" ? {
-        host: process.env.FTP_HOST || null,
-        port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : null,
-        root: process.env.FTP_ROOT || null,
-        user: process.env.FTP_USER || null,
-        secure: typeof process.env.FTP_SECURE === "string" ? process.env.FTP_SECURE : null,
+        host: env.FTP_HOST || null,
+        port: env.FTP_PORT ? Number(env.FTP_PORT) : null,
+        root: env.FTP_ROOT || null,
+        user: env.FTP_USER || null,
+        secure: typeof env.FTP_SECURE === "string" ? env.FTP_SECURE : null,
       } : null,
     },
     map: buildMapConfig({ env, missionPath: paths.missionFolder }),
@@ -414,6 +441,8 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
     server: {
       port: PORT,
       host: HOST,
+      profile: runtimeContext.id,
+      profiles: getConfiguredServerProfiles(),
     },
   };
 
@@ -517,6 +546,7 @@ app.use("/logs", requireAuth, requireApiKey, logsRoutes);
 app.use("/positions", requireAuth, requireApiKey, positionsRoutes);
 app.use("/archive", requireAuth, requireApiKey, archiveRoutes);
 app.use("/vehicles", requireAuth, requireApiKey, vehiclesRoutes);
+app.use("/leaderboard", requireAuth, requireApiKey, leaderboardRoutes);
 app.use("/updates", requireAuth, requireApiKey, requireAdmin, updateRoutes);
 
 // SPA fallback: serve index.html for any non-API routes (client-side routing)
@@ -533,12 +563,11 @@ if (existsSync(webDistPath)) {
 // Position tracking interval (capture player positions every 30 seconds)
 const POSITION_TRACKING_INTERVAL = parseInt(process.env.POSITION_TRACKING_INTERVAL) || 30000;
 
-async function capturePlayerPositions() {
+async function capturePlayerPositionsForCurrentContext() {
   try {
-    const data = await readFile(paths.onlinePlayers, "utf-8");
-    const onlineData = JSON.parse(data);
+    const onlineData = await getOnlinePlayersSnapshot();
     
-    if (!onlineData.players || onlineData.players.length === 0) {
+    if (onlineData.isStale || !onlineData.players || onlineData.players.length === 0) {
       return;
     }
     
@@ -570,6 +599,12 @@ async function capturePlayerPositions() {
 }
 
 // Start position tracking
+async function capturePlayerPositions() {
+  for (const context of getAllServerContexts()) {
+    await runWithServerContext(context, capturePlayerPositionsForCurrentContext);
+  }
+}
+
 setInterval(capturePlayerPositions, POSITION_TRACKING_INTERVAL);
 
 // Initialize auth database and start server
@@ -580,7 +615,7 @@ async function startServer() {
       status: "STARTING",
       host: HOST,
       port: PORT,
-      storage: process.env.STORAGE_BACKEND || "local",
+      storage: getRuntimeContext().backend || "local",
     });
 
     // Log configuration (unless we're using the pinned console UI)

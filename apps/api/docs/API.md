@@ -31,10 +31,23 @@ Provide via:
 
 If `API_KEY` is missing from `.env`, the server will generate one on startup and print it to the console.
 
+### Server profile
+
+When `config/host-providers.json` contains multiple providers, one API process can serve all of them. Select the target provider with:
+
+- Header: `X-SST-Server: <provider-name>`
+- Header: `X-SST-Provider: <provider-name>`
+- Query string: `?server=<provider-name>`
+
+If omitted, the API uses `HOST_PROVIDER`, then the config file's `active` provider, then `default`.
+
 ## Auth requirements by route group
 
 - Public (no auth)
   - `GET /health`
+
+- API key only
+  - `GET /servers`
 
 - Session-only (JWT required, no API key)
   - `/auth/*`
@@ -57,6 +70,7 @@ If `API_KEY` is missing from `.env`, the server will generate one on startup and
   - `/positions/*`
   - `/archive/*` (some endpoints also require admin)
   - `/vehicles/*`
+  - `/leaderboard/*`
 
 ## Conventions
 
@@ -106,7 +120,7 @@ Response:
 ```
 
 Notes:
-- `typesXml` falls back to `<missionFolder>/db/types.xml` if not explicitly configured.
+- `typesXml` is an optional base `types.xml` override. When `missionFolder` is configured, the API also loads `<missionFolder>/cfgeconomycore.xml` entries where `<file type="types">`.
 
 ---
 
@@ -265,6 +279,53 @@ Auth: Session + API key.
 ### POST /dashboard/refresh
 
 Auth: Session + API key.
+
+---
+
+## Leaderboard
+
+Base path: `/leaderboard`
+
+### GET /leaderboard
+
+Auth: Session + API key.
+
+Query:
+- `limit` (number, default `25`, max `100`)
+
+Returns player totals built from current SST JSON exports and the local position database.
+
+Response:
+```json
+{
+  "generatedAt": "2026-01-17T00:00:00.000Z",
+  "playerCount": 1,
+  "summary": {
+    "onlineCount": 1,
+    "totalKills": 0,
+    "totalDeaths": 0,
+    "totalItemEvents": 21,
+    "totalTrades": 0,
+    "totalVehicles": 0
+  },
+  "leaderboards": {
+    "overall": [],
+    "kills": [],
+    "deaths": [],
+    "playTime": [],
+    "longestLife": [],
+    "loot": [],
+    "trades": [],
+    "wealth": [],
+    "vehicles": [],
+    "online": []
+  }
+}
+```
+
+Notes:
+- Kills are inferred from `DIED` life events where the cause is another player.
+- Totals reflect retained SST export data, so older per-player events may roll off when the mod retention limit is reached.
 
 ---
 
@@ -428,7 +489,7 @@ Base path: `/economy`
 
 Auth: Session + API key.
 
-Aggregates trade history + types.xml spawn data.
+Aggregates trade history plus spawn data from the mission base `types.xml` and any `cfgeconomycore.xml` type-file additions.
 
 ### GET /economy/spawn-data
 

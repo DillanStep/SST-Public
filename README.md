@@ -507,6 +507,7 @@ Full walkthrough: [Multiple Servers](docs/wiki/Getting%20Started/Multiple%20Serv
 After the mod, API, and dashboard are connected, admins can:
 
 - View server/player dashboard data.
+- Compare player leaderboard stats for kills, deaths, playtime, loot, trades, vehicles, and current sessions.
 - Search players and inspect inventories.
 - Track vehicles and player history.
 - View live map data when exports are available.

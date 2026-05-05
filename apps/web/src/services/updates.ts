@@ -16,6 +16,7 @@ export interface UpdateStatus {
   latestVersion: string;
   updateAvailable: boolean;
   release: UpdateRelease | null;
+  mod?: ModVersionStatus;
   disabled?: boolean;
   message?: string;
   error?: string;
@@ -31,6 +32,22 @@ export interface UpdateInstallStatus {
   error?: string;
 }
 
+export interface ModVersionStatus {
+  expectedVersion: string;
+  reportedVersion: string | null;
+  expectedProtocolVersion: string;
+  reportedProtocolVersion: string | null;
+  status: 'match' | 'older' | 'newer' | 'missing' | 'protocol-mismatch' | 'stale' | 'not-reporting' | 'error';
+  mismatch: boolean;
+  isCompatible: boolean;
+  message: string;
+  sourceUpdatedAt?: string | null;
+  sourceAgeMs?: number | null;
+  staleAfterMs?: number | null;
+  isStale?: boolean;
+  error?: string;
+}
+
 function getUpdateBaseUrl(): string {
   return getActiveServer()?.apiUrl ?? '';
 }
@@ -41,6 +58,10 @@ function getHeaders(contentTypeJson = false): Record<string, string> {
 
   if (server?.apiKey) {
     headers['x-api-key'] = server.apiKey;
+  }
+
+  if (server?.apiProfile) {
+    headers['x-sst-server'] = server.apiProfile;
   }
 
   const token = getAuthToken();

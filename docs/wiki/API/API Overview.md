@@ -8,6 +8,7 @@ The Node API is the bridge between:
 It exposes HTTP endpoints for:
 
 - players/online state
+- player leaderboard summaries
 - inventories and inventory counts
 - events and life events
 - economy and archive stats

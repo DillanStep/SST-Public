@@ -3,8 +3,14 @@ import { readFile, writeFile } from "../storage/fs.js";
 import { paths } from "../config.js";
 
 const router = Router();
-const commandFile = `${paths.api}/player_commands.json`;
-const resultsFile = `${paths.api}/player_commands_results.json`;
+
+function commandFile() {
+  return `${paths.api}/player_commands.json`;
+}
+
+function resultsFile() {
+  return `${paths.api}/player_commands_results.json`;
+}
 
 // Heal a player
 router.post("/heal", async (req, res) => {
@@ -21,12 +27,12 @@ router.post("/heal", async (req, res) => {
 
   let data = { requests: [] };
   try {
-    data = JSON.parse(await readFile(commandFile, "utf8"));
+    data = JSON.parse(await readFile(commandFile(), "utf8"));
     if (!data.requests) data.requests = [];
   } catch {}
 
   data.requests.push(command);
-  await writeFile(commandFile, JSON.stringify(data, null, 2));
+  await writeFile(commandFile(), JSON.stringify(data, null, 2));
 
   res.json({ status: "QUEUED", command });
 });
@@ -56,12 +62,12 @@ router.post("/teleport", async (req, res) => {
 
   let data = { requests: [] };
   try {
-    data = JSON.parse(await readFile(commandFile, "utf8"));
+    data = JSON.parse(await readFile(commandFile(), "utf8"));
     if (!data.requests) data.requests = [];
   } catch {}
 
   data.requests.push(command);
-  await writeFile(commandFile, JSON.stringify(data, null, 2));
+  await writeFile(commandFile(), JSON.stringify(data, null, 2));
 
   res.json({ status: "QUEUED", command });
 });
@@ -69,7 +75,7 @@ router.post("/teleport", async (req, res) => {
 // Get command results
 router.get("/results", async (_, res) => {
   try {
-    const results = JSON.parse(await readFile(resultsFile, "utf8"));
+    const results = JSON.parse(await readFile(resultsFile(), "utf8"));
     res.json(results);
   } catch {
     res.json({ requests: [] });
@@ -79,7 +85,7 @@ router.get("/results", async (_, res) => {
 // Get pending commands
 router.get("/pending", async (_, res) => {
   try {
-    const data = JSON.parse(await readFile(commandFile, "utf8"));
+    const data = JSON.parse(await readFile(commandFile(), "utf8"));
     res.json(data);
   } catch {
     res.json({ requests: [] });
@@ -113,12 +119,12 @@ router.post("/message", async (req, res) => {
 
   let data = { requests: [] };
   try {
-    data = JSON.parse(await readFile(commandFile, "utf8"));
+    data = JSON.parse(await readFile(commandFile(), "utf8"));
     if (!data.requests) data.requests = [];
   } catch {}
 
   data.requests.push(command);
-  await writeFile(commandFile, JSON.stringify(data, null, 2));
+  await writeFile(commandFile(), JSON.stringify(data, null, 2));
 
   res.json({ status: "QUEUED", command });
 });
@@ -146,12 +152,12 @@ router.post("/broadcast", async (req, res) => {
 
   let data = { requests: [] };
   try {
-    data = JSON.parse(await readFile(commandFile, "utf8"));
+    data = JSON.parse(await readFile(commandFile(), "utf8"));
     if (!data.requests) data.requests = [];
   } catch {}
 
   data.requests.push(command);
-  await writeFile(commandFile, JSON.stringify(data, null, 2));
+  await writeFile(commandFile(), JSON.stringify(data, null, 2));
 
   res.json({ status: "QUEUED", command });
 });

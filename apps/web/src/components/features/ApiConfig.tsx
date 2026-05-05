@@ -31,7 +31,7 @@ export const ApiConfig: React.FC<ApiConfigProps> = ({ onConnected }) => {
 
     try {
       // Configure API with active server
-      api.configure(activeServer.apiUrl, activeServer.apiKey);
+      api.configure(activeServer.apiUrl, activeServer.apiKey, activeServer.apiProfile);
 
       // First test health endpoint
       await getHealth();

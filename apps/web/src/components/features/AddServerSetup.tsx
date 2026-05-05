@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Check, Globe, Key, Map as MapIcon, RefreshCw, Server, Wifi } from 'lucide-react';
 import { Button, Card, Input } from '../ui';
-import { addServer, setActiveServerId } from '../../services/serverManager';
+import api from '../../services/api';
+import { addServer, getActiveServer, getServers, setActiveServerId, updateServer } from '../../services/serverManager';
 import { getMapPresetDefaults, MAP_PRESET_OPTIONS } from '../../maps/mapConfig';
 
 interface AddServerSetupProps {
@@ -11,6 +12,19 @@ interface AddServerSetupProps {
 
 const normalizeApiUrl = (value: string) => value.trim().replace(/\/+$/, '');
 
+const generateApiKey = () => {
+  const bytes = new Uint8Array(32);
+  if (window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
 const parsePositiveNumber = (value: string, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -18,9 +32,11 @@ const parsePositiveNumber = (value: string, fallback: number) => {
 
 export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSaved }) => {
   const defaultMap = getMapPresetDefaults('chernarusplus');
+  const activeServer = getActiveServer();
   const [serverName, setServerName] = useState('My DayZ Server');
-  const [apiUrl, setApiUrl] = useState('http://localhost:3001');
-  const [apiKey, setApiKey] = useState('');
+  const [apiUrl, setApiUrl] = useState(activeServer?.apiUrl || 'http://localhost:3001');
+  const [apiProfile, setApiProfile] = useState('');
+  const [apiKey, setApiKey] = useState(activeServer?.apiKey || '');
   const [mapPreset, setMapPreset] = useState(defaultMap.id);
   const [mapLabel, setMapLabel] = useState('');
   const [mapImageUrl, setMapImageUrl] = useState(defaultMap.imageUrl);
@@ -29,6 +45,8 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
   const [mapInvertX, setMapInvertX] = useState(false);
   const [mapInvertZ, setMapInvertZ] = useState(false);
   const [error, setError] = useState('');
+  const [keyMessage, setKeyMessage] = useState(activeServer ? 'Using the current API key for this API URL.' : '');
+  const [savingApiKey, setSavingApiKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   const selectedMap = useMemo(() => getMapPresetDefaults(mapPreset), [mapPreset]);
@@ -51,6 +69,51 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
     return '';
   };
 
+  const handleGenerateApiKey = () => {
+    setApiKey(generateApiKey());
+    setKeyMessage('Generated a new key in the form. Save it to the API .env before using it for connections.');
+    setError('');
+    setTestStatus('idle');
+  };
+
+  const handleGenerateAndSaveApiKey = async () => {
+    const currentActiveServer = getActiveServer();
+    if (!currentActiveServer) {
+      setError('Connect to an existing API as an admin before saving a generated key to .env.');
+      return;
+    }
+
+    if (normalizeApiUrl(currentActiveServer.apiUrl) !== normalizeApiUrl(apiUrl)) {
+      setError('API key saving is only available for the currently connected API URL.');
+      return;
+    }
+
+    const nextKey = generateApiKey();
+    setApiKey(nextKey);
+    setSavingApiKey(true);
+    setError('');
+    setKeyMessage('');
+
+    try {
+      api.loadActiveServer();
+      const result = await api.updateRuntimeConfig({ API_KEY: nextKey });
+      for (const server of getServers()) {
+        if (normalizeApiUrl(server.apiUrl) === normalizeApiUrl(currentActiveServer.apiUrl)) {
+          updateServer(server.id, { apiKey: nextKey });
+        }
+      }
+      api.configure(currentActiveServer.apiUrl, nextKey, currentActiveServer.apiProfile);
+      setKeyMessage(result.restartRequired
+        ? 'Saved API_KEY to .env. The API is restarting; retry the connection after it comes back.'
+        : 'API_KEY already matched .env.');
+      setTestStatus('idle');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save API key to .env');
+    } finally {
+      setSavingApiKey(false);
+    }
+  };
+
   const handleTestConnection = async () => {
     const validationError = validate();
     if (validationError) {
@@ -61,8 +124,11 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
     setError('');
     setTestStatus('testing');
     try {
-      const response = await fetch(`${normalizeApiUrl(apiUrl)}/health`, {
-        headers: { 'x-api-key': apiKey.trim() },
+      const response = await fetch(`${normalizeApiUrl(apiUrl)}/servers`, {
+        headers: {
+          'x-api-key': apiKey.trim(),
+          ...(apiProfile.trim() ? { 'x-sst-server': apiProfile.trim() } : {}),
+        },
       });
       setTestStatus(response.ok ? 'success' : 'error');
       if (!response.ok) {
@@ -85,6 +151,7 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
       name: serverName.trim(),
       apiUrl: normalizeApiUrl(apiUrl),
       apiKey: apiKey.trim(),
+      apiProfile: apiProfile.trim(),
       mapPreset,
       mapLabel: mapLabel.trim(),
       mapImageUrl: mapImageUrl.trim(),
@@ -124,7 +191,7 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
               <h3 className="text-sm font-semibold text-surface-800">Connection</h3>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-surface-700 mb-2">Server Name</label>
                 <Input
@@ -144,7 +211,25 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-surface-700 mb-2">API Key</label>
+                <label className="block text-sm font-medium text-surface-700 mb-2">API Profile</label>
+                <Input
+                  type="text"
+                  value={apiProfile}
+                  onChange={(event) => setApiProfile(event.target.value)}
+                  placeholder="sudo-buddy-api-1"
+                />
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className="block text-sm font-medium text-surface-700">API Key</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateApiKey}
+                    className="text-xs font-medium text-primary-600 hover:text-primary-700"
+                  >
+                    Generate
+                  </button>
+                </div>
                 <div className="relative">
                   <Key size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
                   <input
@@ -155,6 +240,20 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
                     className="w-full rounded-lg border border-surface-300 py-2 pl-9 pr-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
                 </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleGenerateAndSaveApiKey}
+                    loading={savingApiKey}
+                  >
+                    Generate & Save to .env
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-surface-400">
+                  Same API URL? Reuse the current key. Generate & Save rotates the active API key and writes it to the API .env.
+                </p>
               </div>
             </div>
           </section>
@@ -244,6 +343,10 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
 
           {testStatus === 'success' && (
             <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Connection OK</p>
+          )}
+
+          {keyMessage && (
+            <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">{keyMessage}</p>
           )}
 
           <div className="flex flex-col sm:flex-row gap-2 justify-end border-t border-surface-200 pt-6">

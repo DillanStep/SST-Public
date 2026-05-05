@@ -47,6 +47,84 @@ function cleanDisplayName(name, fallbackFileName) {
   return name;
 }
 
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function getMarketItems(category) {
+  if (Array.isArray(category?.Items)) {
+    return category.Items;
+  }
+
+  if (isObject(category?.Items)) {
+    return Object.entries(category.Items).map(([className, item]) => {
+      if (isObject(item)) {
+        return {
+          ...item,
+          ClassName: item.ClassName || item.className || className
+        };
+      }
+
+      return {
+        ClassName: className,
+        MaxPriceThreshold: Number(item) || 0
+      };
+    });
+  }
+
+  return [];
+}
+
+function marketUsesItemMap(category) {
+  return isObject(category?.Items);
+}
+
+function setMarketItems(category, items, useItemMap = marketUsesItemMap(category)) {
+  if (useItemMap) {
+    category.Items = items.reduce((map, item) => {
+      if (item?.ClassName) {
+        map[item.ClassName] = item;
+      }
+      return map;
+    }, {});
+    return;
+  }
+
+  category.Items = items;
+}
+
+function normalizeMarketCategoryForResponse(category, fileName) {
+  return {
+    ...category,
+    DisplayName: cleanDisplayName(category.DisplayName, fileName),
+    Items: getMarketItems(category)
+  };
+}
+
+function findMarketItemIndex(items, className) {
+  const classNameLower = className.toLowerCase();
+  return items.findIndex(item => item?.ClassName?.toLowerCase() === classNameLower);
+}
+
+function scaleMinPrice(newBuyPrice, currentMinPrice, currentMaxPrice) {
+  const minPrice = Number(currentMinPrice);
+  const maxPrice = Number(currentMaxPrice);
+  if (!Number.isFinite(minPrice) || !Number.isFinite(maxPrice) || maxPrice <= 0) {
+    return Math.round(newBuyPrice);
+  }
+
+  return Math.round(newBuyPrice * (minPrice / maxPrice));
+}
+
+function sellPriceToPercent(newSellPrice, buyPrice) {
+  const normalizedBuyPrice = Number(buyPrice);
+  if (!Number.isFinite(normalizedBuyPrice) || normalizedBuyPrice <= 0) {
+    return 0;
+  }
+
+  return (newSellPrice / normalizedBuyPrice) * 100;
+}
+
 // ============================================================================
 // TRADER ZONES - Located in mission folder under expansion/traderzones/
 // ============================================================================
@@ -188,7 +266,7 @@ router.get("/market", async (req, res) => {
           displayName: cleanDisplayName(category.DisplayName, file),
           icon: category.Icon,
           color: category.Color,
-          itemCount: category.Items ? category.Items.length : 0,
+          itemCount: getMarketItems(category).length,
           isExchange: category.IsExchange
         });
       } catch (err) {
@@ -198,7 +276,11 @@ router.get("/market", async (req, res) => {
     
     res.json({ categories });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: "Failed to read Expansion market path",
+      path: paths.expansionMarket,
+      details: err.message
+    });
   }
 });
 
@@ -208,11 +290,14 @@ router.get("/market/:fileName", async (req, res) => {
     const filePath = joinStoragePath(paths.expansionMarket, req.params.fileName);
     const content = await readFile(filePath, "utf8");
     const category = JSON.parse(content);
-    // Clean the display name for the response
-    category.DisplayName = cleanDisplayName(category.DisplayName, req.params.fileName);
-    res.json(category);
+    res.json(normalizeMarketCategoryForResponse(category, req.params.fileName));
   } catch (err) {
-    res.status(404).json({ error: `Market category not found: ${err.message}` });
+    res.status(404).json({
+      error: "Market category not found",
+      fileName: req.params.fileName,
+      path: paths.expansionMarket,
+      details: err.message
+    });
   }
 });
 
@@ -221,6 +306,13 @@ router.put("/market/:fileName", async (req, res) => {
   try {
     const filePath = joinStoragePath(paths.expansionMarket, req.params.fileName);
     const category = req.body;
+    const existingContent = await readFile(filePath, "utf8").catch(() => null);
+    const existingCategory = existingContent ? JSON.parse(existingContent) : null;
+    const useItemMap = marketUsesItemMap(existingCategory);
+
+    if (Array.isArray(category?.Items)) {
+      setMarketItems(category, category.Items, useItemMap);
+    }
     
     await writeFile(filePath, JSON.stringify(category, null, 4), "utf8");
     res.json({ success: true, message: `Market category ${req.params.fileName} updated` });
@@ -235,26 +327,26 @@ router.put("/market/:fileName/item/:className", async (req, res) => {
     const filePath = joinStoragePath(paths.expansionMarket, req.params.fileName);
     const content = await readFile(filePath, "utf8");
     const category = JSON.parse(content);
-    
-    const itemIndex = category.Items.findIndex(
-      item => item.ClassName.toLowerCase() === req.params.className.toLowerCase()
-    );
+    const useItemMap = marketUsesItemMap(category);
+    const items = getMarketItems(category);
+    const itemIndex = findMarketItemIndex(items, req.params.className);
     
     if (itemIndex === -1) {
       return res.status(404).json({ error: `Item ${req.params.className} not found in ${req.params.fileName}` });
     }
     
     // Update only the fields provided
-    category.Items[itemIndex] = {
-      ...category.Items[itemIndex],
+    items[itemIndex] = {
+      ...items[itemIndex],
       ...req.body
     };
+    setMarketItems(category, items, useItemMap);
     
     await writeFile(filePath, JSON.stringify(category, null, 4), "utf8");
     res.json({ 
       success: true, 
       message: `Item ${req.params.className} updated`,
-      item: category.Items[itemIndex]
+      item: items[itemIndex]
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -267,6 +359,8 @@ router.post("/market/:fileName/item", async (req, res) => {
     const filePath = joinStoragePath(paths.expansionMarket, req.params.fileName);
     const content = await readFile(filePath, "utf8");
     const category = JSON.parse(content);
+    const useItemMap = marketUsesItemMap(category);
+    const items = getMarketItems(category);
     
     const newItem = req.body;
     if (!newItem.ClassName) {
@@ -274,9 +368,7 @@ router.post("/market/:fileName/item", async (req, res) => {
     }
     
     // Check if item already exists
-    const exists = category.Items.some(
-      item => item.ClassName.toLowerCase() === newItem.ClassName.toLowerCase()
-    );
+    const exists = findMarketItemIndex(items, newItem.ClassName) !== -1;
     if (exists) {
       return res.status(400).json({ error: `Item ${newItem.ClassName} already exists` });
     }
@@ -294,7 +386,8 @@ router.post("/market/:fileName/item", async (req, res) => {
       Variants: newItem.Variants || []
     };
     
-    category.Items.push(item);
+    items.push(item);
+    setMarketItems(category, items, useItemMap);
     await writeFile(filePath, JSON.stringify(category, null, 4), "utf8");
     
     res.json({ 
@@ -313,16 +406,16 @@ router.delete("/market/:fileName/item/:className", async (req, res) => {
     const filePath = joinStoragePath(paths.expansionMarket, req.params.fileName);
     const content = await readFile(filePath, "utf8");
     const category = JSON.parse(content);
-    
-    const itemIndex = category.Items.findIndex(
-      item => item.ClassName.toLowerCase() === req.params.className.toLowerCase()
-    );
+    const useItemMap = marketUsesItemMap(category);
+    const items = getMarketItems(category);
+    const itemIndex = findMarketItemIndex(items, req.params.className);
     
     if (itemIndex === -1) {
       return res.status(404).json({ error: `Item ${req.params.className} not found` });
     }
     
-    category.Items.splice(itemIndex, 1);
+    items.splice(itemIndex, 1);
+    setMarketItems(category, items, useItemMap);
     await writeFile(filePath, JSON.stringify(category, null, 4), "utf8");
     
     res.json({ 
@@ -351,10 +444,9 @@ router.get("/market-search/:className", async (req, res) => {
       try {
         const content = await readFile(joinStoragePath(paths.expansionMarket, file), "utf8");
         const category = JSON.parse(content);
+        const items = getMarketItems(category);
         
-        const item = category.Items?.find(
-          i => i.ClassName.toLowerCase() === className
-        );
+        const item = items.find(i => i?.ClassName?.toLowerCase() === className);
         
         if (item) {
           results.push({
@@ -401,13 +493,13 @@ router.post("/apply-price", async (req, res) => {
         const filePath = joinStoragePath(paths.expansionMarket, file);
         const content = await readFile(filePath, "utf8");
         const category = JSON.parse(content);
+        const useItemMap = marketUsesItemMap(category);
+        const items = getMarketItems(category);
         
-        const itemIndex = category.Items?.findIndex(
-          i => i.ClassName.toLowerCase() === classNameLower
-        );
+        const itemIndex = findMarketItemIndex(items, classNameLower);
         
-        if (itemIndex !== -1 && itemIndex !== undefined) {
-          const item = category.Items[itemIndex];
+        if (itemIndex !== -1) {
+          const item = items[itemIndex];
           oldValues = {
             MaxPriceThreshold: item.MaxPriceThreshold,
             MinPriceThreshold: item.MinPriceThreshold,
@@ -419,14 +511,16 @@ router.post("/apply-price", async (req, res) => {
             // MaxPriceThreshold is the buy price (what players pay)
             item.MaxPriceThreshold = Math.round(newBuyPrice);
             // MinPriceThreshold is usually lower, adjust proportionally
-            const ratio = oldValues.MinPriceThreshold / oldValues.MaxPriceThreshold;
-            item.MinPriceThreshold = Math.round(newBuyPrice * ratio);
+            item.MinPriceThreshold = scaleMinPrice(
+              newBuyPrice,
+              oldValues.MinPriceThreshold,
+              oldValues.MaxPriceThreshold
+            );
           }
           
           if (newSellPrice !== undefined) {
             // Calculate sell percent based on new sell price
-            const buyPrice = item.MaxPriceThreshold;
-            item.SellPricePercent = (newSellPrice / buyPrice) * 100;
+            item.SellPricePercent = sellPriceToPercent(newSellPrice, item.MaxPriceThreshold);
           } else if (newSellPercent !== undefined) {
             item.SellPricePercent = newSellPercent;
           }
@@ -438,6 +532,7 @@ router.post("/apply-price", async (req, res) => {
           };
           
           // Write back
+          setMarketItems(category, items, useItemMap);
           await writeFile(filePath, JSON.stringify(category, null, 4), "utf8");
           updated = true;
           updatedFile = file;
@@ -502,26 +597,28 @@ router.post("/apply-prices-bulk", async (req, res) => {
       let found = false;
       
       for (const [file, category] of marketData) {
-        const itemIndex = category.Items?.findIndex(
-          i => i.ClassName.toLowerCase() === classNameLower
-        );
+        const useItemMap = marketUsesItemMap(category);
+        const items = getMarketItems(category);
+        const itemIndex = findMarketItemIndex(items, classNameLower);
         
-        if (itemIndex !== -1 && itemIndex !== undefined) {
-          const item = category.Items[itemIndex];
+        if (itemIndex !== -1) {
+          const item = items[itemIndex];
           const oldPrice = item.MaxPriceThreshold;
           
           if (newBuyPrice !== undefined) {
-            const ratio = item.MinPriceThreshold / item.MaxPriceThreshold;
+            const oldMinPrice = item.MinPriceThreshold;
+            const oldMaxPrice = item.MaxPriceThreshold;
             item.MaxPriceThreshold = Math.round(newBuyPrice);
-            item.MinPriceThreshold = Math.round(newBuyPrice * ratio);
+            item.MinPriceThreshold = scaleMinPrice(newBuyPrice, oldMinPrice, oldMaxPrice);
           }
           
           if (newSellPrice !== undefined) {
-            item.SellPricePercent = (newSellPrice / item.MaxPriceThreshold) * 100;
+            item.SellPricePercent = sellPriceToPercent(newSellPrice, item.MaxPriceThreshold);
           } else if (newSellPercent !== undefined) {
             item.SellPricePercent = newSellPercent;
           }
           
+          setMarketItems(category, items, useItemMap);
           filesToWrite.add(file);
           results.push({
             className,
@@ -607,7 +704,7 @@ router.get("/all", async (req, res) => {
             fileName: file,
             displayName: cleanDisplayName(category.DisplayName, file),
             icon: category.Icon,
-            itemCount: category.Items ? category.Items.length : 0
+            itemCount: getMarketItems(category).length
           });
         } catch {}
       }

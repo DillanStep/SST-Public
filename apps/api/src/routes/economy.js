@@ -102,6 +102,264 @@ function isWithinDateRange(timestamp, startDate, endDate) {
   return true;
 }
 
+function toDateKey(timestamp) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function dateKeyToUtcDate(dateKey) {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+function normalizeTradeForAnalytics(trade, playerId = "") {
+  const eventType = String(trade?.eventType || "").toUpperCase();
+  const price = Number(trade?.price || 0);
+  const quantity = Number(trade?.quantity || 1);
+
+  return {
+    ...trade,
+    playerId: trade?.playerId || playerId,
+    eventType,
+    price: Number.isFinite(price) ? price : 0,
+    quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+    timestamp: trade?.timestamp,
+  };
+}
+
+function createDailyBucket(dateKey) {
+  return {
+    date: dateKey,
+    transactions: 0,
+    purchases: 0,
+    sales: 0,
+    moneySpent: 0,
+    moneyEarned: 0,
+    netFlow: 0,
+    cumulativeNetFlow: 0,
+    avgTransactionValue: 0,
+  };
+}
+
+function buildDailyTrend(trades, filterStart, filterEnd) {
+  const buckets = new Map();
+  let minDateKey = filterStart ? toDateKey(filterStart) : null;
+  let maxDateKey = filterEnd ? toDateKey(filterEnd) : null;
+
+  for (const trade of trades) {
+    const dateKey = toDateKey(trade.timestamp);
+    if (!dateKey) continue;
+
+    if (!minDateKey || dateKey < minDateKey) minDateKey = dateKey;
+    if (!maxDateKey || dateKey > maxDateKey) maxDateKey = dateKey;
+
+    if (!buckets.has(dateKey)) {
+      buckets.set(dateKey, createDailyBucket(dateKey));
+    }
+
+    const bucket = buckets.get(dateKey);
+    bucket.transactions += 1;
+
+    if (trade.eventType === "PURCHASE") {
+      bucket.purchases += 1;
+      bucket.moneySpent += trade.price;
+    } else if (trade.eventType === "SALE") {
+      bucket.sales += 1;
+      bucket.moneyEarned += trade.price;
+    }
+  }
+
+  if (!minDateKey || !maxDateKey) return [];
+
+  const trend = [];
+  let cursor = dateKeyToUtcDate(minDateKey);
+  const end = dateKeyToUtcDate(maxDateKey);
+  let cumulativeNetFlow = 0;
+
+  while (cursor <= end) {
+    const dateKey = cursor.toISOString().slice(0, 10);
+    const bucket = buckets.get(dateKey) || createDailyBucket(dateKey);
+    bucket.netFlow = bucket.moneySpent - bucket.moneyEarned;
+    cumulativeNetFlow += bucket.netFlow;
+    bucket.cumulativeNetFlow = cumulativeNetFlow;
+    bucket.avgTransactionValue = bucket.transactions > 0
+      ? Math.round((bucket.moneySpent + bucket.moneyEarned) / bucket.transactions)
+      : 0;
+    trend.push(bucket);
+    cursor = addDays(cursor, 1);
+  }
+
+  return trend;
+}
+
+function linearRegression(values) {
+  const points = values
+    .map((value, index) => ({ x: index, y: Number(value) || 0 }))
+    .filter((point) => Number.isFinite(point.y));
+
+  if (points.length < 2) {
+    return { slope: 0, intercept: points[0]?.y || 0, r2: 0 };
+  }
+
+  const n = points.length;
+  const sumX = points.reduce((sum, point) => sum + point.x, 0);
+  const sumY = points.reduce((sum, point) => sum + point.y, 0);
+  const sumXY = points.reduce((sum, point) => sum + point.x * point.y, 0);
+  const sumXX = points.reduce((sum, point) => sum + point.x * point.x, 0);
+  const denominator = n * sumXX - sumX * sumX;
+  const slope = denominator === 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
+  const intercept = (sumY - slope * sumX) / n;
+  const meanY = sumY / n;
+  const ssTotal = points.reduce((sum, point) => sum + Math.pow(point.y - meanY, 2), 0);
+  const ssResidual = points.reduce((sum, point) => {
+    const predicted = intercept + slope * point.x;
+    return sum + Math.pow(point.y - predicted, 2);
+  }, 0);
+  const r2 = ssTotal === 0 ? 0 : Math.max(0, Math.min(1, 1 - ssResidual / ssTotal));
+
+  return { slope, intercept, r2 };
+}
+
+function buildMarketForecast(dailyTrend, summary) {
+  const lastDate = dailyTrend.length > 0
+    ? dateKeyToUtcDate(dailyTrend[dailyTrend.length - 1].date)
+    : new Date();
+  const transactionModel = linearRegression(dailyTrend.map((day) => day.transactions));
+  const spentModel = linearRegression(dailyTrend.map((day) => day.moneySpent));
+  const earnedModel = linearRegression(dailyTrend.map((day) => day.moneyEarned));
+  const confidence = Math.round(Math.min(95, Math.max(10, (dailyTrend.length / 14) * 60 + transactionModel.r2 * 20 + spentModel.r2 * 15)));
+  const next7Days = [];
+  let cumulativeNetFlow = dailyTrend[dailyTrend.length - 1]?.cumulativeNetFlow || 0;
+
+  for (let i = 1; i <= 7; i++) {
+    const x = dailyTrend.length - 1 + i;
+    const predictedTransactions = Math.max(0, Math.round(transactionModel.intercept + transactionModel.slope * x));
+    const predictedMoneySpent = Math.max(0, Math.round(spentModel.intercept + spentModel.slope * x));
+    const predictedMoneyEarned = Math.max(0, Math.round(earnedModel.intercept + earnedModel.slope * x));
+    const predictedNetFlow = predictedMoneySpent - predictedMoneyEarned;
+    cumulativeNetFlow += predictedNetFlow;
+
+    next7Days.push({
+      date: addDays(lastDate, i).toISOString().slice(0, 10),
+      predictedTransactions,
+      predictedMoneySpent,
+      predictedMoneyEarned,
+      predictedNetFlow,
+      predictedCumulativeNetFlow: cumulativeNetFlow,
+    });
+  }
+
+  const riskSignals = [];
+  if (summary.purchaseToSaleRatio > 3) {
+    riskSignals.push({
+      type: "buy_pressure",
+      severity: "warning",
+      title: "Strong buy pressure",
+      detail: "Players are buying far more than they sell. Popular items may be underpriced or too convenient.",
+    });
+  }
+  if (summary.purchaseToSaleRatio < 0.35 && summary.totalSales > 0) {
+    riskSignals.push({
+      type: "sell_pressure",
+      severity: "warning",
+      title: "Strong sell pressure",
+      detail: "Players are selling far more than they buy. Trader sell prices may be too generous.",
+    });
+  }
+  if (summary.netMoneyFlow < 0) {
+    riskSignals.push({
+      type: "cash_injection",
+      severity: "critical",
+      title: "Trader payouts exceed purchases",
+      detail: "The market is injecting currency into players faster than it removes it.",
+    });
+  }
+  if (summary.uniqueItems < 10 && summary.totalTransactions >= 25) {
+    riskSignals.push({
+      type: "low_diversity",
+      severity: "info",
+      title: "Low item diversity",
+      detail: "Trading is concentrated around a small number of items.",
+    });
+  }
+  if (dailyTrend.length < 7) {
+    riskSignals.push({
+      type: "limited_history",
+      severity: "info",
+      title: "Forecast confidence is limited",
+      detail: "Predictions improve once the server has at least a week of trade history.",
+    });
+  }
+
+  return {
+    confidence,
+    trend: {
+      transactionsSlope: Number(transactionModel.slope.toFixed(2)),
+      moneySpentSlope: Number(spentModel.slope.toFixed(2)),
+      moneyEarnedSlope: Number(earnedModel.slope.toFixed(2)),
+      direction: transactionModel.slope > 0.25 ? "growing" : transactionModel.slope < -0.25 ? "cooling" : "steady",
+    },
+    next7Days,
+    riskSignals,
+  };
+}
+
+function buildItemForecasts(trades, itemStats) {
+  const grouped = new Map();
+
+  for (const trade of trades) {
+    const className = trade.itemClassName;
+    if (!className) continue;
+    if (!grouped.has(className)) {
+      grouped.set(className, new Map());
+    }
+    const dateKey = toDateKey(trade.timestamp);
+    if (!dateKey) continue;
+
+    const byDate = grouped.get(className);
+    if (!byDate.has(dateKey)) {
+      byDate.set(dateKey, { date: dateKey, transactions: 0, moneySpent: 0, moneyEarned: 0 });
+    }
+    const bucket = byDate.get(dateKey);
+    bucket.transactions += 1;
+    if (trade.eventType === "PURCHASE") bucket.moneySpent += trade.price;
+    if (trade.eventType === "SALE") bucket.moneyEarned += trade.price;
+  }
+
+  return [...itemStats.values()]
+    .map((item) => {
+      const byDate = [...(grouped.get(item.className)?.values() || [])]
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const totalVolume = item.purchases + item.sales;
+      const model = linearRegression(byDate.map((day) => day.transactions));
+      const predictedDailyVolume = Math.max(0, Math.round(model.intercept + model.slope * byDate.length));
+      const demandScore = Math.round(Math.min(100, Math.max(0, (item.purchases / Math.max(totalVolume, 1)) * 70 + Math.min(totalVolume, 30))));
+
+      return {
+        className: item.className,
+        displayName: item.displayName,
+        totalVolume,
+        avgPrice: item.avgPrice,
+        purchases: item.purchases,
+        sales: item.sales,
+        demandScore,
+        trendDirection: model.slope > 0.15 ? "up" : model.slope < -0.15 ? "down" : "flat",
+        trendSlope: Number(model.slope.toFixed(2)),
+        predictedDailyVolume,
+        confidence: Math.round(Math.min(95, Math.max(10, byDate.length * 8 + model.r2 * 25))),
+      };
+    })
+    .filter((item) => item.totalVolume >= 3)
+    .sort((a, b) => b.demandScore - a.demandScore)
+    .slice(0, 12);
+}
+
 // Get global economy statistics
 // Query params: period (week|month|all), startDate, endDate
 router.get("/", async (req, res) => {
@@ -126,6 +384,7 @@ router.get("/", async (req, res) => {
     const zoneStats = new Map(); // zoneName -> { transactions, revenue }
     const hourlyActivity = new Array(24).fill(0); // Transactions per hour
     const recentTransactions = [];
+    const allTrades = [];
     
     // =========================================================================
     // STEP 1: Load archived trades from SQLite database (historical data)
@@ -134,6 +393,8 @@ router.get("/", async (req, res) => {
     console.log(`[Economy] Loaded ${archivedTrades.length} archived trades from database`);
     
     for (const trade of archivedTrades) {
+      const analyticsTrade = normalizeTradeForAnalytics(trade, trade.playerId);
+      allTrades.push(analyticsTrade);
       totalTransactions++;
       uniqueTradersSet.add(trade.playerId);
       
@@ -248,6 +509,7 @@ router.get("/", async (req, res) => {
           totalMoneyEarned += filteredEarned;
           
           for (const trade of filteredTrades) {
+            allTrades.push(normalizeTradeForAnalytics(trade, data.playerId));
             totalTransactions++;
             
             // Track item stats
@@ -380,7 +642,7 @@ router.get("/", async (req, res) => {
       : 0;
     const hasMinimumData = dataAgeDays >= 7;
     
-    // Load spawn data from types.xml
+    // Load spawn data from mission economy type files.
     const typesData = await loadTypesData();
     const spawnStatsData = await getSpawnStats();
     
@@ -412,7 +674,8 @@ router.get("/", async (req, res) => {
           spawnRating: spawnData.spawnRating,
           spawnScore: spawnData.spawnScore,
           category: spawnData.category,
-          spawns: spawnData.spawns
+          spawns: spawnData.spawns,
+          source: spawnData.source || null
         };
       }
       
@@ -529,25 +792,31 @@ router.get("/", async (req, res) => {
     else if (uniqueTraders >= 2) economyHealth += 5;
     
     economyHealth = Math.min(100, Math.max(0, economyHealth));
+
+    const summary = {
+      totalTransactions,
+      totalPurchases,
+      totalSales,
+      totalMoneySpent,
+      totalMoneyEarned,
+      netMoneyFlow,
+      uniqueTraders,
+      uniqueItems: itemStats.size,
+      avgTransactionValue,
+      purchaseToSaleRatio: parseFloat(purchaseToSaleRatio),
+      economyHealth,
+      dataAgeDays,
+      hasMinimumData,
+      oldestTransaction: oldestTransaction?.toISOString() || null,
+      newestTransaction: newestTransaction?.toISOString() || null
+    };
+
+    const dailyTrend = buildDailyTrend(allTrades, filterStart, filterEnd);
+    const marketForecast = buildMarketForecast(dailyTrend, summary);
+    const itemForecasts = buildItemForecasts(allTrades, itemStats);
     
     res.json({
-      summary: {
-        totalTransactions,
-        totalPurchases,
-        totalSales,
-        totalMoneySpent,
-        totalMoneyEarned,
-        netMoneyFlow,
-        uniqueTraders,
-        uniqueItems: itemStats.size,
-        avgTransactionValue,
-        purchaseToSaleRatio: parseFloat(purchaseToSaleRatio),
-        economyHealth,
-        dataAgeDays,
-        hasMinimumData,
-        oldestTransaction: oldestTransaction?.toISOString() || null,
-        newestTransaction: newestTransaction?.toISOString() || null
-      },
+      summary,
       filter: {
         period: period || 'all',
         startDate: filterStart?.toISOString() || null,
@@ -556,7 +825,9 @@ router.get("/", async (req, res) => {
       dataSources: {
         archivedTrades: archivedTrades.length,
         jsonFiles: files.filter(f => f.endsWith("_trades.json")).length,
-        totalTradesProcessed: totalTransactions
+        totalTradesProcessed: totalTransactions,
+        typeFiles: spawnStatsData.sourceFileCount,
+        economyCoreTypeFiles: spawnStatsData.economyCore?.loadedFileRefs || 0
       },
       spawnStats: spawnStatsData,
       topItemsByVolume,
@@ -565,6 +836,9 @@ router.get("/", async (req, res) => {
       topTraders,
       topZones,
       hourlyActivity,
+      dailyTrend,
+      marketForecast,
+      itemForecasts,
       recentTransactions: latestTransactions,
       priceRecommendations: priceRecommendations.slice(0, 30),
       generatedAt: new Date().toISOString()
@@ -612,6 +886,9 @@ router.get("/spawn-data", async (req, res) => {
     res.json({
       items,
       stats,
+      sources: stats.sources,
+      missingFiles: stats.missingFiles,
+      errors: stats.errors,
       total: typesData.size,
       filtered: items.length
     });
@@ -630,7 +907,11 @@ router.get("/spawn-data/:className", async (req, res) => {
     const item = typesData.get(className.toLowerCase());
     
     if (!item) {
-      return res.status(404).json({ error: "Item not found in types.xml" });
+      const stats = await getSpawnStats();
+      return res.status(404).json({
+        error: "Item not found in configured economy type files",
+        sources: stats.sources,
+      });
     }
     
     res.json(item);

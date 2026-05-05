@@ -8,6 +8,7 @@
   "providers": {
     "my-host": {
       "backend": "sftp",
+      "aliases": ["SUDO Buddy API 1"],
       "sftp": {
         "host": "sftp.example-host.com",
         "port": 8822,
@@ -18,6 +19,21 @@
       "paths": {
         "SST_PATH": "/server-prefix/DayZServer/SST",
         "API_PATH": "/server-prefix/DayZServer/SST/api"
+      }
+    },
+    "sudo-buddy-api-2": {
+      "backend": "sftp",
+      "aliases": ["SUDO Buddy API 2"],
+      "sftp": {
+        "host": "sftp-2.example-host.com",
+        "port": 8822,
+        "username": "server-user",
+        "password": "set-a-password",
+        "root": "/"
+      },
+      "paths": {
+        "SST_PATH": "/server-2-prefix/DayZServer/SST",
+        "API_PATH": "/server-2-prefix/DayZServer/SST/api"
       }
     },
     "my-ftp-host": {

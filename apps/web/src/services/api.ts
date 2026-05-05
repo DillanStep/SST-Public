@@ -3,6 +3,8 @@ import type {
   DashboardResponse,
   PlayerData,
   ItemSearchResult,
+  ItemImageLookupItem,
+  ItemImageLookupResponse,
   CategoriesResponse,
   Item,
   GrantRequest,
@@ -69,6 +71,7 @@ import type {
   RuntimeConfigUpdateResponse,
   RuntimeEnvValues,
   ServerMapConfig,
+  PlayerLeaderboardResponse,
 } from '../types';
 import { getActiveServer, getServers, migrateOldConfig } from './serverManager';
 import { getAuthToken } from './auth';
@@ -80,6 +83,7 @@ class SstApi {
   private client: AxiosInstance;
   private apiKey: string = '';
   private baseUrl: string = DEFAULT_API_URL;
+  private apiProfile: string = '';
 
   constructor() {
     // Migrate old single-server config if needed
@@ -96,6 +100,9 @@ class SstApi {
     // Add request interceptor to include Bearer token for cross-origin auth
     this.client.interceptors.request.use((config) => {
       const token = getAuthToken();
+      if (this.apiProfile) {
+        config.headers['x-sst-server'] = this.apiProfile;
+      }
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         config.withCredentials = true;
@@ -113,18 +120,24 @@ class SstApi {
   loadActiveServer(): boolean {
     const activeServer = getActiveServer();
     if (activeServer) {
-      this.configure(activeServer.apiUrl, activeServer.apiKey);
+      this.configure(activeServer.apiUrl, activeServer.apiKey, activeServer.apiProfile);
       return true;
     }
     return false;
   }
 
   // Configure API with URL and key
-  configure(url: string, key: string) {
+  configure(url: string, key: string, profile: string = '') {
     this.baseUrl = url;
     this.apiKey = key;
+    this.apiProfile = profile.trim();
     this.client.defaults.baseURL = url;
     this.client.defaults.headers.common['x-api-key'] = key;
+    if (this.apiProfile) {
+      this.client.defaults.headers.common['x-sst-server'] = this.apiProfile;
+    } else {
+      delete this.client.defaults.headers.common['x-sst-server'];
+    }
   }
 
   // Set just the API key (for backward compatibility)
@@ -147,10 +160,16 @@ class SstApi {
     return this.baseUrl;
   }
 
+  getApiProfile(): string {
+    return this.apiProfile;
+  }
+
   clearConfig() {
     this.apiKey = '';
     this.baseUrl = DEFAULT_API_URL;
+    this.apiProfile = '';
     delete this.client.defaults.headers.common['x-api-key'];
+    delete this.client.defaults.headers.common['x-sst-server'];
     this.client.defaults.baseURL = DEFAULT_API_URL;
   }
 
@@ -198,6 +217,13 @@ class SstApi {
 
   async refreshDashboard(): Promise<DashboardResponse> {
     const response = await this.client.post<DashboardResponse>('/dashboard/refresh');
+    return response.data;
+  }
+
+  async getLeaderboard(limit?: number): Promise<PlayerLeaderboardResponse> {
+    const response = await this.client.get<PlayerLeaderboardResponse>('/leaderboard', {
+      params: limit ? { limit } : undefined,
+    });
     return response.data;
   }
 
@@ -254,6 +280,11 @@ class SstApi {
 
   async getItem(className: string): Promise<Item> {
     const response = await this.client.get<Item>(`/items/${className}`);
+    return response.data;
+  }
+
+  async lookupItemImages(items: ItemImageLookupItem[]): Promise<ItemImageLookupResponse> {
+    const response = await this.client.post<ItemImageLookupResponse>('/items/images/lookup', { items });
     return response.data;
   }
 
@@ -570,6 +601,7 @@ export const getMapConfig = () => api.getMapConfig();
 export const getDashboard = () => api.getDashboard();
 export const getPlayer = (playerId: string) => api.getPlayer(playerId);
 export const refreshDashboard = () => api.refreshDashboard();
+export const getLeaderboard = (limit?: number) => api.getLeaderboard(limit);
 export const getPlayerInventory = (playerId: string) => api.getPlayerInventory(playerId);
 export const getPlayerEvents = (playerId: string) => api.getPlayerEvents(playerId);
 export const getPlayerLifeEvents = (playerId: string) => api.getPlayerLifeEvents(playerId);
@@ -582,6 +614,7 @@ export const searchItems = (params: { q?: string; category?: string; limit?: num
   api.searchItems(params);
 export const getCategories = () => api.getCategories();
 export const getItem = (className: string) => api.getItem(className);
+export const lookupItemImages = (items: ItemImageLookupItem[]) => api.lookupItemImages(items);
 export const getInventoryCounts = () => api.getInventoryCounts();
 export const refreshInventoryCounts = () => api.refreshInventoryCounts();
 export const createGrant = (grant: GrantRequest) => api.createGrant(grant);

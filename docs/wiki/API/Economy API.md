@@ -3,7 +3,7 @@
 Economy endpoints combine:
 
 - trade logs from Expansion Market
-- spawn/type data parsed from `types.xml`
+- spawn/type data parsed from mission `db/types.xml` plus `cfgeconomycore.xml` `<file type="types">` additions
 
 Endpoints:
 

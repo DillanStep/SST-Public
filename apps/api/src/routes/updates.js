@@ -4,6 +4,8 @@ import { existsSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
+import { compareVersions, getCurrentVersion, normalizeVersion } from "../utils/appVersion.js";
+import { getModVersionStatus, getOnlinePlayersSnapshot } from "../utils/onlinePlayers.js";
 
 const router = Router();
 
@@ -20,35 +22,6 @@ const updateApiUrl = process.env.SST_UPDATE_API_URL || `https://api.github.com/r
 function isLocalRequest(req) {
   const ip = String(req.ip || req.socket?.remoteAddress || "");
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
-}
-
-function normalizeVersion(version) {
-  return String(version || "")
-    .trim()
-    .replace(/^v/i, "")
-    .split("-")[0];
-}
-
-function compareVersions(current, latest) {
-  const left = normalizeVersion(current).split(".").map((part) => Number.parseInt(part, 10) || 0);
-  const right = normalizeVersion(latest).split(".").map((part) => Number.parseInt(part, 10) || 0);
-  const length = Math.max(left.length, right.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const a = left[index] || 0;
-    const b = right[index] || 0;
-    if (a < b) return -1;
-    if (a > b) return 1;
-  }
-
-  return 0;
-}
-
-async function getCurrentVersion() {
-  const packagePath = join(apiRoot, "package.json");
-  const raw = await readFile(packagePath, "utf8");
-  const pkg = JSON.parse(raw);
-  return pkg.version || "0.0.0";
 }
 
 async function fetchLatestRelease() {
@@ -109,6 +82,39 @@ function releaseToStatus(currentVersion, release) {
   };
 }
 
+async function getRuntimeModStatus() {
+  try {
+    const snapshot = await getOnlinePlayersSnapshot();
+    return {
+      ...getModVersionStatus(snapshot),
+      sourceUpdatedAt: snapshot?.sourceUpdatedAt || null,
+      sourceAgeMs: snapshot?.sourceAgeMs ?? null,
+      staleAfterMs: snapshot?.staleAfterMs ?? null,
+      isStale: Boolean(snapshot?.isStale),
+    };
+  } catch (err) {
+    return {
+      ...getModVersionStatus(null),
+      status: "error",
+      mismatch: false,
+      isCompatible: false,
+      error: err?.message || String(err),
+      message: "Could not read the SST mod heartbeat.",
+      sourceUpdatedAt: null,
+      sourceAgeMs: null,
+      staleAfterMs: null,
+      isStale: true,
+    };
+  }
+}
+
+async function attachRuntimeStatus(status) {
+  return {
+    ...status,
+    mod: await getRuntimeModStatus(),
+  };
+}
+
 async function readUpdateState() {
   try {
     const raw = await readFile(updateStatePath, "utf8");
@@ -135,20 +141,20 @@ function getPowerShellExe() {
 
 router.get("/status", async (req, res) => {
   if (process.env.SST_DISABLE_UPDATE_CHECK === "1") {
-    const currentVersion = await getCurrentVersion();
-    return res.json({
+    const currentVersion = getCurrentVersion();
+    return res.json(await attachRuntimeStatus({
       ok: true,
       currentVersion,
       latestVersion: currentVersion,
       updateAvailable: false,
       disabled: true,
-    });
+    }));
   }
 
   try {
-    const currentVersion = await getCurrentVersion();
+    const currentVersion = getCurrentVersion();
     const release = await fetchLatestRelease();
-    return res.json(releaseToStatus(currentVersion, release));
+    return res.json(await attachRuntimeStatus(releaseToStatus(currentVersion, release)));
   } catch (err) {
     return res.status(502).json({
       ok: false,
@@ -178,7 +184,7 @@ router.post("/install", async (req, res) => {
   }
 
   try {
-    const currentVersion = await getCurrentVersion();
+    const currentVersion = getCurrentVersion();
     const release = await fetchLatestRelease();
     const status = releaseToStatus(currentVersion, release);
 

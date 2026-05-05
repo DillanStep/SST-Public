@@ -22,6 +22,10 @@
         "additionalProperties": false,
         "properties": {
           "backend": { "type": "string", "enum": ["ftp", "ftps", "sftp"] },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
           "env": {
             "type": "object",
             "additionalProperties": {

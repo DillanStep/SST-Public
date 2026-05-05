@@ -1,6 +1,5 @@
 import express from 'express';
-import { paths } from '../config.js';
-import { readFile } from "../storage/fs.js";
+import { getOnlinePlayersSnapshot, onlineSnapshotMetadata } from "../utils/onlinePlayers.js";
 
 const router = express.Router();
 
@@ -27,25 +26,12 @@ function transformPlayer(p) {
   };
 }
 
-// Helper function to read online players file
-async function getOnlinePlayers() {
-  try {
-    const data = await readFile(paths.onlinePlayers, "utf-8");
-    return JSON.parse(data);
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return { generatedAt: null, onlineCount: 0, players: [] };
-    }
-    throw error;
-  }
-}
-
 // GET /online - Get all players (online and offline)
 router.get('/', async (req, res) => {
   try {
-    const data = await getOnlinePlayers();
+    const data = await getOnlinePlayersSnapshot();
     res.json({
-      generatedAt: data.generatedAt,
+      ...onlineSnapshotMetadata(data),
       onlineCount: data.onlineCount,
       players: (data.players || []).map(transformPlayer)
     });
@@ -57,12 +43,12 @@ router.get('/', async (req, res) => {
 // GET /online/active - Get only currently online players
 router.get('/active', async (req, res) => {
   try {
-    const data = await getOnlinePlayers();
+    const data = await getOnlinePlayersSnapshot();
     const activePlayers = (data.players || [])
       .filter(p => p.isOnline === 1 || p.isOnline === true)
       .map(transformPlayer);
     res.json({
-      generatedAt: data.generatedAt,
+      ...onlineSnapshotMetadata(data),
       onlineCount: activePlayers.length,
       players: activePlayers
     });
@@ -71,31 +57,10 @@ router.get('/active', async (req, res) => {
   }
 });
 
-// GET /online/:playerId - Get specific player's online status and location
-router.get('/:playerId', async (req, res) => {
-  try {
-    const { playerId } = req.params;
-    const data = await getOnlinePlayers();
-    
-    const player = (data.players || []).find(p => p.playerId === playerId);
-    
-    if (!player) {
-      return res.status(404).json({ error: 'Player not found in tracking data' });
-    }
-    
-    res.json({
-      generatedAt: data.generatedAt,
-      player: transformPlayer(player)
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to read player data', details: error.message });
-  }
-});
-
 // GET /online/locations/all - Get all online player locations (for map view)
 router.get('/locations/all', async (req, res) => {
   try {
-    const data = await getOnlinePlayers();
+    const data = await getOnlinePlayersSnapshot();
     const locations = (data.players || [])
       .filter(p => p.isOnline === 1 || p.isOnline === true)
       .map(p => ({
@@ -110,12 +75,35 @@ router.get('/locations/all', async (req, res) => {
       }));
     
     res.json({
+      ...onlineSnapshotMetadata(data),
       timestamp: data.generatedAt,
       onlineCount: locations.length,
       locations
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to read player locations', details: error.message });
+  }
+});
+
+// GET /online/:playerId - Get specific player's online status and location
+router.get('/:playerId', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const data = await getOnlinePlayersSnapshot();
+    
+    const player = (data.players || []).find(p => p.playerId === playerId);
+    
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found in tracking data' });
+    }
+    
+    res.json({
+      ...onlineSnapshotMetadata(data),
+      generatedAt: data.generatedAt,
+      player: transformPlayer(player)
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read player data', details: error.message });
   }
 });
 

@@ -3,7 +3,10 @@ import { readFile, writeFile } from "../storage/fs.js";
 import { paths } from "../config.js";
 
 const router = Router();
-const grantFile = `${paths.api}/item_grants.json`;
+
+function grantFile() {
+  return `${paths.api}/item_grants.json`;
+}
 
 router.post("/", async (req, res) => {
   const grant = {
@@ -17,12 +20,12 @@ router.post("/", async (req, res) => {
 
   let data = { requests: [] };
   try {
-    data = JSON.parse(await readFile(grantFile, "utf8"));
+    data = JSON.parse(await readFile(grantFile(), "utf8"));
     if (!data.requests) data.requests = [];
   } catch {}
 
   data.requests.push(grant);
-  await writeFile(grantFile, JSON.stringify(data, null, 2));
+  await writeFile(grantFile(), JSON.stringify(data, null, 2));
 
   res.json({ status: "QUEUED", grant });
 });

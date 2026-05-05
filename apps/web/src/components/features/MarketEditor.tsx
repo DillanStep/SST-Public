@@ -36,6 +36,15 @@ function cleanDisplayName(name: string | undefined, fallbackFileName?: string): 
   return name;
 }
 
+function getApiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: { error?: string; details?: string; path?: string } } })?.response?.data;
+  if (!data?.error) return fallback;
+
+  const details = data.details ? `: ${data.details}` : '';
+  const path = data.path ? ` (${data.path})` : '';
+  return `${data.error}${details}${path}`;
+}
+
 interface MarketEditorProps {
   isConnected: boolean;
 }
@@ -89,7 +98,7 @@ export const MarketEditor: React.FC<MarketEditorProps> = ({ isConnected }) => {
       setInventoryCounts(countsData.counts || {});
       setCountsLastUpdated(countsData.lastUpdated || null);
     } catch (err) {
-      setError('Failed to load market categories');
+      setError(getApiErrorMessage(err, 'Failed to load market categories'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -102,11 +111,13 @@ export const MarketEditor: React.FC<MarketEditorProps> = ({ isConnected }) => {
 
   const loadCategory = async (fileName: string) => {
     setLoadingCategory(true);
+    setError(null);
     try {
       const data = await getMarketCategory(fileName);
       setCategoryData(data);
       setSelectedCategory(fileName);
     } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to load market category'));
       console.error('Failed to load category:', err);
     } finally {
       setLoadingCategory(false);
@@ -136,6 +147,7 @@ export const MarketEditor: React.FC<MarketEditorProps> = ({ isConnected }) => {
       setEditingItem(null);
       setEditValues({});
     } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to save market item'));
       console.error('Failed to save item:', err);
     } finally {
       setSaving(false);
@@ -149,6 +161,7 @@ export const MarketEditor: React.FC<MarketEditorProps> = ({ isConnected }) => {
       await deleteMarketItem(selectedCategory, className);
       await loadCategory(selectedCategory);
     } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to delete market item'));
       console.error('Failed to delete item:', err);
     }
   };
@@ -170,6 +183,7 @@ export const MarketEditor: React.FC<MarketEditorProps> = ({ isConnected }) => {
         MinStockThreshold: 1,
       });
     } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to add market item'));
       console.error('Failed to add item:', err);
     } finally {
       setSaving(false);

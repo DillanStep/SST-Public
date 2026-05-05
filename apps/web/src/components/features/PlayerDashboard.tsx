@@ -1,12 +1,51 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Users, RefreshCw, Clock, Zap, Package, Calendar, Eye, Skull, Activity, MessageSquare, Send, Radio, X } from 'lucide-react';
 import { Card, Button, Badge, Select } from '../ui';
-import { getDashboard, refreshDashboard, getPlayer, sendMessageToPlayer, broadcastMessage } from '../../services/api';
-import type { DashboardResponse, PlayerData } from '../../types';
+import { getDashboard, refreshDashboard, getPlayer, sendMessageToPlayer, broadcastMessage, lookupItemImages } from '../../services/api';
+import type { DashboardResponse, InventoryItem, ItemImageInfo, PlayerData } from '../../types';
 
 interface PlayerDashboardProps {
   isConnected: boolean;
 }
+
+const collectInventoryItems = (items: InventoryItem[] = [], collected: InventoryItem[] = []): InventoryItem[] => {
+  for (const item of items) {
+    if (item?.className) {
+      collected.push(item);
+    }
+    if (item?.attachments?.length) {
+      collectInventoryItems(item.attachments, collected);
+    }
+    if (item?.cargo?.length) {
+      collectInventoryItems(item.cargo, collected);
+    }
+  }
+  return collected;
+};
+
+const InventoryItemImage: React.FC<{ image?: ItemImageInfo | null; className: string }> = ({ image, className }) => {
+  const [failed, setFailed] = useState(false);
+
+  if (!image?.thumbnailUrl || failed) {
+    return (
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-surface-200 bg-white text-surface-400">
+        <Package size={20} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={image.thumbnailUrl}
+      alt={image.matchedDisplayName || className}
+      title={`${image.matchedDisplayName || className} - ${image.source?.name || 'DayZ Wiki'}`}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="h-12 w-12 shrink-0 rounded-md border border-surface-200 bg-white object-contain p-1"
+    />
+  );
+};
 
 export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected }) => {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
@@ -16,6 +55,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [playerDetails, setPlayerDetails] = useState<PlayerData | null>(null);
   const [loadingPlayer, setLoadingPlayer] = useState(false);
+  const [itemImages, setItemImages] = useState<Record<string, ItemImageInfo | null>>({});
+  const [loadingItemImages, setLoadingItemImages] = useState(false);
   
   // Message state
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -59,6 +100,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
   const handleViewPlayer = async (playerId: string) => {
     setSelectedPlayer(playerId);
     setLoadingPlayer(true);
+    setItemImages({});
     
     try {
       const data = await getPlayer(playerId);
@@ -119,6 +161,49 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
       loadDashboard();
     }
   }, [isConnected, loadDashboard]);
+
+  useEffect(() => {
+    const inventory = playerDetails?.inventory?.players?.[0]?.inventory || [];
+    const items = collectInventoryItems(inventory)
+      .filter((item, index, allItems) => (
+        allItems.findIndex(other => other.className.toLowerCase() === item.className.toLowerCase()) === index
+      ))
+      .slice(0, 120)
+      .map(item => ({
+        className: item.className,
+        displayName: item.displayName,
+      }));
+
+    if (!items.length) {
+      setItemImages({});
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingItemImages(true);
+
+    lookupItemImages(items)
+      .then((result) => {
+        if (!cancelled) {
+          setItemImages(result.images || {});
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn('Failed to load item images:', err);
+          setItemImages({});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingItemImages(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [playerDetails]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -192,9 +277,10 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
             <div className="bg-surface-50 rounded-lg p-3 sm:p-4 border border-surface-300">
               <div className="flex items-center gap-2 text-dark-400 text-xs sm:text-sm mb-1">
                 <Users size={14} />
-                <span>Players</span>
+                <span>Online Players</span>
               </div>
-              <div className="text-xl sm:text-2xl font-bold text-amethyst">{dashboard.playerCount}</div>
+              <div className="text-xl sm:text-2xl font-bold text-amethyst">{dashboard.onlineCount ?? 0}</div>
+              <div className="mt-1 text-[11px] text-surface-400">{dashboard.playerCount} known</div>
             </div>
             
             <div className="bg-surface-50 rounded-lg p-3 sm:p-4 border border-surface-300">
@@ -231,6 +317,12 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
               <div className="text-xl sm:text-2xl font-bold text-red-700">{dashboard.recentDeaths?.length || 0}</div>
             </div>
           </div>
+
+          {dashboard.onlineSource?.isStale && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Online player data is stale, so SST is showing players as offline until the DayZ server writes a fresh update.
+            </div>
+          )}
 
           {/* Recent Deaths Section */}
           {dashboard.recentDeaths && dashboard.recentDeaths.length > 0 && (
@@ -369,6 +461,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                 onClick={() => {
                   setSelectedPlayer(null);
                   setPlayerDetails(null);
+                  setItemImages({});
                 }}
               >
                 Close
@@ -394,16 +487,25 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                             {invData?.playerName && (
                               <span className="text-lilac font-normal">- {invData.playerName}</span>
                             )}
+                            {loadingItemImages && (
+                              <span className="text-lilac font-normal">Loading images...</span>
+                            )}
                           </h4>
                           {items.length ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {items.slice(0, 20).map((item, idx) => (
                                 <div 
                                   key={idx}
-                                  className="bg-surface-50 rounded px-3 py-2 text-sm border border-surface-200"
+                                  className="flex items-center gap-3 bg-surface-50 rounded px-3 py-2 text-sm border border-surface-200"
                                 >
-                                  <div className="text-amethyst font-medium truncate">{item.className}</div>
-                                  <div className="text-lilac text-xs">Qty: {item.quantity}</div>
+                                  <InventoryItemImage image={itemImages[item.className]} className={item.className} />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-amethyst font-medium truncate">{item.displayName || item.className}</div>
+                                    {item.displayName && (
+                                      <div className="text-lilac text-[11px] truncate">{item.className}</div>
+                                    )}
+                                    <div className="text-lilac text-xs">Qty: {item.quantity}</div>
+                                  </div>
                                 </div>
                               ))}
                               {items.length > 20 && (

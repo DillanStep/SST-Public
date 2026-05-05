@@ -34,10 +34,10 @@ function createWithClient({ host, port, user, password, secure }) {
   };
 }
 
-export function createFtpStorage({ backend, config }) {
-  const host = process.env.FTP_HOST || config?.host;
-  const user = process.env.FTP_USER || config?.user || config?.username;
-  const password = process.env.FTP_PASSWORD || config?.password;
+export function createFtpStorage({ backend, config, env = process.env }) {
+  const host = config?.host || env.FTP_HOST || process.env.FTP_HOST;
+  const user = config?.user || config?.username || env.FTP_USER || process.env.FTP_USER;
+  const password = config?.password || env.FTP_PASSWORD || process.env.FTP_PASSWORD;
 
   if (!host || !user || !password) {
     throw new Error(
@@ -45,16 +45,18 @@ export function createFtpStorage({ backend, config }) {
     );
   }
 
-  const port = process.env.FTP_PORT
-    ? Number(process.env.FTP_PORT)
-    : config?.port
-      ? Number(config.port)
-      : 21;
+  const port = config?.port
+    ? Number(config.port)
+    : env.FTP_PORT
+      ? Number(env.FTP_PORT)
+      : process.env.FTP_PORT
+        ? Number(process.env.FTP_PORT)
+        : 21;
 
-  const secureRaw = String(process.env.FTP_SECURE ?? config?.secure ?? "false").toLowerCase();
+  const secureRaw = String(config?.secure ?? env.FTP_SECURE ?? process.env.FTP_SECURE ?? "false").toLowerCase();
   const secure = secureRaw === "true" || secureRaw === "1" || secureRaw === "yes";
 
-  const remoteRoot = process.env.FTP_ROOT || config?.root || "/";
+  const remoteRoot = config?.root || env.FTP_ROOT || process.env.FTP_ROOT || "/";
   const withClient = createWithClient({ host, port, user, password, secure });
 
   return {

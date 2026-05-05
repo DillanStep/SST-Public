@@ -2,6 +2,7 @@ import { Router } from "express";
 import { readFile, readdir } from "../storage/fs.js";
 import { paths } from "../config.js";
 import { consoleUi } from "../utils/consoleUi.js";
+import { lookupDayzWikiItemImages } from "../utils/dayzWikiImages.js";
 
 const router = Router();
 
@@ -105,24 +106,35 @@ router.get("/categories", async (req, res) => {
   res.json({ count: categories.length, categories });
 });
 
-// GET /items/:className - single item by class name
-router.get("/:className", async (req, res) => {
-  if (!itemsCache) {
-    await loadItems();
+// POST /items/images/lookup - match item class/display names to DayZ Wiki image thumbnails
+router.post("/images/lookup", async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const limitedItems = items.slice(0, 200);
+    const result = await lookupDayzWikiItemImages(limitedItems);
+    res.json(result);
+  } catch (err) {
+    console.error("[Items] Failed to look up item images:", err.message);
+    res.status(502).json({
+      error: "Failed to look up item images",
+      details: err?.message || String(err),
+    });
   }
-  if (!itemsCache) {
-    return res.status(404).json({ error: "Items not found" });
+});
+
+// POST /items/images/refresh - force-refresh the DayZ Wiki image metadata cache
+router.post("/images/refresh", async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const result = await lookupDayzWikiItemImages(items.slice(0, 200), { forceRefresh: true });
+    res.json(result);
+  } catch (err) {
+    console.error("[Items] Failed to refresh item images:", err.message);
+    res.status(502).json({
+      error: "Failed to refresh item images",
+      details: err?.message || String(err),
+    });
   }
-
-  const item = itemsCache.items.find(
-    i => i.className.toLowerCase() === req.params.className.toLowerCase()
-  );
-
-  if (!item) {
-    return res.status(404).json({ error: "Item not found" });
-  }
-
-  res.json(item);
 });
 
 // POST /items/refresh - reload from file
@@ -250,6 +262,27 @@ router.post("/inventory-counts/refresh", async (req, res) => {
     playerCount: result.playerCount,
     uniqueItems: result.uniqueItems
   });
+});
+
+// GET /items/:className - single item by class name
+// Keep this after concrete /items/* routes so it does not catch paths like inventory-counts.
+router.get("/:className", async (req, res) => {
+  if (!itemsCache) {
+    await loadItems();
+  }
+  if (!itemsCache) {
+    return res.status(404).json({ error: "Items not found" });
+  }
+
+  const item = itemsCache.items.find(
+    i => i.className.toLowerCase() === req.params.className.toLowerCase()
+  );
+
+  if (!item) {
+    return res.status(404).json({ error: "Item not found" });
+  }
+
+  res.json(item);
 });
 
 export default router;

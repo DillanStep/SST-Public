@@ -1,7 +1,6 @@
 import express from 'express';
-import { readFile } from "../storage/fs.js";
 import { positionDb } from '../db/database.js';
-import { paths } from '../config.js';
+import { getOnlinePlayersSnapshot } from '../utils/onlinePlayers.js';
 
 const router = express.Router();
 
@@ -95,11 +94,9 @@ router.post('/record', async (req, res) => {
 // POST /positions/snapshot - Capture current positions from online_players.json
 router.post('/snapshot', async (req, res) => {
   try {
-    // Read current online players
-    const data = await readFile(paths.onlinePlayers, "utf-8");
-    const onlineData = JSON.parse(data);
+    const onlineData = await getOnlinePlayersSnapshot();
     
-    if (!onlineData.players || onlineData.players.length === 0) {
+    if (onlineData.isStale || !onlineData.players || onlineData.players.length === 0) {
       return res.json({ success: true, message: 'No players online to snapshot', count: 0 });
     }
     

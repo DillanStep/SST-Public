@@ -5,6 +5,19 @@ All notable changes to SST Node API will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-05-05
+
+### Added
+- Added single-API multi-server profile support for hosted and local server setups.
+- Added mission economy type-file discovery through `cfgeconomycore.xml` `<file type="types">` entries.
+- Added leaderboard and richer online player/version status data.
+- Added dashboard support for generating and saving API keys from the add-server flow.
+
+### Changed
+- Improved setup, server management, and update status flows for multi-server operators.
+- Improved economy pricing recommendations by using all loaded mission type files.
+- Updated documentation for hosted provider profiles, mission economy files, and troubleshooting.
+
 ## [1.0.5] - 2026-05-04
 
 ### Changed
@@ -44,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Item granting system
 - Player commands (heal, teleport, kill, message)
 - DayZ Expansion mod integration (market, traders, banking)
-- Economy analysis from types.xml
+- Economy analysis from mission economy type files
 - Server log viewer with live tailing
 - Position history with SQLite storage
 - User authentication with JWT tokens

@@ -6,6 +6,7 @@ Typical responsibilities:
 
 - Authentication and session management
 - Displaying online players + last known state
+- Comparing leaderboard stats for player activity, kills, deaths, playtime, loot, trades, and vehicles
 - Viewing inventories/events/life events
 - Running admin commands (heal/teleport/message)
 - Editing Expansion market/traders (when enabled)

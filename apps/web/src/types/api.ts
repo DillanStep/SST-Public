@@ -6,6 +6,7 @@ export interface ServerConfig {
   name: string;
   apiUrl: string;
   apiKey: string;
+  apiProfile?: string;
   mapPreset?: string;
   mapLabel?: string;
   mapImageUrl?: string;
@@ -68,6 +69,7 @@ export type RuntimeEnvValues = Record<string, string>;
 
 export interface RuntimeConfigResponse {
   envPath: string;
+  profile?: string;
   env: RuntimeEnvValues;
   suggestions?: RuntimeEnvValues;
   map?: ServerMapConfig;
@@ -233,6 +235,60 @@ export interface EconomyZoneStats {
   revenue: number;
 }
 
+export interface EconomyDailyTrendPoint {
+  date: string;
+  transactions: number;
+  purchases: number;
+  sales: number;
+  moneySpent: number;
+  moneyEarned: number;
+  netFlow: number;
+  cumulativeNetFlow: number;
+  avgTransactionValue: number;
+}
+
+export interface EconomyForecastPoint {
+  date: string;
+  predictedTransactions: number;
+  predictedMoneySpent: number;
+  predictedMoneyEarned: number;
+  predictedNetFlow: number;
+  predictedCumulativeNetFlow: number;
+}
+
+export interface EconomyRiskSignal {
+  type: string;
+  severity: 'info' | 'warning' | 'critical';
+  title: string;
+  detail: string;
+}
+
+export interface EconomyMarketForecast {
+  confidence: number;
+  trend: {
+    transactionsSlope: number;
+    moneySpentSlope: number;
+    moneyEarnedSlope: number;
+    direction: 'growing' | 'cooling' | 'steady';
+  };
+  next7Days: EconomyForecastPoint[];
+  riskSignals: EconomyRiskSignal[];
+}
+
+export interface EconomyItemForecast {
+  className: string;
+  displayName: string;
+  totalVolume: number;
+  avgPrice: number;
+  purchases: number;
+  sales: number;
+  demandScore: number;
+  trendDirection: 'up' | 'down' | 'flat';
+  trendSlope: number;
+  predictedDailyVolume: number;
+  confidence: number;
+}
+
 export interface EconomySummary {
   totalTransactions: number;
   totalPurchases: number;
@@ -257,6 +313,11 @@ export interface SpawnInfo {
   spawnScore: number;
   category: string | null;
   spawns: boolean;
+  source?: {
+    path: string;
+    label: string;
+    kind: string;
+  } | null;
 }
 
 export interface PriceRecommendation {
@@ -290,15 +351,70 @@ export interface EconomyFilter {
   endDate: string | null;
 }
 
+export interface TypesSourceRef {
+  folder: string;
+  fileName: string;
+  type: string;
+  relativePath: string;
+}
+
+export interface TypesSourceInfo {
+  path: string;
+  label: string;
+  kind: string;
+  itemCount: number;
+  duplicateItems?: number;
+  ref?: TypesSourceRef | null;
+}
+
+export interface TypesLoadIssue {
+  path: string;
+  label: string;
+  kind: string;
+  message: string;
+  ref?: TypesSourceRef | null;
+}
+
+export interface EconomyCoreStats {
+  path: string;
+  found: boolean;
+  typeFileRefs: number;
+  loadedFileRefs: number;
+}
+
+export interface EconomySpawnStats {
+  totalItems: number;
+  spawningItems: number;
+  categories: Record<string, number>;
+  spawnRatings: Record<string, number>;
+  sourceFileCount: number;
+  sources: TypesSourceInfo[];
+  economyCore: EconomyCoreStats | null;
+  duplicateItems: number;
+  missingFiles: TypesLoadIssue[];
+  errors: TypesLoadIssue[];
+}
+
 export interface EconomyResponse {
   summary: EconomySummary;
   filter: EconomyFilter;
+  dataSources?: {
+    archivedTrades: number;
+    jsonFiles: number;
+    totalTradesProcessed: number;
+    typeFiles?: number;
+    economyCoreTypeFiles?: number;
+  };
+  spawnStats?: EconomySpawnStats;
   topItemsByVolume: EconomyItemStats[];
   topItemsBySpending: EconomyItemStats[];
   topSoldItems: EconomyItemStats[];
   topTraders: EconomyTraderStats[];
   topZones: EconomyZoneStats[];
   hourlyActivity: number[];
+  dailyTrend?: EconomyDailyTrendPoint[];
+  marketForecast?: EconomyMarketForecast;
+  itemForecasts?: EconomyItemForecast[];
   recentTransactions: (TradeEvent & { playerId: string })[];
   priceRecommendations: PriceRecommendation[];
   generatedAt: string;
@@ -318,7 +434,99 @@ export interface DashboardResponse {
   lastUpdate: string;
   refreshTimeMs: number;
   onlineCount?: number;
+  onlineSource?: {
+    generatedAt: string | null;
+    modVersion?: string | null;
+    protocolVersion?: string | null;
+    modStatus?: ModVersionStatus;
+    sourceUpdatedAt: string | null;
+    sourceAgeMs: number | null;
+    staleAfterMs: number;
+    isStale: boolean;
+    onlineCount: number;
+  };
   playerCount: number;
+}
+
+export interface ModVersionStatus {
+  expectedVersion: string;
+  reportedVersion: string | null;
+  expectedProtocolVersion: string;
+  reportedProtocolVersion: string | null;
+  status: 'match' | 'older' | 'newer' | 'missing' | 'protocol-mismatch' | 'stale' | 'not-reporting' | 'error';
+  mismatch: boolean;
+  isCompatible: boolean;
+  message: string;
+}
+
+export interface LeaderboardPlayer {
+  playerId: string;
+  playerName: string;
+  isOnline: boolean;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  kills: number;
+  deaths: number;
+  pvpDeaths: number;
+  suicides: number;
+  spawns: number;
+  respawns: number;
+  connects: number;
+  disconnects: number;
+  lifeEvents: number;
+  itemEvents: number;
+  itemsPickedUp: number;
+  itemsDropped: number;
+  itemsAdded: number;
+  itemsRemoved: number;
+  inventoryItems: number;
+  tradeCount: number;
+  purchases: number;
+  sales: number;
+  totalSpent: number;
+  totalEarned: number;
+  netTrade: number;
+  activeVehicles: number;
+  destroyedVehicles: number;
+  totalVehicles: number;
+  vehiclePurchases: number;
+  vehicleSpend: number;
+  positionSamples: number;
+  playTimeSeconds: number;
+  currentSessionSeconds: number;
+  longestLifeSeconds: number;
+  score: number;
+  kdRatio: number;
+}
+
+export type LeaderboardKey =
+  | 'overall'
+  | 'kills'
+  | 'deaths'
+  | 'playTime'
+  | 'longestLife'
+  | 'loot'
+  | 'trades'
+  | 'wealth'
+  | 'vehicles'
+  | 'online';
+
+export interface PlayerLeaderboardResponse {
+  generatedAt: string;
+  playerCount: number;
+  summary: {
+    onlineCount: number;
+    totalKills: number;
+    totalDeaths: number;
+    totalItemEvents: number;
+    totalTrades: number;
+    totalVehicles: number;
+  };
+  leaderboards: Record<LeaderboardKey, LeaderboardPlayer[]>;
+  players: LeaderboardPlayer[];
+  retention?: {
+    note?: string;
+  };
 }
 
 export interface Item {
@@ -328,6 +536,37 @@ export interface Item {
   parentClass?: string;
   canBeStacked?: number;
   maxQuantity?: number;
+}
+
+export interface ItemImageLookupItem {
+  className: string;
+  displayName?: string;
+}
+
+export interface ItemImageInfo {
+  className: string;
+  displayName?: string;
+  matchedDisplayName: string;
+  thumbnailUrl: string;
+  imageUrl: string;
+  pageUrl?: string;
+  source?: {
+    name: string;
+    url: string;
+    attribution: string;
+  };
+}
+
+export interface ItemImageLookupResponse {
+  generatedAt: string;
+  source?: {
+    name: string;
+    url: string;
+    attribution: string;
+  };
+  categories?: string[];
+  count: number;
+  images: Record<string, ItemImageInfo | null>;
 }
 
 export interface ItemSearchResult {
@@ -445,13 +684,27 @@ export interface OnlinePlayerData {
 }
 
 export interface OnlinePlayersResponse {
-  generatedAt: string;
+  generatedAt: string | null;
+  modVersion?: string | null;
+  protocolVersion?: string | null;
+  modStatus?: ModVersionStatus;
+  sourceUpdatedAt?: string | null;
+  sourceAgeMs?: number | null;
+  staleAfterMs?: number;
+  isStale?: boolean;
   onlineCount: number;
   players: OnlinePlayerData[];
 }
 
 export interface PlayerLocationsResponse {
-  timestamp: string;
+  timestamp: string | null;
+  modVersion?: string | null;
+  protocolVersion?: string | null;
+  modStatus?: ModVersionStatus;
+  sourceUpdatedAt?: string | null;
+  sourceAgeMs?: number | null;
+  staleAfterMs?: number;
+  isStale?: boolean;
   onlineCount: number;
   locations: {
     playerId: string;

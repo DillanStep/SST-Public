@@ -55,7 +55,9 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
         activeServer &&
         nextActive &&
         activeServer.id === nextActive.id &&
-        (activeServer.apiUrl !== nextActive.apiUrl || activeServer.apiKey !== nextActive.apiKey)
+        (activeServer.apiUrl !== nextActive.apiUrl ||
+          activeServer.apiKey !== nextActive.apiKey ||
+          activeServer.apiProfile !== nextActive.apiProfile)
       );
 
       loadServers();
@@ -98,7 +100,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
 
     try {
       // Configure API with server
-      api.configure(serverToUse.apiUrl, serverToUse.apiKey);
+      api.configure(serverToUse.apiUrl, serverToUse.apiKey, serverToUse.apiProfile);
 
       // Test health endpoint
       await getHealth();
@@ -106,7 +108,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
       // Test authenticated endpoint
       const dashboard = await getDashboard();
       
-      setPlayerCount(dashboard.playerCount);
+      setPlayerCount(dashboard.onlineCount ?? 0);
       setStatus('connected');
       onConnected();
     } catch {
@@ -115,6 +117,19 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
       onDisconnected();
     }
   }, [activeServer, onConnected, onDisconnected]);
+
+  const refreshPlayerCount = useCallback(async () => {
+    if (status !== 'connected') return;
+
+    try {
+      const dashboard = await getDashboard();
+      setPlayerCount(dashboard.onlineCount ?? 0);
+    } catch {
+      setPlayerCount(0);
+      setStatus('error');
+      onDisconnected();
+    }
+  }, [onDisconnected, status]);
 
   // Auto-connect on mount if server is configured
   useEffect(() => {
@@ -139,6 +154,16 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
     setStatus('idle');
     connect();
   };
+
+  useEffect(() => {
+    if (status !== 'connected') return;
+
+    const interval = window.setInterval(() => {
+      refreshPlayerCount();
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [refreshPlayerCount, status]);
 
   if (servers.length === 0) {
     return (
@@ -175,7 +200,9 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
                 <Server size={14} />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{server.name}</div>
-                  <div className="text-xs text-surface-500 truncate">{server.apiUrl}</div>
+                  <div className="text-xs text-surface-500 truncate">
+                    {server.apiProfile ? `${server.apiUrl} - ${server.apiProfile}` : server.apiUrl}
+                  </div>
                 </div>
                 {server.id === activeServer?.id && (
                   <Check size={14} className="text-primary-500 flex-shrink-0" />

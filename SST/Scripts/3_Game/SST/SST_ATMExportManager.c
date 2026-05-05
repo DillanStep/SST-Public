@@ -177,6 +177,12 @@ class SST_ServerItemList
 	ref array<ref SST_ServerItemEntry> items = new array<ref SST_ServerItemEntry>();
 }
 
+class SST_ModInfo
+{
+	static const string VERSION = "1.0.6";
+	static const string PROTOCOL_VERSION = "1";
+}
+
 // ============================================================================
 // Online Player Tracking Data Classes
 // ============================================================================
@@ -205,6 +211,8 @@ class SST_OnlinePlayerData
 class SST_OnlinePlayersData
 {
 	string generatedAt;
+	string modVersion;
+	string protocolVersion;
 	int onlineCount;
 	ref array<ref SST_OnlinePlayerData> players = new array<ref SST_OnlinePlayerData>();
 }

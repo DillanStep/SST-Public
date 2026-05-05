@@ -3,8 +3,14 @@ import { readFile, writeFile } from "../storage/fs.js";
 import { paths } from "../config.js";
 
 const router = Router();
-const deleteQueueFile = `${paths.api}/item_deletes.json`;
-const deleteResultsFile = `${paths.api}/item_deletes_results.json`;
+
+function deleteQueueFile() {
+  return `${paths.api}/item_deletes.json`;
+}
+
+function deleteResultsFile() {
+  return `${paths.api}/item_deletes_results.json`;
+}
 
 router.get("/:playerId", async (req, res) => {
   try {
@@ -44,12 +50,12 @@ router.delete("/:playerId/item", async (req, res) => {
     // Load existing queue or create new
     let queue = { requests: [] };
     try {
-      queue = JSON.parse(await readFile(deleteQueueFile, "utf8"));
+      queue = JSON.parse(await readFile(deleteQueueFile(), "utf8"));
       if (!queue.requests) queue.requests = [];
     } catch {}
     
     queue.requests.push(request);
-    await writeFile(deleteQueueFile, JSON.stringify(queue, null, 2));
+    await writeFile(deleteQueueFile(), JSON.stringify(queue, null, 2));
     
     res.json({
       status: "queued",
@@ -65,7 +71,7 @@ router.delete("/:playerId/item", async (req, res) => {
 // Get delete results
 router.get("/delete-results/all", async (req, res) => {
   try {
-    const results = JSON.parse(await readFile(deleteResultsFile, "utf8"));
+    const results = JSON.parse(await readFile(deleteResultsFile(), "utf8"));
     res.json(results);
   } catch {
     res.json({ requests: [] });

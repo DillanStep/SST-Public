@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy, Trophy } from 'lucide-react';
 import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
@@ -8,12 +8,13 @@ import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId } from 
 import { checkAuth, logout, type User } from './services/auth';
 import api from './services/api';
 
-type TabType = 'dashboard' | 'items' | 'players' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
+type TabType = 'dashboard' | 'items' | 'players' | 'leaderboard' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
 const DISCORD_SUPPORT_URL = 'https://discord.gg/jv52WVbFdj';
 
 const PlayerDashboard = lazy(() => import('./components/features/PlayerDashboard').then((module) => ({ default: module.PlayerDashboard })));
 const ItemSearch = lazy(() => import('./components/features/ItemSearch').then((module) => ({ default: module.ItemSearch })));
 const PlayerManager = lazy(() => import('./components/features/PlayerManager').then((module) => ({ default: module.PlayerManager })));
+const PlayerLeaderboard = lazy(() => import('./components/features/PlayerLeaderboard').then((module) => ({ default: module.PlayerLeaderboard })));
 const FullPageMap = lazy(() => import('./components/features/FullPageMap').then((module) => ({ default: module.FullPageMap })));
 const ServerSettings = lazy(() => import('./components/features/ServerSettings').then((module) => ({ default: module.ServerSettings })));
 const MarketEditor = lazy(() => import('./components/features/MarketEditor').then((module) => ({ default: module.MarketEditor })));
@@ -129,6 +130,7 @@ function App() {
     { id: 'map', label: 'Live Map', icon: <Map size={20} /> },
     { id: 'items', label: 'Item Search', icon: <Search size={20} /> },
     { id: 'players', label: 'Player Manager', icon: <Users size={20} /> },
+    { id: 'leaderboard', label: 'Leaderboard', icon: <Trophy size={20} /> },
     { id: 'vehicles', label: 'Vehicles', icon: <Car size={20} /> },
     { id: 'history', label: 'Player History', icon: <History size={20} /> },
     { id: 'economy', label: 'Economy', icon: <TrendingUp size={20} /> },
@@ -439,6 +441,10 @@ function App() {
 
             {activeTab === 'players' && (
               <PlayerManager isConnected={isConnected} />
+            )}
+
+            {activeTab === 'leaderboard' && (
+              <PlayerLeaderboard isConnected={isConnected} />
             )}
 
             {activeTab === 'market' && (

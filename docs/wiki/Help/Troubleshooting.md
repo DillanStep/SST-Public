@@ -18,6 +18,13 @@
 - Confirm the API is pointed at the same storage `SST/` path the mod is writing to.
 - Verify file permissions allow the API process to read/write those folders.
 
+## Dashboard shows players online after the server stopped
+
+- SST treats `SST/api/online_players.json` as stale when it has not updated for `ONLINE_PLAYERS_STALE_AFTER_MS`.
+- The default timeout is `120000` ms.
+- If a hosted panel delays file updates, raise this value slightly.
+- If stale players still show online, check the file modified time and confirm the dashboard is connected to the right API/server.
+
 ## No `SST` folder was created
 
 - Confirm `@SST` is actually loaded by the DayZ server.

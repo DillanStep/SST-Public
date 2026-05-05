@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ChevronDown, Package, Paperclip, Box, Droplets, Utensils, Trash2 } from 'lucide-react';
 import { Button } from '../ui';
-import type { InventoryItem } from '../../types';
+import { lookupItemImages } from '../../services/api';
+import type { InventoryItem, ItemImageInfo } from '../../types';
 import { flattenInventory } from './inventoryUtils';
 
 // Item type categorization for proper quantity display
@@ -113,14 +114,46 @@ interface InventoryItemRowProps {
   item: InventoryItem;
   depth?: number;
   itemPath?: string;
+  itemImages?: Record<string, ItemImageInfo | null>;
   onGrant?: (className: string) => void;
   onDelete?: (className: string, itemPath: string, displayName: string) => void;
 }
+
+const InventoryItemThumb: React.FC<{
+  image?: ItemImageInfo | null;
+  fallbackIcon: React.ReactNode;
+  className: string;
+  size?: 'sm' | 'md';
+}> = ({ image, fallbackIcon, className, size = 'sm' }) => {
+  const [failed, setFailed] = useState(false);
+  const sizeClass = size === 'md' ? 'h-8 w-8' : 'h-7 w-7';
+
+  if (image?.thumbnailUrl && !failed) {
+    return (
+      <img
+        src={image.thumbnailUrl}
+        alt={image.matchedDisplayName || className}
+        title={`${image.matchedDisplayName || className} - ${image.source?.name || 'DayZ Wiki'}`}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className={`${sizeClass} shrink-0 rounded-md border border-surface-200 bg-white object-contain p-0.5`}
+      />
+    );
+  }
+
+  return (
+    <span className={`${sizeClass} flex shrink-0 items-center justify-center rounded-md text-surface-500`}>
+      {fallbackIcon}
+    </span>
+  );
+};
 
 export const InventoryItemRow: React.FC<InventoryItemRowProps> = ({ 
   item, 
   depth = 0,
   itemPath = '',
+  itemImages = {},
   onGrant,
   onDelete
 }) => {
@@ -154,14 +187,21 @@ export const InventoryItemRow: React.FC<InventoryItemRowProps> = ({
           <span className="w-5" />
         )}
 
-        {/* Item Icon based on type */}
-        {depth === 0 ? (
-          <Package size={14} className="text-primary-500 flex-shrink-0" />
-        ) : item.slotName ? (
-          <Paperclip size={14} className="text-orange-500 flex-shrink-0" />
-        ) : (
-          <Box size={14} className="text-cyan-500 flex-shrink-0" />
-        )}
+        {/* Item Icon / thumbnail based on type */}
+        <InventoryItemThumb
+          image={itemImages[item.className]}
+          className={item.className}
+          size={depth === 0 ? 'md' : 'sm'}
+          fallbackIcon={
+            depth === 0 ? (
+              <Package size={14} className="text-primary-500" />
+            ) : item.slotName ? (
+              <Paperclip size={14} className="text-orange-500" />
+            ) : (
+              <Box size={14} className="text-cyan-500" />
+            )
+          }
+        />
 
         {/* Item Name */}
         <span className={`font-medium truncate flex-1 ${
@@ -290,6 +330,7 @@ export const InventoryItemRow: React.FC<InventoryItemRowProps> = ({
                   item={att} 
                   depth={depth + 1}
                   itemPath={`${itemPath}.attachments.${idx}`}
+                  itemImages={itemImages}
                   onGrant={onGrant}
                   onDelete={onDelete}
                 />
@@ -306,6 +347,7 @@ export const InventoryItemRow: React.FC<InventoryItemRowProps> = ({
                   item={cargo} 
                   depth={depth + 1}
                   itemPath={`${itemPath}.cargo.${idx}`}
+                  itemImages={itemImages}
                   onGrant={onGrant}
                   onDelete={onDelete}
                 />
@@ -325,7 +367,50 @@ interface InventoryTreeProps {
 }
 
 export const InventoryTree: React.FC<InventoryTreeProps> = ({ items, onGrant, onDelete }) => {
-  const allItems = flattenInventory(items);
+  const allItems = useMemo(() => flattenInventory(items), [items]);
+  const [itemImages, setItemImages] = useState<Record<string, ItemImageInfo | null>>({});
+  const imageLookupItems = useMemo(() => {
+    const seen = new Set<string>();
+
+    return allItems
+      .filter((item) => {
+        const key = item.className.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 200)
+      .map((item) => ({
+        className: item.className,
+        displayName: item.displayName,
+      }));
+  }, [allItems]);
+
+  useEffect(() => {
+    if (imageLookupItems.length === 0) {
+      setItemImages({});
+      return;
+    }
+
+    let cancelled = false;
+
+    lookupItemImages(imageLookupItems)
+      .then((result) => {
+        if (!cancelled) {
+          setItemImages(result.images || {});
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn('Failed to load inventory item images:', err);
+          setItemImages({});
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageLookupItems]);
   
   return (
     <div>
@@ -350,6 +435,7 @@ export const InventoryTree: React.FC<InventoryTreeProps> = ({ items, onGrant, on
             item={item} 
             depth={0}
             itemPath={`${idx}`}
+            itemImages={itemImages}
             onGrant={onGrant}
             onDelete={onDelete}
           />

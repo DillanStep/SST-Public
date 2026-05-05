@@ -46,7 +46,7 @@ apps/api/
 │   ├── middleware/         # Express middleware
 │   │   └── auth.js         # API key auth
 │   └── utils/              # Utilities
-│       └── typesParser.js  # types.xml parser
+│       └── typesParser.js  # Mission economy type-file parser
 ├── data/                   # SQLite databases
 ├── docs/                   # Documentation
 └── package.json
@@ -188,9 +188,8 @@ let dashboardCache = null;
 let dashboardCacheTime = 0;
 const CACHE_DURATION = 30 * 1000;
 
-// Types.xml cache (5 minutes)
-let typesCache = null;
-let typesCacheTime = 0;
+// Economy type-file cache (5 minutes, per server profile)
+const typesCacheByKey = new Map();
 const TYPES_CACHE_DURATION = 5 * 60 * 1000;
 ```
 

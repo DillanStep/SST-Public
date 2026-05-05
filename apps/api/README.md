@@ -7,7 +7,7 @@ REST API for DayZ server management. The API bridges the SST dashboard with file
 - 🎮 **Player Management** - View online players, inventory, commands
 - 🚗 **Vehicle Tracking** - Track, locate, and manage vehicles
 - 🎁 **Item Granting** - Grant items to players in-game
-- 📊 **Economy Analysis** - Parse types.xml and market data
+- 📊 **Economy Analysis** - Parse mission economy type files and market data
 - 🗺️ **Position Tracking** - Historical player position data
 - 🏪 **Expansion Integration** - Full market and trader editing
 - 📜 **Log Viewing** - Real-time server log access

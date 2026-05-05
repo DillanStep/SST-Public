@@ -94,13 +94,14 @@ const ENV_GROUPS: EnvGroup[] = [
       { key: 'TRADES_PATH', label: 'Trades Path' },
       { key: 'API_PATH', label: 'API Queue Path' },
       { key: 'ONLINE_PLAYERS_PATH', label: 'Online Players File' },
+      { key: 'ONLINE_PLAYERS_STALE_AFTER_MS', label: 'Online Stale Timeout (ms)', type: 'number' },
     ],
   },
   {
     title: 'Mission & Expansion',
     fields: [
       { key: 'MISSION_PATH', label: 'Mission Files Path' },
-      { key: 'TYPES_PATH', label: 'Types.xml Path' },
+      { key: 'TYPES_PATH', label: 'Main Types.xml Override' },
       { key: 'EXPANSION_ENABLED', label: 'DayZ Expansion', type: 'toggle' },
       { key: 'EXPANSION_TRADERS_PATH', label: 'Expansion Traders Path' },
       { key: 'EXPANSION_MARKET_PATH', label: 'Expansion Market Path' },
@@ -176,6 +177,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
   // Form state
   const [formName, setFormName] = useState('');
   const [formUrl, setFormUrl] = useState('http://localhost:3001');
+  const [formProfile, setFormProfile] = useState('');
   const [formKey, setFormKey] = useState('');
   const [formError, setFormError] = useState('');
   
@@ -253,8 +255,11 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setTestResults(prev => ({ ...prev, [server.id]: null }));
     
     try {
-      const response = await fetch(`${server.apiUrl}/health`, {
-        headers: { 'x-api-key': server.apiKey },
+      const response = await fetch(`${server.apiUrl}/servers`, {
+        headers: {
+          'x-api-key': server.apiKey,
+          ...(server.apiProfile ? { 'x-sst-server': server.apiProfile } : {}),
+        },
       });
       
       if (response.ok) {
@@ -278,11 +283,16 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
 
     const currentServer = servers.find(server => server.id === id);
     const nextApiUrl = formUrl.trim().replace(/\/$/, '');
-    const apiUrlChanged = Boolean(currentServer && currentServer.apiUrl !== nextApiUrl);
+    const nextApiProfile = formProfile.trim();
+    const apiUrlChanged = Boolean(
+      currentServer &&
+      (currentServer.apiUrl !== nextApiUrl || (currentServer.apiProfile || '') !== nextApiProfile)
+    );
 
     updateServer(id, {
       name: formName.trim(),
       apiUrl: nextApiUrl,
+      apiProfile: nextApiProfile,
       apiKey: formKey.trim(),
     });
 
@@ -325,6 +335,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setEditingId(server.id);
     setFormName(server.name);
     setFormUrl(server.apiUrl);
+    setFormProfile(server.apiProfile || '');
     setFormKey(server.apiKey);
     setFormError('');
   };
@@ -334,6 +345,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setEditingId(null);
     setFormName('');
     setFormUrl('http://localhost:3001');
+    setFormProfile('');
     setFormKey('');
     setFormError('');
   };
@@ -387,7 +399,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
 
       if (activeServer && envValues.API_KEY && envValues.API_KEY !== activeServer.apiKey) {
         updateServer(activeServer.id, { apiKey: envValues.API_KEY });
-        api.configure(activeServer.apiUrl, envValues.API_KEY);
+        api.configure(activeServer.apiUrl, envValues.API_KEY, activeServer.apiProfile);
         loadServers();
       }
 
@@ -505,7 +517,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       </div>
 
       <p className="mb-4 text-xs sm:text-sm text-surface-500">
-        Hosting five servers? Run five SST API instances on different ports or hosts, then add each API URL here.
+        Hosting multiple servers? Use one API URL with different API profiles, or separate API URLs if you still run split instances.
       </p>
 
       {/* Server List */}
@@ -535,6 +547,13 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
                     value={formUrl}
                     onChange={(e) => setFormUrl(e.target.value)}
                     placeholder="API URL"
+                    className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={formProfile}
+                    onChange={(e) => setFormProfile(e.target.value)}
+                    placeholder="API Profile (optional)"
                     className="w-full px-3 py-2 rounded-lg border border-surface-300 focus:border-primary-500 outline-none"
                   />
                   <input
@@ -600,6 +619,12 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
                       <Key size={12} />
                       <span className="font-mono text-xs">••••••••{server.apiKey.slice(-4)}</span>
                     </div>
+                    {server.apiProfile && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <SlidersHorizontal size={12} />
+                        <span className="font-mono">{server.apiProfile}</span>
+                      </div>
+                    )}
                     {server.mapPreset && (
                       <div className="flex items-center gap-2 text-xs">
                         <MapIcon size={12} />

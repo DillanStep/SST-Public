@@ -7,7 +7,15 @@ import {
 } from 'lucide-react';
 import { Card, Button } from '../ui';
 import { getEconomyStats, applyPriceChange, applyPriceChangesBulk } from '../../services/api';
-import type { EconomyResponse, PriceRecommendation, EconomyFilterPeriod, EconomyFilterParams } from '../../types';
+import type {
+  EconomyDailyTrendPoint,
+  EconomyForecastPoint,
+  EconomyItemForecast,
+  EconomyResponse,
+  PriceRecommendation,
+  EconomyFilterPeriod,
+  EconomyFilterParams,
+} from '../../types';
 
 interface EconomyDashboardProps {
   isConnected: boolean;
@@ -58,11 +66,191 @@ const getHealthLabel = (health: number): string => {
   return 'Critical';
 };
 
+const formatCompact = (value: number): string => {
+  const abs = Math.abs(value || 0);
+  const sign = value < 0 ? '-' : '';
+  if (abs >= 1000000) return `${sign}${(abs / 1000000).toFixed(1)}M`;
+  if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}K`;
+  return `${Math.round(value || 0)}`;
+};
+
+const formatChartDate = (date: string): string => {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+interface LineSeries<T> {
+  label: string;
+  color: string;
+  getValue: (point: T) => number | null | undefined;
+  dashed?: boolean;
+}
+
+interface LineChartProps<T extends { date: string }> {
+  points: T[];
+  series: LineSeries<T>[];
+  height?: number;
+  yFormatter?: (value: number) => string;
+}
+
+interface ForecastChartPoint {
+  date: string;
+  actualNetFlow?: number;
+  predictedNetFlow?: number;
+  actualTransactions?: number;
+  predictedTransactions?: number;
+}
+
+function LineChart<T extends { date: string }>({
+  points,
+  series,
+  height = 220,
+  yFormatter = formatCompact,
+}: LineChartProps<T>) {
+  const width = 720;
+  const padding = { top: 16, right: 18, bottom: 32, left: 54 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const values = points
+    .flatMap(point => series.map(item => item.getValue(point)))
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  const rawMin = Math.min(0, ...values);
+  const rawMax = Math.max(1, ...values);
+  const range = rawMax - rawMin || 1;
+
+  const xFor = (index: number) => (
+    padding.left + (points.length <= 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth)
+  );
+  const yFor = (value: number) => (
+    padding.top + chartHeight - ((value - rawMin) / range) * chartHeight
+  );
+  const pathSegmentsFor = (item: LineSeries<T>) => {
+    const segments: string[] = [];
+    let current: string[] = [];
+
+    points.forEach((point, index) => {
+      const value = item.getValue(point);
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        if (current.length > 0) {
+          segments.push(current.join(' '));
+          current = [];
+        }
+        return;
+      }
+
+      const command = current.length === 0 ? 'M' : 'L';
+      current.push(`${command} ${xFor(index).toFixed(1)} ${yFor(value).toFixed(1)}`);
+    });
+
+    if (current.length > 0) {
+      segments.push(current.join(' '));
+    }
+
+    return segments;
+  };
+
+  if (points.length === 0) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-surface-200 bg-surface-50 text-sm text-surface-500">
+        No chart data yet
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap gap-3">
+        {series.map(item => (
+          <span key={item.label} className="inline-flex items-center gap-2 text-xs text-surface-600">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[560px] rounded-lg border border-surface-200 bg-white">
+          {[0, 0.25, 0.5, 0.75, 1].map(position => {
+            const y = padding.top + chartHeight * position;
+            const value = rawMax - range * position;
+            return (
+              <g key={position}>
+                <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#e5e7eb" strokeWidth="1" />
+                <text x={padding.left - 8} y={y + 4} textAnchor="end" className="fill-surface-400 text-[11px]">
+                  {yFormatter(value)}
+                </text>
+              </g>
+            );
+          })}
+
+          {rawMin < 0 && rawMax > 0 && (
+            <line
+              x1={padding.left}
+              y1={yFor(0)}
+              x2={width - padding.right}
+              y2={yFor(0)}
+              stroke="#94a3b8"
+              strokeWidth="1.5"
+            />
+          )}
+
+          {series.flatMap(item => pathSegmentsFor(item).map((path, index) => (
+            <path
+              key={`${item.label}-${index}`}
+              d={path}
+              fill="none"
+              stroke={item.color}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={item.dashed ? '7 7' : undefined}
+            />
+          )))}
+
+          {points.map((point, index) => {
+            if (index !== 0 && index !== points.length - 1 && index % Math.ceil(points.length / 5) !== 0) return null;
+            return (
+              <text key={point.date} x={xFor(index)} y={height - 10} textAnchor="middle" className="fill-surface-400 text-[11px]">
+                {formatChartDate(point.date)}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+const forecastTrendLabel = (direction?: string) => {
+  if (direction === 'growing') return 'Trading is trending up';
+  if (direction === 'cooling') return 'Trading is cooling down';
+  return 'Trading is steady';
+};
+
+const trendBadgeClass = (direction?: string) => {
+  if (direction === 'growing') return 'bg-green-50 text-green-700 border-green-200';
+  if (direction === 'cooling') return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-surface-50 text-surface-700 border-surface-200';
+};
+
+const riskSignalClass = (severity: 'info' | 'warning' | 'critical') => {
+  if (severity === 'critical') return 'bg-red-50 border-red-200 text-red-700';
+  if (severity === 'warning') return 'bg-amber-50 border-amber-200 text-amber-700';
+  return 'bg-blue-50 border-blue-200 text-blue-700';
+};
+
+const riskSignalIcon = (severity: 'info' | 'warning' | 'critical') => {
+  if (severity === 'critical' || severity === 'warning') {
+    return <AlertTriangle size={16} className={severity === 'critical' ? 'text-red-600' : 'text-amber-600'} />;
+  }
+  return <Info size={16} className="text-blue-600" />;
+};
+
 export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected }) => {
   const [economy, setEconomy] = useState<EconomyResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'items' | 'traders' | 'pricing' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'items' | 'traders' | 'pricing' | 'activity' | 'forecast'>('overview');
   
   // Date filter state
   const [filterPeriod, setFilterPeriod] = useState<EconomyFilterPeriod>('week');
@@ -232,7 +420,42 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
     );
   }
 
-  const { summary, topItemsByVolume, topItemsBySpending, topTraders, topZones, hourlyActivity, recentTransactions, priceRecommendations } = economy;
+  const {
+    summary,
+    topItemsByVolume,
+    topItemsBySpending,
+    topTraders,
+    topZones,
+    hourlyActivity,
+    dailyTrend = [],
+    marketForecast,
+    itemForecasts = [],
+    recentTransactions,
+    priceRecommendations,
+    spawnStats
+  } = economy;
+  const dailyTrendPoints: EconomyDailyTrendPoint[] = dailyTrend.slice(-30);
+  const next7Days: EconomyForecastPoint[] = marketForecast?.next7Days ?? [];
+  const featuredItemForecasts: EconomyItemForecast[] = itemForecasts.slice(0, 8);
+  const spawnSourceCount = spawnStats?.sourceFileCount ?? spawnStats?.sources?.length ?? 0;
+  const economyCoreRefCount = spawnStats?.economyCore?.typeFileRefs ?? 0;
+  const economyCoreLoadedCount = spawnStats?.economyCore?.loadedFileRefs ?? 0;
+  const hasForecastHistory = dailyTrend.length > 0;
+  const actualForecastWindow = dailyTrend.slice(-14);
+  const forecastChartPoints: ForecastChartPoint[] = [
+    ...actualForecastWindow.map((day, index) => ({
+      date: day.date,
+      actualNetFlow: day.cumulativeNetFlow,
+      actualTransactions: day.transactions,
+      predictedNetFlow: index === actualForecastWindow.length - 1 ? day.cumulativeNetFlow : undefined,
+      predictedTransactions: index === actualForecastWindow.length - 1 ? day.transactions : undefined,
+    })),
+    ...next7Days.map(day => ({
+      date: day.date,
+      predictedNetFlow: day.predictedCumulativeNetFlow,
+      predictedTransactions: day.predictedTransactions,
+    })),
+  ];
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <BarChart3 size={16} /> },
@@ -240,6 +463,7 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
     { id: 'pricing', label: 'Pricing', icon: <Tag size={16} />, badge: priceRecommendations?.filter(r => r.severity !== 'info').length || 0 },
     { id: 'traders', label: 'Traders & Zones', icon: <Store size={16} /> },
     { id: 'activity', label: 'Activity', icon: <Activity size={16} /> },
+    { id: 'forecast', label: 'Forecasts', icon: <TrendingUp size={16} />, badge: marketForecast?.riskSignals?.filter(signal => signal.severity !== 'info').length || 0 },
   ];
 
   return (
@@ -253,6 +477,12 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
             <p className="text-sm text-surface-500">
               Last updated: {new Date(economy.generatedAt).toLocaleString()}
             </p>
+            {spawnStats && (
+              <p className="text-xs text-surface-400">
+                Spawn data: {spawnStats.totalItems.toLocaleString()} items from {spawnSourceCount} type {spawnSourceCount === 1 ? 'file' : 'files'}
+                {spawnStats.economyCore?.found && `, ${economyCoreLoadedCount}/${economyCoreRefCount} cfgeconomycore entries`}
+              </p>
+            )}
           </div>
         </div>
         <Button
@@ -566,6 +796,41 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
       <Card compact>
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {dailyTrendPoints.length > 0 && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
+                    <Activity size={16} />
+                    Trade Volume Trend
+                  </h3>
+                  <LineChart
+                    points={dailyTrendPoints}
+                    series={[
+                      { label: 'Transactions', color: '#2563eb', getValue: day => day.transactions },
+                      { label: 'Purchases', color: '#16a34a', getValue: day => day.purchases },
+                      { label: 'Sales', color: '#f59e0b', getValue: day => day.sales },
+                    ]}
+                    yFormatter={value => Math.round(value).toLocaleString()}
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
+                    <DollarSign size={16} />
+                    Daily Money Flow
+                  </h3>
+                  <LineChart
+                    points={dailyTrendPoints}
+                    series={[
+                      { label: 'Spent at traders', color: '#dc2626', getValue: day => day.moneySpent },
+                      { label: 'Earned from traders', color: '#059669', getValue: day => day.moneyEarned },
+                    ]}
+                    yFormatter={formatCurrency}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Money Flow */}
             <div>
               <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
@@ -807,6 +1072,170 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
           </div>
         )}
 
+        {activeTab === 'forecast' && (
+          <div className="space-y-6">
+            {!marketForecast || !hasForecastHistory ? (
+              <div className="text-center py-8 text-surface-500">
+                <TrendingUp size={32} className="mx-auto mb-3 opacity-50" />
+                <p>No forecast data yet.</p>
+                <p className="text-sm mt-1">Forecasts start once trade history is available.</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className={`rounded-lg border p-4 ${trendBadgeClass(marketForecast.trend.direction)}`}>
+                    <div className="text-xs font-medium uppercase tracking-wide opacity-80">Market Direction</div>
+                    <div className="mt-2 text-lg font-semibold">{forecastTrendLabel(marketForecast.trend.direction)}</div>
+                    <div className="mt-1 text-xs opacity-80">
+                      {marketForecast.trend.transactionsSlope >= 0 ? '+' : ''}{marketForecast.trend.transactionsSlope} transactions/day
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-surface-200 bg-surface-50 p-4">
+                    <div className="text-xs font-medium uppercase tracking-wide text-surface-500">Forecast Confidence</div>
+                    <div className="mt-2 text-3xl font-bold text-surface-800">{marketForecast.confidence}%</div>
+                    <div className="mt-2 h-2 rounded-full bg-surface-200">
+                      <div
+                        className="h-2 rounded-full bg-primary-500"
+                        style={{ width: `${marketForecast.confidence}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-surface-200 bg-surface-50 p-4">
+                    <div className="text-xs font-medium uppercase tracking-wide text-surface-500">Projected 7 Day Flow</div>
+                    <div className={`mt-2 text-3xl font-bold ${
+                      next7Days.reduce((sum, day) => sum + day.predictedNetFlow, 0) >= 0 ? 'text-green-700' : 'text-red-700'
+                    }`}>
+                      {formatCurrency(next7Days.reduce((sum, day) => sum + day.predictedNetFlow, 0))}
+                    </div>
+                    <div className="mt-1 text-xs text-surface-500">
+                      {next7Days.reduce((sum, day) => sum + day.predictedTransactions, 0).toLocaleString()} predicted trades
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
+                      <DollarSign size={16} />
+                      Net Flow Projection
+                    </h3>
+                    <LineChart
+                      points={forecastChartPoints}
+                      series={[
+                        { label: 'Actual net flow', color: '#2563eb', getValue: point => point.actualNetFlow },
+                        { label: 'Forecast net flow', color: '#7c3aed', getValue: point => point.predictedNetFlow, dashed: true },
+                      ]}
+                      yFormatter={formatCurrency}
+                    />
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
+                      <Activity size={16} />
+                      Transaction Forecast
+                    </h3>
+                    <LineChart
+                      points={forecastChartPoints}
+                      series={[
+                        { label: 'Actual trades', color: '#16a34a', getValue: point => point.actualTransactions },
+                        { label: 'Forecast trades', color: '#f59e0b', getValue: point => point.predictedTransactions, dashed: true },
+                      ]}
+                      yFormatter={value => Math.round(value).toLocaleString()}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Market Signals
+                  </h3>
+                  {marketForecast.riskSignals.length === 0 ? (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                      No obvious market pressure detected.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {marketForecast.riskSignals.map(signal => (
+                        <div key={signal.type} className={`rounded-lg border p-3 ${riskSignalClass(signal.severity)}`}>
+                          <div className="flex items-start gap-2">
+                            <div className="mt-0.5">{riskSignalIcon(signal.severity)}</div>
+                            <div>
+                              <div className="font-semibold">{signal.title}</div>
+                              <div className="mt-1 text-xs opacity-85">{signal.detail}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-surface-600 mb-3 flex items-center gap-2">
+                    <Package size={16} />
+                    Item Demand Forecast
+                  </h3>
+                  {featuredItemForecasts.length === 0 ? (
+                    <div className="text-center py-8 text-surface-500">
+                      <Package size={32} className="mx-auto mb-3 opacity-50" />
+                      <p>No item forecasts yet.</p>
+                      <p className="text-sm mt-1">Items need at least 3 trades before they appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-surface-200">
+                            <th className="text-left py-2 px-2">Item</th>
+                            <th className="text-right py-2 px-2">Demand</th>
+                            <th className="text-right py-2 px-2">Trend</th>
+                            <th className="text-right py-2 px-2">Predicted/Day</th>
+                            <th className="text-right py-2 px-2">Avg Price</th>
+                            <th className="text-right py-2 px-2">Confidence</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {featuredItemForecasts.map(item => {
+                            const isUp = item.trendDirection === 'up';
+                            const isDown = item.trendDirection === 'down';
+                            return (
+                              <tr key={item.className} className="border-b border-surface-100 hover:bg-surface-50">
+                                <td className="py-2 px-2">
+                                  <div className="font-medium text-surface-800">{item.displayName}</div>
+                                  <div className="text-xs text-surface-400">{item.totalVolume} trades</div>
+                                </td>
+                                <td className="py-2 px-2 text-right">
+                                  <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+                                    {item.demandScore}
+                                  </span>
+                                </td>
+                                <td className={`py-2 px-2 text-right font-medium ${
+                                  isUp ? 'text-green-600' : isDown ? 'text-red-600' : 'text-surface-600'
+                                }`}>
+                                  <span className="inline-flex items-center justify-end gap-1">
+                                    {isUp ? <ArrowUp size={14} /> : isDown ? <ArrowDown size={14} /> : <Activity size={14} />}
+                                    {item.trendDirection}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2 text-right">{item.predictedDailyVolume}</td>
+                                <td className="py-2 px-2 text-right">{formatCurrency(item.avgPrice)}</td>
+                                <td className="py-2 px-2 text-right">{item.confidence}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {activeTab === 'pricing' && (
           <div className="space-y-6">
             {/* Pricing Recommendations Header */}
@@ -816,10 +1245,28 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
                 Pricing Recommendations
               </h3>
               <p className="text-xs text-surface-500 mb-4">
-                Based on buy/sell ratios, trading volume, AND spawn rates from types.xml. 
+                Based on buy/sell ratios, trading volume, and spawn rates from loaded mission type files.
                 Items are flagged if their price doesn't match their rarity - common items shouldn't be expensive, rare items shouldn't be cheap.
               </p>
             </div>
+
+            {spawnStats && (
+              <div className="bg-surface-50 rounded-lg p-3 text-xs text-surface-600">
+                <div className="font-medium text-surface-700">
+                  {spawnSourceCount} type {spawnSourceCount === 1 ? 'file' : 'files'} loaded for {spawnStats.totalItems.toLocaleString()} economy items
+                </div>
+                {spawnStats.economyCore?.found && (
+                  <div className="mt-1 text-surface-500">
+                    cfgeconomycore.xml: {economyCoreLoadedCount}/{economyCoreRefCount} referenced type {economyCoreRefCount === 1 ? 'file' : 'files'} loaded
+                  </div>
+                )}
+                {(spawnStats.missingFiles.length > 0 || spawnStats.errors.length > 0) && (
+                  <div className="mt-1 text-amber-700">
+                    {spawnStats.missingFiles.length + spawnStats.errors.length} type source {spawnStats.missingFiles.length + spawnStats.errors.length === 1 ? 'issue' : 'issues'} detected
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Legend */}
             <div className="flex flex-wrap gap-4 text-xs">
@@ -839,7 +1286,7 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
 
             {/* Spawn Rating Legend */}
             <div className="bg-surface-50 rounded-lg p-3">
-              <div className="text-xs font-medium text-surface-600 mb-2">Spawn Ratings (from types.xml nominal values):</div>
+              <div className="text-xs font-medium text-surface-600 mb-2">Spawn Ratings (from loaded nominal values):</div>
               <div className="flex flex-wrap gap-3 text-xs">
                 <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-700">Extremely Rare (1-2)</span>
                 <span className="px-2 py-0.5 rounded bg-red-100 text-red-700">Very Rare (3-5)</span>
@@ -918,8 +1365,8 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
                     increase_buy_price: 'Consider Raising Price',
                     decrease_sell_price: 'Consider Lowering Sell Price',
                     balanced_high_volume: 'Pricing Optimal',
-                    overpriced_common: '⚠️ Overpriced for Spawn Rate',
-                    underpriced_rare: '⚠️ Underpriced for Rarity'
+                    overpriced_common: 'Overpriced for Spawn Rate',
+                    underpriced_rare: 'Underpriced for Rarity'
                   };
                   
                   // Get spawn rating badge color
@@ -1050,7 +1497,7 @@ export const EconomyDashboard: React.FC<EconomyDashboardProps> = ({ isConnected 
 
             {/* Disclaimer */}
             <div className="bg-surface-100 rounded-lg p-3 text-xs text-surface-500">
-              <strong>Note:</strong> Recommendations are based on trading patterns AND spawn rates from types.xml.
+              <strong>Note:</strong> Recommendations are based on trading patterns and spawn rates from loaded mission type files.
               Items that spawn frequently (high nominal) shouldn't command high prices. 
               Rare items (low nominal) should be more valuable. Consider your server's unique economy before making changes.
             </div>

@@ -856,6 +856,8 @@ class SST_OnlinePlayerTracker
 	{
 		ref SST_OnlinePlayersData exportData = new SST_OnlinePlayersData();
 		exportData.generatedAt = GetUTCTimestamp();
+		exportData.modVersion = SST_ModInfo.VERSION;
+		exportData.protocolVersion = SST_ModInfo.PROTOCOL_VERSION;
 
 		int onlineCount = 0;
 
@@ -874,39 +876,10 @@ class SST_OnlinePlayerTracker
 		exportData.onlineCount = onlineCount;
 
 		string errorMsg;
-		string signature = BuildOnlinePlayersSignature(exportData);
-		if (!SST_Persistence<SST_OnlinePlayersData>.SaveJsonIfChanged(ONLINE_PLAYERS_FILE, exportData, signature, errorMsg))
+		if (!SST_Persistence<SST_OnlinePlayersData>.SaveJson(ONLINE_PLAYERS_FILE, exportData, errorMsg))
 		{
 			Print("[SST] ERROR: Failed to save online players: " + errorMsg);
 		}
-	}
-
-	protected string BuildOnlinePlayersSignature(SST_OnlinePlayersData exportData)
-	{
-		if (!exportData)
-			return "";
-
-		string signature = exportData.onlineCount.ToString() + "|" + exportData.players.Count().ToString();
-
-		for (int i = 0; i < exportData.players.Count(); i++)
-		{
-			SST_OnlinePlayerData playerData = exportData.players.Get(i);
-			if (!playerData)
-				continue;
-
-			signature = signature + "|" + playerData.playerId + "|" + BoolSignature(playerData.isOnline) + "|" + BoolSignature(playerData.isAlive) + "|" + BoolSignature(playerData.isUnconscious);
-			signature = signature + "|" + playerData.posX.ToString() + "|" + playerData.posY.ToString() + "|" + playerData.posZ.ToString();
-			signature = signature + "|" + playerData.health.ToString() + "|" + playerData.blood.ToString() + "|" + playerData.water.ToString() + "|" + playerData.energy.ToString();
-		}
-
-		return signature;
-	}
-
-	protected string BoolSignature(bool value)
-	{
-		if (value)
-			return "1";
-		return "0";
 	}
 
 	// Clean up disconnected players after 24 hours (optional maintenance)

@@ -18,6 +18,7 @@ Important settings:
 - `API_KEY`: leave blank to generate on first startup, or set your own 32+ byte secret.
 - `JWT_SECRET`: leave blank to generate on first startup, or set your own 32+ byte secret.
 - `AUTH_DB_PATH`: optional dashboard user/session database path. Set this per server when running multiple API instances from one SST install.
+- `ONLINE_PLAYERS_STALE_AFTER_MS`: how old `online_players.json` can be before SST treats all players as offline. Default: `120000`.
 - `CORS_ORIGIN`: set to your dashboard origin for production.
 - `EXPANSION_ENABLED`: set to `1` only if you use DayZ Expansion features.
 

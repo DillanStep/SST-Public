@@ -3,7 +3,7 @@
 The Economy view combines:
 
 - trade logs (Expansion Market)
-- spawn/type data (types.xml)
+- spawn/type data from mission `db/types.xml` plus `cfgeconomycore.xml` type-file additions
 
 ## Backing API endpoints
 

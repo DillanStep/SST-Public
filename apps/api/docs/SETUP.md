@@ -115,7 +115,12 @@ DayZServer/
 │       └── vehicles/
 └── mpmissions/
     └── dayzOffline.chernarusplus/
-        └── types.xml
+        ├── db/
+        │   └── types.xml
+        ├── cfgeconomycore.xml
+        └── ModTypes/
+            └── ExampleMod/
+                └── ExampleMod_Types.xml
 ```
 
 ---

@@ -668,17 +668,18 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       onChange={(e) => setMissionPath(e.target.value)}
                       placeholder="HostHavocDayZServer/mpmissions/dayzOffline.chernarusplus"
                     />
-                    <p className="text-xs text-surface-400 mt-1">Folder containing db/types.xml and mission economy files.</p>
+                    <p className="text-xs text-surface-400 mt-1">Folder containing db/types.xml, cfgeconomycore.xml, and mission economy files.</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-surface-600 mb-2">Custom Types.xml Path (Optional)</label>
+                    <label className="block text-sm font-medium text-surface-600 mb-2">Custom Main Types.xml Path (Optional)</label>
                     <Input
                       type="text"
                       value={typesPath}
                       onChange={(e) => setTypesPath(e.target.value)}
                       placeholder="HostHavocDayZServer/mpmissions/dayzOffline.chernarusplus/db/types.xml"
                     />
+                    <p className="text-xs text-surface-400 mt-1">Only needed if the base types.xml is outside the mission db folder. cfgeconomycore.xml additions are loaded automatically.</p>
                   </div>
 
                   <label className="flex items-center gap-3 rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm text-surface-700">
@@ -745,6 +746,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       onChange={(e) => setMissionPath(e.target.value)}
                       placeholder="C:\\DayZServer\\mpmissions\\dayzOffline.chernarusplus"
                     />
+                    <p className="text-xs text-surface-400 mt-1">Folder containing db/types.xml, cfgeconomycore.xml, and mission economy files.</p>
                   </div>
 
                   <div>
@@ -934,7 +936,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                     )}
                     {typesPath && (
                       <div className="flex justify-between">
-                        <span className="text-surface-500">Types.xml:</span>
+                        <span className="text-surface-500">Main Types.xml Override:</span>
                         <span className="text-surface-700 font-medium font-mono text-xs text-right break-all">{typesPath}</span>
                       </div>
                     )}

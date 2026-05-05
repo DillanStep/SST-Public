@@ -13,6 +13,11 @@ function formatVersion(version: string | null | undefined): string {
   return normalized ? `v${normalized}` : 'Version unknown';
 }
 
+function formatReportedVersion(version: string | null | undefined): string {
+  const normalized = String(version || '').trim().replace(/^v/i, '');
+  return normalized ? `v${normalized}` : 'Mod unknown';
+}
+
 function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Update check failed';
 }
@@ -82,6 +87,11 @@ export function UpdateStatusBadge({ compact = false, className = '' }: UpdateSta
 
   const currentVersion = formatVersion(status?.currentVersion);
   const latestVersion = formatVersion(status?.latestVersion);
+  const modStatus = status?.mod;
+  const hasModMismatch = Boolean(modStatus?.mismatch);
+  const hasStaleModHeartbeat = modStatus?.status === 'stale';
+  const hasModAttention = hasModMismatch || hasStaleModHeartbeat;
+  const modDetail = formatReportedVersion(modStatus?.reportedVersion);
   const isInitialCheck = checking && !status && !error;
 
   let label = 'Version';
@@ -102,6 +112,11 @@ export function UpdateStatusBadge({ compact = false, className = '' }: UpdateSta
     label = 'Update checks off';
     detail = currentVersion;
     icon = <ShieldCheck size={16} />;
+  } else if (hasModAttention) {
+    label = hasStaleModHeartbeat ? 'Mod heartbeat stale' : 'Mod mismatch';
+    detail = hasStaleModHeartbeat && !modStatus?.reportedVersion ? 'No heartbeat' : modDetail;
+    tone = 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100';
+    icon = <AlertTriangle size={16} />;
   } else if (status?.updateAvailable) {
     label = 'Update available';
     detail = `${currentVersion} -> ${latestVersion}`;
@@ -114,7 +129,8 @@ export function UpdateStatusBadge({ compact = false, className = '' }: UpdateSta
     icon = <CheckCircle2 size={16} />;
   }
 
-  const title = error ? `${label}: ${error}` : `${label} (${detail})`;
+  const modTitle = modStatus ? ` Mod: ${modStatus.message}` : '';
+  const title = error ? `${label}: ${error}` : `${label} (${detail}).${modTitle}`;
 
   return (
     <button
