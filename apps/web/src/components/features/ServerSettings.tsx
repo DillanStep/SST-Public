@@ -452,7 +452,11 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       const mapDefaults = getMapPresetDefaults(envValues.MAP_PRESET);
 
       if (activeServer && envValues.API_KEY && envValues.API_KEY !== activeServer.apiKey) {
-        updateServer(activeServer.id, { apiKey: envValues.API_KEY });
+        for (const server of servers) {
+          if (server.apiUrl === activeServer.apiUrl) {
+            updateServer(server.id, { apiKey: envValues.API_KEY });
+          }
+        }
         api.configure(activeServer.apiUrl, envValues.API_KEY, activeServer.apiProfile);
       }
 

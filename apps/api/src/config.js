@@ -2,6 +2,7 @@ import "./appConfig.js";
 import { existsSync } from "fs";
 import { loadProviderConfig } from "./providerConfig.js";
 import { getDefaultServerContext, getServerContext, setServerContexts } from "./serverContext.js";
+import { listProfileEnvFiles, normalizeEnvProfileId, readEnvVars, resolveEnvPathForWrite } from "./utils/envFile.js";
 
 const PROVIDER_SCOPED_ENV_KEYS = [
   "STORAGE_BACKEND",
@@ -242,7 +243,7 @@ function buildFeatures(env) {
   };
 }
 
-function createRuntimeContext({ id, name, env, provider = null, aliases = [], isDefault = false }) {
+function createRuntimeContext({ id, name, env, provider = null, aliases = [], isDefault = false, envPath = null }) {
   const runtimeEnv = { ...env };
   const runtimePaths = buildPaths(runtimeEnv);
   const runtimeFeatures = buildFeatures(runtimeEnv);
@@ -259,34 +260,78 @@ function createRuntimeContext({ id, name, env, provider = null, aliases = [], is
     provider,
     backend,
     isDefault,
+    envPath,
   };
+}
+
+function titleFromProfileId(profileId) {
+  return String(profileId || "")
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Server";
+}
+
+function profileEnvFileToContext(profileFile, providerConfig) {
+  const profileEnv = readEnvVars(profileFile.path);
+  const id = normalizeEnvProfileId(profileEnv.SST_PROFILE_ID || profileFile.id);
+  const name = String(profileEnv.SST_PROFILE_NAME || "").trim() || titleFromProfileId(id);
+  const env = buildBaseProviderEnv(providerConfig);
+
+  env.HOST_PROVIDER = id;
+  applyEnvObject(env, profileEnv);
+
+  return createRuntimeContext({
+    id,
+    name,
+    env,
+    provider: {
+      backend: profileEnv.STORAGE_BACKEND || "local",
+      envPath: profileFile.path,
+    },
+    aliases: [profileFile.fileName, name],
+    envPath: profileFile.path,
+  });
 }
 
 function buildRuntimeContexts() {
   const providerConfig = loadProviderConfig();
   const activeProviderName = process.env.HOST_PROVIDER || providerConfig?.active || "default";
   const contexts = [];
+  const usedIds = new Set();
 
   if (providerConfig?.providers && typeof providerConfig.providers === "object") {
     for (const [providerName, provider] of Object.entries(providerConfig.providers)) {
       const providerEnv = providerToEnv(providerName, providerConfig, provider);
-      contexts.push(createRuntimeContext({
+      const context = createRuntimeContext({
         id: providerName,
         name: providerName,
         env: providerEnv,
         provider,
         aliases: provider?.aliases || [],
         isDefault: providerName === activeProviderName,
-      }));
+      });
+      contexts.push(context);
+      usedIds.add(context.id);
     }
   } else {
-    contexts.push(createRuntimeContext({
+    const context = createRuntimeContext({
       id: "default",
       name: "Default",
       env: process.env,
       provider: null,
+      envPath: resolveEnvPathForWrite(),
       isDefault: true,
-    }));
+    });
+    contexts.push(context);
+    usedIds.add(context.id);
+  }
+
+  for (const profileFile of listProfileEnvFiles()) {
+    const context = profileEnvFileToContext(profileFile, providerConfig);
+    if (usedIds.has(context.id)) continue;
+    contexts.push(context);
+    usedIds.add(context.id);
   }
 
   if (contexts.length === 0) {
@@ -295,6 +340,7 @@ function buildRuntimeContexts() {
       name: "Default",
       env: process.env,
       provider: null,
+      envPath: resolveEnvPathForWrite(),
       isDefault: true,
     }));
   }
@@ -302,8 +348,18 @@ function buildRuntimeContexts() {
   return { contexts, activeProviderName };
 }
 
-const { contexts: runtimeContexts, activeProviderName } = buildRuntimeContexts();
-setServerContexts(runtimeContexts, activeProviderName);
+let runtimeContexts = [];
+let activeProviderName = "default";
+
+export function reloadRuntimeContexts() {
+  const nextRuntime = buildRuntimeContexts();
+  runtimeContexts = nextRuntime.contexts;
+  activeProviderName = nextRuntime.activeProviderName;
+  setServerContexts(runtimeContexts, activeProviderName);
+  return runtimeContexts;
+}
+
+reloadRuntimeContexts();
 
 function currentContext() {
   const context = getServerContext();
@@ -334,6 +390,7 @@ export function getConfiguredServerProfiles() {
     backend: context.backend,
     isDefault: context.id === defaultId,
     aliases: context.aliases,
+    envPath: context.envPath || null,
     paths: {
       sst: context.paths.sst,
       api: context.paths.api,

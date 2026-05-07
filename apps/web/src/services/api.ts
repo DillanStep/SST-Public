@@ -77,6 +77,8 @@ import type {
   RuntimeConfigResponse,
   RuntimeConfigUpdateResponse,
   RuntimeEnvValues,
+  CreateServerProfileRequest,
+  CreateServerProfileResponse,
   ConfigBrowseMode,
   ConfigBrowseResponse,
   ServerMapConfig,
@@ -197,6 +199,11 @@ class SstApi {
 
   async updateRuntimeConfig(env: RuntimeEnvValues): Promise<RuntimeConfigUpdateResponse> {
     const response = await this.client.put<RuntimeConfigUpdateResponse>('/config', { env });
+    return response.data;
+  }
+
+  async createServerProfile(payload: CreateServerProfileRequest): Promise<CreateServerProfileResponse> {
+    const response = await this.client.post<CreateServerProfileResponse>('/servers/profiles', payload);
     return response.data;
   }
 
@@ -670,6 +677,7 @@ export const getApiKey = () => api.getApiKey();
 export const getHealth = () => api.getHealth();
 export const getRuntimeConfig = () => api.getRuntimeConfig();
 export const updateRuntimeConfig = (env: RuntimeEnvValues) => api.updateRuntimeConfig(env);
+export const createServerProfile = (payload: CreateServerProfileRequest) => api.createServerProfile(payload);
 export const browseConfigPath = (path?: string, mode?: ConfigBrowseMode) => api.browseConfigPath(path, mode);
 export const getMapConfig = () => api.getMapConfig();
 export const getDashboard = () => api.getDashboard();

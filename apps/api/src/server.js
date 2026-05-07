@@ -18,6 +18,7 @@ import {
   paths,
   features,
   logConfig,
+  reloadRuntimeContexts,
 } from "./config.js";
 import { getAllServerContexts, runWithServerContext, serverContextMiddleware } from "./serverContext.js";
 import { initAuthDb } from "./auth/authDb.js";
@@ -46,7 +47,7 @@ import archiveRoutes from "./routes/archive.js";
 import vehiclesRoutes from "./routes/vehicles.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import updateRoutes from "./routes/updates.js";
-import { readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
+import { normalizeEnvProfileId, readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
 import { getOnlinePlayersSnapshot } from "./utils/onlinePlayers.js";
 import { startModActivityMonitor } from "./utils/modActivityMonitor.js";
@@ -114,6 +115,47 @@ const CONFIG_ENV_KEYS = [
 ];
 
 const CONFIG_ENV_KEY_SET = new Set(CONFIG_ENV_KEYS);
+const PROFILE_SCOPED_ENV_KEYS = new Set([
+  "STORAGE_BACKEND",
+  "FTP_HOST",
+  "FTP_PORT",
+  "FTP_USER",
+  "FTP_PASSWORD",
+  "FTP_SECURE",
+  "FTP_ROOT",
+  "SFTP_HOST",
+  "SFTP_PORT",
+  "SFTP_USER",
+  "SFTP_PASSWORD",
+  "SFTP_ROOT",
+  "SST_PATH",
+  "INVENTORIES_PATH",
+  "EVENTS_PATH",
+  "LIFE_EVENTS_PATH",
+  "TRADES_PATH",
+  "API_PATH",
+  "ONLINE_PLAYERS_PATH",
+  "ONLINE_PLAYERS_STALE_AFTER_MS",
+  "AI_POSITIONS_PATH",
+  "AI_POSITIONS_STALE_AFTER_MS",
+  "EXPANSION_ENABLED",
+  "EXPANSION_TRADERS_PATH",
+  "EXPANSION_MARKET_PATH",
+  "EXPANSION_ATM_PATH",
+  "MISSION_PATH",
+  "TYPES_PATH",
+  "MAP_PRESET",
+  "MAP_LABEL",
+  "MAP_IMAGE_URL",
+  "MAP_WORLD_SIZE_X",
+  "MAP_WORLD_SIZE_Z",
+  "MAP_INVERT_X",
+  "MAP_INVERT_Z",
+  "PROFILES_PATH",
+  "DATABASE_PATH",
+  "POSITION_TRACKING_INTERVAL",
+  "ARCHIVE_DB_PATH",
+]);
 const PATH_ENV_KEYS = new Set([
   "SST_API_PROVIDER_CONFIG",
   "FTP_ROOT",
@@ -342,20 +384,27 @@ function normalizeEnvSetting(key, value) {
 }
 
 function getConfigEnvSnapshot() {
-  const envPath = resolveEnvPathForWrite();
-  const fileVars = readEnvVars(envPath);
+  const runtimeContext = getRuntimeContext();
+  const globalEnvPath = resolveEnvPathForWrite();
+  const envPath = runtimeContext.envPath || globalEnvPath;
+  const profileFileVars = readEnvVars(envPath);
+  const globalFileVars = envPath === globalEnvPath ? profileFileVars : readEnvVars(globalEnvPath);
   const runtimeEnv = getRuntimeEnvSnapshot();
   const env = {};
 
   for (const key of CONFIG_ENV_KEYS) {
-    env[key] = runtimeEnv[key] ?? fileVars[key] ?? process.env[key] ?? "";
+    const fileVars = runtimeContext.envPath && PROFILE_SCOPED_ENV_KEYS.has(key)
+      ? profileFileVars
+      : globalFileVars;
+
+    env[key] = fileVars[key] ?? runtimeEnv[key] ?? process.env[key] ?? "";
   }
 
   if (!env.API_KEY) {
     env.API_KEY = getApiKey();
   }
 
-  return { envPath, env };
+  return { envPath, globalEnvPath, env };
 }
 
 // Configure CORS to allow requests from any origin (or specify your dashboard URL)
@@ -580,9 +629,81 @@ function listBrowseEntries(currentPath, mode) {
   return entries.slice(0, 500);
 }
 
+function getEnvWritePathForKey(key, runtimeContext) {
+  if (runtimeContext?.envPath && PROFILE_SCOPED_ENV_KEYS.has(key)) {
+    return runtimeContext.envPath;
+  }
+
+  return resolveEnvPathForWrite();
+}
+
+function describeEnvFiles(pathsToDescribe) {
+  return [...new Set(pathsToDescribe)].map((filePath) => basename(filePath)).join(", ");
+}
+
+function upsertIfPresent(envPath, key, value) {
+  const rawValue = value === undefined || value === null ? "" : String(value).trim();
+  if (!rawValue) return false;
+  upsertEnvVar(envPath, key, rawValue);
+  return true;
+}
+
 // Health check - no auth required
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+app.post("/servers/profiles", requireApiKey, requireAuth, requireAdmin, (req, res) => {
+  const serverName = String(req.body?.name || req.body?.serverName || "").trim();
+  const profileId = normalizeEnvProfileId(req.body?.profile || serverName, "");
+
+  if (!serverName) {
+    return res.status(400).json({ error: "Server name is required." });
+  }
+
+  if (!profileId) {
+    return res.status(400).json({ error: "API profile is required." });
+  }
+
+  const envPath = resolveEnvPathForWrite(profileId);
+
+  try {
+    upsertEnvVar(envPath, "SST_PROFILE_ID", profileId);
+    upsertEnvVar(envPath, "SST_PROFILE_NAME", serverName);
+    upsertEnvVar(envPath, "STORAGE_BACKEND", String(req.body?.storageBackend || "local"));
+
+    upsertIfPresent(envPath, "MAP_PRESET", req.body?.mapPreset);
+    upsertIfPresent(envPath, "MAP_LABEL", req.body?.mapLabel);
+    upsertIfPresent(envPath, "MAP_IMAGE_URL", req.body?.mapImageUrl);
+    upsertIfPresent(envPath, "MAP_WORLD_SIZE_X", req.body?.mapWorldSizeX);
+    upsertIfPresent(envPath, "MAP_WORLD_SIZE_Z", req.body?.mapWorldSizeZ);
+
+    if (req.body?.mapInvertX !== undefined) {
+      upsertEnvVar(envPath, "MAP_INVERT_X", req.body.mapInvertX ? "1" : "0");
+    }
+
+    if (req.body?.mapInvertZ !== undefined) {
+      upsertEnvVar(envPath, "MAP_INVERT_Z", req.body.mapInvertZ ? "1" : "0");
+    }
+
+    reloadRuntimeContexts();
+
+    res.json({
+      ok: true,
+      profile: {
+        id: profileId,
+        name: serverName,
+        envPath,
+      },
+      profiles: getConfiguredServerProfiles(),
+      message: `Created ${basename(envPath)} for ${serverName}.`,
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: "Failed to create server profile",
+      details: err?.message || String(err),
+    });
+  }
 });
 
 app.use(serverContextMiddleware);
@@ -801,8 +922,10 @@ app.put("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
     return res.status(400).json({ error: "env object is required" });
   }
 
+  const runtimeContext = getRuntimeContext();
   const { envPath, env: currentEnv } = getConfigEnvSnapshot();
   const updated = [];
+  const updatedEnvPaths = [];
 
   try {
     for (const [key, value] of Object.entries(updates)) {
@@ -815,10 +938,13 @@ app.put("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
         continue;
       }
 
-      upsertEnvVar(envPath, key, normalized);
+      const writePath = getEnvWritePathForKey(key, runtimeContext);
+      upsertEnvVar(writePath, key, normalized);
       updated.push(key);
+      updatedEnvPaths.push(writePath);
     }
 
+    const savedFiles = describeEnvFiles(updatedEnvPaths);
     res.json({
       ok: true,
       envPath,
@@ -826,7 +952,7 @@ app.put("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
       restartRequired: updated.length > 0,
       restartInMs: updated.length > 0 ? 1500 : 0,
       message: updated.length > 0
-        ? "Saved settings to .env. Restarting API to apply changes."
+        ? `Saved settings to ${savedFiles}. Restarting API to apply changes.`
         : "No settings changed.",
     });
 

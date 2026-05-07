@@ -125,6 +125,26 @@ export function clearAuthTokenForServer(serverId: string | null): void {
   sessionStorage.removeItem(keys.session);
 }
 
+export function copyAuthTokenToServer(serverId: string): void {
+  const currentKeys = getScopedTokenKeys();
+  const targetKeys = getScopedTokenKeys(serverId);
+  const localToken = localStorage.getItem(currentKeys.local);
+  const sessionToken = sessionStorage.getItem(currentKeys.session);
+  const legacyLocalToken = localStorage.getItem(LEGACY_TOKEN_KEY);
+  const legacySessionToken = sessionStorage.getItem(LEGACY_TOKEN_KEY_SESSION);
+
+  if (localToken || legacyLocalToken) {
+    localStorage.setItem(targetKeys.local, localToken || legacyLocalToken || '');
+    sessionStorage.removeItem(targetKeys.session);
+    return;
+  }
+
+  if (sessionToken || legacySessionToken) {
+    sessionStorage.setItem(targetKeys.session, sessionToken || legacySessionToken || '');
+    localStorage.removeItem(targetKeys.local);
+  }
+}
+
 // Get base URL for auth requests
 function getAuthBaseUrl(): string {
   const server = getActiveServer();

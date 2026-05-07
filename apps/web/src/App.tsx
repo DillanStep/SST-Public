@@ -4,6 +4,7 @@ import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
 import { UpdateStatusBadge } from './components/features/UpdateStatusBadge';
+import { VersionCorner } from './components/features/VersionCorner';
 import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId } from './services/serverManager';
 import { AuthCheckTransientError, checkAuth, getAuthToken, logout, type User } from './services/auth';
 import api from './services/api';
@@ -160,18 +161,26 @@ function App() {
   // Show loading spinner while checking auth
   if (authChecking) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center animate-fade-in">
-          <div className="w-12 h-12 border-3 border-surface-200 border-t-surface-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-surface-500">Loading...</p>
+      <>
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center animate-fade-in">
+            <div className="w-12 h-12 border-3 border-surface-200 border-t-surface-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-surface-500">Loading...</p>
+          </div>
         </div>
-      </div>
+        <VersionCorner />
+      </>
     );
   }
 
   // Show login page if not authenticated
   if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} />
+        <VersionCorner />
+      </>
+    );
   }
 
   // Full-page modes (map, history, vehicles)
@@ -181,6 +190,7 @@ function App() {
     return (
       <div className="h-screen w-screen flex flex-col">
         <UpdatePrompt user={user} />
+        <VersionCorner />
         {/* Minimal Top Bar */}
         <div className="h-14 bg-white border-b border-surface-200 flex items-center px-4 gap-4 flex-shrink-0 z-[1002]">
           <div className="flex items-center">
@@ -257,6 +267,7 @@ function App() {
   return (
     <div className="min-h-screen bg-surface-50 flex">
       <UpdatePrompt user={user} />
+      <VersionCorner />
       {/* Sidebar - Desktop */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-surface-200 transition-all duration-300 ease-out sticky top-0 h-screen ${sidebarOpen ? 'w-64' : 'w-20'}`}>
         {/* Logo */}

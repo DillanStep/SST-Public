@@ -1,16 +1,18 @@
 # Multiple Servers
 
-SST can manage several DayZ servers from one dashboard, but each DayZ server still needs its own SST API process.
+SST can manage several DayZ servers from one dashboard and one API process. The API keeps shared listener/auth settings in `apps/api/.env`, then loads one per-server env profile from `apps/api/profiles/` for each DayZ server.
 
-The simple model is:
+The normal layout is:
 
 ```text
-DayZ Server 1 -> $profile:SST -> SST API on port 3001 -> Dashboard saved server
-DayZ Server 2 -> $profile:SST -> SST API on port 3002 -> Dashboard saved server
-DayZ Server 3 -> $profile:SST -> SST API on port 3003 -> Dashboard saved server
+SST API on port 3001
+  -> apps/api/.env
+  -> apps/api/profiles/chernarus-main.env
+  -> apps/api/profiles/livonia-pve.env
+  -> apps/api/profiles/namalsk-hardcore.env
 ```
 
-The web dashboard is the switcher. The API is not a combined hub yet; one API instance represents one DayZ server.
+The dashboard sends the selected profile name with the `X-SST-Server` header, so the same API can read the correct `SST_PATH`, map settings, Expansion folders, and tracking database for the active DayZ server.
 
 ## Before You Start
 
@@ -31,187 +33,88 @@ Server 2:
 -profiles=Server2 -serverMod=@SST -scrAllowFileWrite
 ```
 
-Use the SST folder inside each server's profile directory. On hosted panels, that profile directory may be named `profiles`, `Server1`, or by your service slot.
+Use the `SST` folder inside each server's profile directory. On hosted panels, that profile directory may be named `profiles`, `Server1`, or by your service slot.
 
-## Recommended Layout
-
-Keep one SST install, then create one API env file per DayZ server:
-
-```text
-C:/SST/
-  apps/api/.env.server1
-  apps/api/.env.server2
-  apps/api/.env.server3
-  apps/api/.env.server4
-  apps/api/.env.server5
-  apps/api/data/server1/
-  apps/api/data/server2/
-  apps/api/data/server3/
-  apps/api/data/server4/
-  apps/api/data/server5/
-```
-
-Copy `apps/api/.env.example` once per server and edit each file.
-
-## Example Env Files
-
-Server 1:
-
-```env
-PORT=3001
-HOST=0.0.0.0
-STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server1/SST
-PROFILES_PATH=C:/DayZServer/Server1
-MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.chernarusplus
-MAP_PRESET=chernarusplus
-AUTH_DB_PATH=./data/server1/auth.db
-DATABASE_PATH=./data/server1/sst_tracking.db
-ARCHIVE_DB_PATH=./data/server1/archive.db
-API_KEY=
-JWT_SECRET=
-```
-
-Server 2:
-
-```env
-PORT=3002
-HOST=0.0.0.0
-STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server2/SST
-PROFILES_PATH=C:/DayZServer/Server2
-MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.enoch
-MAP_PRESET=enoch
-AUTH_DB_PATH=./data/server2/auth.db
-DATABASE_PATH=./data/server2/sst_tracking.db
-ARCHIVE_DB_PATH=./data/server2/archive.db
-API_KEY=
-JWT_SECRET=
-```
-
-Use a different port and data folder for every API instance. Leaving `API_KEY` and `JWT_SECRET` blank is fine; SST will generate and save them on first startup.
-
-## Starting Each API
-
-Open one terminal per server.
-
-`Start-SST.bat` starts the normal dashboard and default API. For extra servers, start the additional API processes manually with `SST_API_ENV_PATH`.
-
-PowerShell example for Server 1:
-
-```powershell
-cd C:\SST\apps\api
-$env:SST_API_ENV_PATH = "C:\SST\apps\api\.env.server1"
-npm start
-```
-
-PowerShell example for Server 2:
-
-```powershell
-cd C:\SST\apps\api
-$env:SST_API_ENV_PATH = "C:\SST\apps\api\.env.server2"
-npm start
-```
-
-If you prefer batch files, create one per server in the SST root.
-
-`Start-API-Server1.bat`:
-
-```bat
-@echo off
-set "ROOT=%~dp0"
-cd /d "%ROOT%apps\api"
-set "SST_API_ENV_PATH=%ROOT%apps\api\.env.server1"
-npm start
-pause
-```
-
-`Start-API-Server2.bat`:
-
-```bat
-@echo off
-set "ROOT=%~dp0"
-cd /d "%ROOT%apps\api"
-set "SST_API_ENV_PATH=%ROOT%apps\api\.env.server2"
-npm start
-pause
-```
-
-Repeat the same pattern for ports `3003`, `3004`, and `3005`.
-
-## Adding Servers In The Dashboard
-
-Start the web dashboard once, then add every API connection:
+## Adding A Server
 
 1. Open SST.
 2. Go to `Settings`.
 3. Click `Add Server`.
 4. Enter a clear name, such as `Chernarus Main`, `Livonia PVE`, or `Namalsk Hardcore`.
-5. Enter that server's API URL, for example `http://localhost:3002`.
-6. Enter the `API_KEY` from that server's env file.
+5. Leave the API URL as the existing API unless this server uses a separate SST install.
+6. Reuse the current API key.
 7. Pick the correct map preset.
-8. Click `Test Connection`.
-9. Click `Save Server`.
+8. Click `Save Server`.
 
-Use the server picker in the top-right of the dashboard to switch between servers.
+SST creates an env profile named from the server name, for example:
 
-## Hosted Servers
+```text
+apps/api/profiles/chernarus-main.env
+```
 
-For hosted servers, the idea is the same. Each DayZ server still needs its own API env file and port. The difference is that each env file uses FTP or SFTP:
+After saving, switch to that server and use Settings to browse/select its `SST_PATH`, mission folder, profile folder, Expansion folders, and storage backend. Saving runtime settings writes to that server's env profile and restarts the API so the profile is reloaded.
+
+## Example Profile Env
 
 ```env
-PORT=3003
+SST_PROFILE_ID=chernarus-main
+SST_PROFILE_NAME=Chernarus Main
+STORAGE_BACKEND=local
+SST_PATH=C:/DayZServer/Server1/SST
+PROFILES_PATH=C:/DayZServer/Server1
+MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.chernarusplus
+MAP_PRESET=chernarusplus
+DATABASE_PATH=C:/DayZServer/Server1/SST/data/sst_tracking.db
+ARCHIVE_DB_PATH=C:/DayZServer/Server1/SST/data/archive.db
+```
+
+For hosted servers, the profile env can use FTP or SFTP:
+
+```env
+SST_PROFILE_ID=hosted-livonia
+SST_PROFILE_NAME=Hosted Livonia
 STORAGE_BACKEND=sftp
 SFTP_HOST=example.host.com
 SFTP_PORT=22
-SFTP_USER=server3-user
+SFTP_USER=server-user
 SFTP_PASSWORD=your-password
 SFTP_ROOT=/
-SST_PATH=Server3/SST
-PROFILES_PATH=Server3
-MISSION_PATH=mpmissions/dayzOffline.sakhal
-MAP_PRESET=sakhal
-AUTH_DB_PATH=./data/server3/auth.db
-DATABASE_PATH=./data/server3/sst_tracking.db
-ARCHIVE_DB_PATH=./data/server3/archive.db
+SST_PATH=Server2/SST
+PROFILES_PATH=Server2
+MISSION_PATH=mpmissions/dayzOffline.enoch
+MAP_PRESET=enoch
 ```
 
-Do not put `/api/online_players.json` into `SST_PATH`. Stop at the `SST` folder.
+Do not put `/api/online_players.json` into `SST_PATH`. Stop at the generated `SST` folder.
 
-## Updating One Server
+## Shared Settings
 
-The Settings page edits the currently selected API. Switch to the server first, then edit its runtime settings.
+These stay in `apps/api/.env` because they belong to the API process, not a DayZ server profile:
 
-After saving `.env` changes, restart that API instance only. The other servers can keep running.
+- `PORT`
+- `HOST`
+- `API_KEY`
+- `JWT_SECRET`
+- `AUTH_DB_PATH`
+- update settings such as `SST_UPDATE_REPO`
+
+Run separate API processes only when the DayZ servers are on different machines or you intentionally want separate auth databases/API keys.
 
 ## Quick Checks
 
+If the dashboard shows data from the wrong server:
+
+- Check that the selected dashboard server has the expected API profile.
+- Check that `apps/api/profiles/<server-name>.env` has the right `SST_PATH`.
+- Check that the DayZ server is writing fresh files under that same `$profile:SST` folder.
+
 If the dashboard shows `0 players`:
 
-- Check that the selected dashboard server is the right one.
-- Check that the API URL points to the right port.
-- Check `SST_PATH`; it should point at the same `$profile:SST` folder shown in the DayZ script log.
 - Confirm `SST/api/online_players.json` exists and updates while players are online.
+- Check that the API console shows fresh mod heartbeat activity for the selected profile.
+- Confirm the DayZ server is actually running with `@SST` and `-scrAllowFileWrite`.
 
-If two servers show the same data:
+If saving settings affects the wrong server:
 
-- They are probably using the same `SST_PATH`.
-- They may also be sharing `AUTH_DB_PATH`, `DATABASE_PATH`, or `ARCHIVE_DB_PATH`.
-
-If an API will not start:
-
-- Check that no other API is already using the same `PORT`.
-- Check the env file path passed through `SST_API_ENV_PATH`.
-- Check that local paths use forward slashes, for example `C:/DayZServer/Server1/SST`.
-
-## Five Server Example
-
-```text
-Chernarus Main   -> http://localhost:3001 -> .env.server1 -> C:/DayZServer/Server1/SST
-Livonia PVE      -> http://localhost:3002 -> .env.server2 -> C:/DayZServer/Server2/SST
-Sakhal PVP       -> http://localhost:3003 -> .env.server3 -> C:/DayZServer/Server3/SST
-Namalsk Hardcore -> http://localhost:3004 -> .env.server4 -> C:/DayZServer/Server4/SST
-Deer Isle RP     -> http://localhost:3005 -> .env.server5 -> C:/DayZServer/Server5/SST
-```
-
-Keep the names, ports, env files, database paths, and SST profile paths matched up. That is the bit that prevents most multi-server confusion.
+- Switch to the correct server before editing Settings.
+- Check the `.env` path displayed in Settings; it should point to `apps/api/profiles/<server-name>.env`.

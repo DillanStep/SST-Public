@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Globe, Key, Map as MapIcon, RefreshCw, Server, Wifi }
 import { Button, Card, Input } from '../ui';
 import api from '../../services/api';
 import { addServer, getActiveServer, getServers, setActiveServerId, updateServer } from '../../services/serverManager';
+import { copyAuthTokenToServer, getAuthToken } from '../../services/auth';
 import { getMapPresetDefaults, MAP_PRESET_OPTIONS } from '../../maps/mapConfig';
 
 interface AddServerSetupProps {
@@ -30,12 +31,41 @@ const parsePositiveNumber = (value: string, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const slugifyProfileName = (value: string) => {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+const buildUniqueProfileName = (serverName: string) => {
+  const base = slugifyProfileName(serverName) || 'server';
+  const usedProfiles = new Set(
+    getServers()
+      .map(server => server.apiProfile)
+      .filter(Boolean)
+      .map(profile => slugifyProfileName(profile || ''))
+  );
+
+  let candidate = base;
+  let suffix = 2;
+  while (usedProfiles.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+};
+
 export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSaved }) => {
   const defaultMap = getMapPresetDefaults('chernarusplus');
   const activeServer = getActiveServer();
   const [serverName, setServerName] = useState('My DayZ Server');
   const [apiUrl, setApiUrl] = useState(activeServer?.apiUrl || 'http://localhost:3001');
-  const [apiProfile, setApiProfile] = useState('');
+  const [apiProfile, setApiProfile] = useState(() => buildUniqueProfileName('My DayZ Server'));
+  const [apiProfileEdited, setApiProfileEdited] = useState(false);
   const [apiKey, setApiKey] = useState(activeServer?.apiKey || '');
   const [mapPreset, setMapPreset] = useState(defaultMap.id);
   const [mapLabel, setMapLabel] = useState('');
@@ -47,9 +77,19 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
   const [error, setError] = useState('');
   const [keyMessage, setKeyMessage] = useState(activeServer ? 'Using the current API key for this API URL.' : '');
   const [savingApiKey, setSavingApiKey] = useState(false);
+  const [savingServer, setSavingServer] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
   const selectedMap = useMemo(() => getMapPresetDefaults(mapPreset), [mapPreset]);
+  const normalizedProfile = slugifyProfileName(apiProfile || serverName) || 'server';
+  const envFileName = `${normalizedProfile}.env`;
+
+  const handleServerNameChange = (value: string) => {
+    setServerName(value);
+    if (!apiProfileEdited) {
+      setApiProfile(buildUniqueProfileName(value));
+    }
+  };
 
   const handleMapPresetChange = (value: string) => {
     const nextMap = getMapPresetDefaults(value);
@@ -66,6 +106,7 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
     if (!serverName.trim()) return 'Server name is required';
     if (!apiUrl.trim()) return 'API URL is required';
     if (!apiKey.trim()) return 'API key is required';
+    if (!normalizedProfile) return 'API profile is required';
     return '';
   };
 
@@ -127,7 +168,6 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
       const response = await fetch(`${normalizeApiUrl(apiUrl)}/servers`, {
         headers: {
           'x-api-key': apiKey.trim(),
-          ...(apiProfile.trim() ? { 'x-sst-server': apiProfile.trim() } : {}),
         },
       });
       setTestStatus(response.ok ? 'success' : 'error');
@@ -140,29 +180,78 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
     }
   };
 
-  const handleSave = () => {
+  const createProfileOnApi = async () => {
+    const token = getAuthToken();
+    const response = await fetch(`${normalizeApiUrl(apiUrl)}/servers/profiles`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey.trim(),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        name: serverName.trim(),
+        profile: normalizedProfile,
+        mapPreset,
+        mapLabel: mapLabel.trim(),
+        mapImageUrl: mapImageUrl.trim(),
+        mapWorldSizeX: parsePositiveNumber(mapWorldSizeX, selectedMap.worldSizeX),
+        mapWorldSizeZ: parsePositiveNumber(mapWorldSizeZ, selectedMap.worldSizeZ),
+        mapInvertX,
+        mapInvertZ,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = typeof data?.details === 'string'
+        ? data.details
+        : typeof data?.error === 'string'
+          ? data.error
+          : `Failed to create ${envFileName} (${response.status})`;
+      throw new Error(message);
+    }
+
+    return data;
+  };
+
+  const handleSave = async () => {
     const validationError = validate();
     if (validationError) {
       setError(validationError);
       return;
     }
 
-    const savedServer = addServer({
-      name: serverName.trim(),
-      apiUrl: normalizeApiUrl(apiUrl),
-      apiKey: apiKey.trim(),
-      apiProfile: apiProfile.trim(),
-      mapPreset,
-      mapLabel: mapLabel.trim(),
-      mapImageUrl: mapImageUrl.trim(),
-      mapWorldSizeX: parsePositiveNumber(mapWorldSizeX, selectedMap.worldSizeX),
-      mapWorldSizeZ: parsePositiveNumber(mapWorldSizeZ, selectedMap.worldSizeZ),
-      mapInvertX,
-      mapInvertZ,
-    });
+    setSavingServer(true);
+    setError('');
 
-    setActiveServerId(savedServer.id);
-    onSaved();
+    try {
+      const profileResult = await createProfileOnApi();
+      const savedProfile = profileResult?.profile?.id || normalizedProfile;
+
+      const savedServer = addServer({
+        name: serverName.trim(),
+        apiUrl: normalizeApiUrl(apiUrl),
+        apiKey: apiKey.trim(),
+        apiProfile: savedProfile,
+        mapPreset,
+        mapLabel: mapLabel.trim(),
+        mapImageUrl: mapImageUrl.trim(),
+        mapWorldSizeX: parsePositiveNumber(mapWorldSizeX, selectedMap.worldSizeX),
+        mapWorldSizeZ: parsePositiveNumber(mapWorldSizeZ, selectedMap.worldSizeZ),
+        mapInvertX,
+        mapInvertZ,
+      });
+
+      copyAuthTokenToServer(savedServer.id);
+      setActiveServerId(savedServer.id);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to create ${envFileName}`);
+    } finally {
+      setSavingServer(false);
+    }
   };
 
   return (
@@ -197,7 +286,7 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
                 <Input
                   type="text"
                   value={serverName}
-                  onChange={(event) => setServerName(event.target.value)}
+                  onChange={(event) => handleServerNameChange(event.target.value)}
                   placeholder="My DayZ Server"
                 />
               </div>
@@ -211,13 +300,19 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-surface-700 mb-2">API Profile</label>
+                <label className="block text-sm font-medium text-surface-700 mb-2">API Profile / Env File</label>
                 <Input
                   type="text"
                   value={apiProfile}
-                  onChange={(event) => setApiProfile(event.target.value)}
-                  placeholder="sudo-buddy-api-1"
+                  onChange={(event) => {
+                    setApiProfileEdited(true);
+                    setApiProfile(event.target.value);
+                  }}
+                  placeholder="my-dayz-server"
                 />
+                <p className="mt-2 text-xs text-surface-400">
+                  Creates {envFileName} on this API.
+                </p>
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -248,11 +343,11 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
                     onClick={handleGenerateAndSaveApiKey}
                     loading={savingApiKey}
                   >
-                    Generate & Save to .env
+                    Generate & Save to API .env
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-surface-400">
-                  Same API URL? Reuse the current key. Generate & Save rotates the active API key and writes it to the API .env.
+                  Same API URL? Reuse the current key. Generate & Save rotates the shared API key.
                 </p>
               </div>
             </div>
@@ -358,7 +453,7 @@ export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSave
               )}
               Test Connection
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} loading={savingServer}>
               <Check size={16} className="mr-1" />
               Save Server
             </Button>

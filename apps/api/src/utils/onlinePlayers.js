@@ -68,14 +68,14 @@ export function getModVersionStatus(snapshot) {
     if (comparison < 0) {
       status = "older";
       mismatch = true;
-      message = `The running SST mod is older than this API (${reportedVersion} vs ${expectedVersion}).`;
+      message = `The running SST mod is older than the expected mod package (${reportedVersion} vs ${expectedVersion}).`;
     } else if (comparison > 0) {
       status = "newer";
       mismatch = true;
-      message = `The running SST mod is newer than this API (${reportedVersion} vs ${expectedVersion}).`;
+      message = `The running SST mod is newer than the expected mod package (${reportedVersion} vs ${expectedVersion}).`;
     } else {
       status = "match";
-      message = `The running SST mod matches this API (${reportedVersion}).`;
+      message = `The running SST mod matches the expected mod package (${reportedVersion}).`;
     }
   }
 

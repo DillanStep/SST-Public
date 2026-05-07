@@ -92,6 +92,28 @@ export interface RuntimeConfigResponse {
   };
 }
 
+export interface CreateServerProfileRequest {
+  name: string;
+  profile: string;
+  mapPreset?: string;
+  mapLabel?: string;
+  mapImageUrl?: string;
+  mapWorldSizeX?: number;
+  mapWorldSizeZ?: number;
+  mapInvertX?: boolean;
+  mapInvertZ?: boolean;
+}
+
+export interface CreateServerProfileResponse {
+  ok: boolean;
+  profile: {
+    id: string;
+    name: string;
+    envPath: string;
+  };
+  message?: string;
+}
+
 export type ConfigBrowseMode = 'folder' | 'file';
 
 export interface ConfigBrowseEntry {

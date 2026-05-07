@@ -526,17 +526,23 @@ If the dashboard asks for an API key, use the `API_KEY` from `apps/api/.env`. If
 
 ### Multiple DayZ Servers
 
-The dashboard can save and switch between multiple SST API connections. Run one SST API instance per DayZ server, give each instance its own `.env` file, and use a different port for each one:
+The dashboard can manage multiple DayZ servers through the same SST API. Keep the API URL as normal, usually:
 
 ```text
-Server 1 -> http://localhost:3001
-Server 2 -> http://localhost:3002
-Server 3 -> http://localhost:3003
-Server 4 -> http://localhost:3004
-Server 5 -> http://localhost:3005
+http://localhost:3001
 ```
 
-Each env file should have its own `SST_PATH`, `AUTH_DB_PATH`, `DATABASE_PATH`, `ARCHIVE_DB_PATH`, `API_KEY`, and `JWT_SECRET`.
+When you use `Settings -> Add Server`, SST creates a per-server env profile in `apps/api/profiles/` using the server name, for example:
+
+```text
+apps/api/profiles/chernarus-main.env
+apps/api/profiles/livonia-pve.env
+apps/api/profiles/namalsk-hardcore.env
+```
+
+Each profile stores that DayZ server's paths, storage backend, map settings, Expansion folders, and tracking database path. The shared API key, auth database, port, host, and update settings stay in `apps/api/.env`.
+
+Run separate API processes only when the DayZ servers are on different machines or you intentionally want separate auth/API keys.
 
 Full walkthrough: [Multiple Servers](docs/wiki/Getting%20Started/Multiple%20Servers.md).
 
@@ -608,15 +614,23 @@ npm run dev
 
 ## Configuration
 
-The API reads configuration from `apps/api/.env`. Important settings:
+The API reads shared settings from `apps/api/.env` and per-server runtime settings from `apps/api/profiles/*.env`.
 
-- `STORAGE_BACKEND`: `local`, `ftp`, or `sftp`.
-- `SST_PATH`: path to the DayZ profile `SST` folder.
+Important shared settings:
+
 - `API_KEY`: generated on first API startup if left blank.
 - `JWT_SECRET`: generated on first API startup if left blank.
+- `PORT` and `HOST`: the API listener.
 - `CORS_ORIGIN`: set this when the dashboard runs on a separate origin.
 
-Do not commit `.env`, database files, logs, `node_modules`, or build output. The repo includes `.gitignore` rules for these files.
+Important per-server profile settings:
+
+- `STORAGE_BACKEND`: `local`, `ftp`, or `sftp`.
+- `SST_PATH`: path to that DayZ server's profile `SST` folder.
+- `MISSION_PATH`, `PROFILES_PATH`, map settings, and Expansion paths.
+- `DATABASE_PATH` and `ARCHIVE_DB_PATH` when you want separate tracking databases per server.
+
+Do not commit `.env`, `apps/api/profiles/*.env`, database files, logs, `node_modules`, or build output. The repo includes `.gitignore` rules for these files.
 
 ## Troubleshooting
 

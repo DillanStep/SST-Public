@@ -5,7 +5,57 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export function resolveEnvPathForWrite() {
+export function normalizeEnvProfileId(value, fallback = "server") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || fallback;
+}
+
+export function resolveProfileEnvDirectory() {
+  return process.env.SST_API_PROFILE_ENV_DIR
+    ? path.resolve(process.env.SST_API_PROFILE_ENV_DIR)
+    : path.resolve(__dirname, "..", "..", "profiles");
+}
+
+export function resolveProfileEnvPath(profileId) {
+  const safeProfileId = normalizeEnvProfileId(profileId);
+  return path.join(resolveProfileEnvDirectory(), `${safeProfileId}.env`);
+}
+
+export function listProfileEnvFiles() {
+  const profileDir = resolveProfileEnvDirectory();
+
+  try {
+    if (!fs.existsSync(profileDir)) return [];
+
+    return fs.readdirSync(profileDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".env"))
+      .map((entry) => {
+        const id = normalizeEnvProfileId(entry.name.replace(/\.env$/i, ""));
+        return {
+          id,
+          fileName: entry.name,
+          path: path.join(profileDir, entry.name),
+        };
+      })
+      .filter((entry) => entry.id && entry.id !== "default")
+      .sort((a, b) => a.id.localeCompare(b.id));
+  } catch {
+    return [];
+  }
+}
+
+export function resolveEnvPathForWrite(profileId = "") {
+  const normalizedProfileId = normalizeEnvProfileId(profileId, "");
+  if (normalizedProfileId && normalizedProfileId !== "default") {
+    return resolveProfileEnvPath(normalizedProfileId);
+  }
+
   const explicitPath = process.env.SST_API_ENV_PATH
     ? path.resolve(process.env.SST_API_ENV_PATH)
     : null;

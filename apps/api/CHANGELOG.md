@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-05-07
+
+### Fixed
+- Fixed switching between saved servers so each server keeps its own auth state and transient auth-check failures no longer log out the current session.
+- Fixed newly created server switching so servers on the same API can reuse the current admin session instead of forcing another login.
+- Fixed the Windows updater on PowerShell 5.1 by correcting update archive path handling and improving updater log/state reporting.
+- Fixed updater logs so the PowerShell updater writes the real failure step instead of the launcher overwriting it with a generic exit-code message.
+- Fixed multi-server settings so each added server gets its own `servername.env` profile file instead of sharing one runtime `.env`.
+
+### Changed
+- Split the dashboard/API release version from the bundled DayZ mod version so dashboard-only updates do not force a mod heartbeat version bump.
+- Added a bottom-right version badge showing the web client version and the running or expected SST mod version.
+
 ## [1.0.7] - 2026-05-07
 
 ### Added
