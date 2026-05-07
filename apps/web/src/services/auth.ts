@@ -29,6 +29,13 @@ export interface AuthStatusResponse {
   setupRequired: boolean;
 }
 
+export class AuthCheckTransientError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthCheckTransientError';
+  }
+}
+
 // Token storage keys. Older SST builds used one global token; new builds scope
 // tokens by saved server ID so switching between servers cannot reuse a login.
 const LEGACY_TOKEN_KEY = 'sst-auth-token';
@@ -254,31 +261,39 @@ export async function logout(): Promise<void> {
 export async function checkAuth(): Promise<AuthCheckResponse | null> {
   const baseUrl = getAuthBaseUrl();
   if (!baseUrl) return null;
-  
+
+  const authOptions = buildAuthenticatedFetchOptions();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  let response: Response;
   try {
-    const authOptions = buildAuthenticatedFetchOptions();
-    // Add timeout to prevent hanging
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(`${baseUrl}/auth/me`, {
+    response = await fetch(`${baseUrl}/auth/me`, {
       ...authOptions,
       signal: controller.signal,
     });
-    
+  } catch (err) {
+    const message = err instanceof Error && err.name === 'AbortError'
+      ? `Auth check timed out connecting to ${baseUrl}.`
+      : `Cannot connect to server at ${baseUrl}.`;
+    throw new AuthCheckTransientError(message);
+  } finally {
     clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      // Clear invalid token
-      if (response.status === 401) {
-        setAuthToken(null);
-      }
+  }
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      setAuthToken(null);
       return null;
     }
-    
-    return response.json();
+
+    throw new AuthCheckTransientError(`Auth check failed with HTTP ${response.status}.`);
+  }
+
+  try {
+    return await response.json();
   } catch {
-    return null;
+    throw new AuthCheckTransientError('Auth check returned an invalid response.');
   }
 }
 

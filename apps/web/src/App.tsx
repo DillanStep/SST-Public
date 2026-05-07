@@ -5,7 +5,7 @@ import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
 import { UpdateStatusBadge } from './components/features/UpdateStatusBadge';
 import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId } from './services/serverManager';
-import { checkAuth, logout, type User } from './services/auth';
+import { AuthCheckTransientError, checkAuth, getAuthToken, logout, type User } from './services/auth';
 import api from './services/api';
 
 type TabType = 'dashboard' | 'items' | 'players' | 'leaderboard' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
@@ -55,7 +55,11 @@ function App() {
           setUser(result.user);
         }
       } catch (err) {
-        console.error('Auth check failed:', err);
+        if (err instanceof AuthCheckTransientError) {
+          console.warn('Auth check skipped:', err.message);
+        } else {
+          console.error('Auth check failed:', err);
+        }
       } finally {
         didFinish = true;
         setAuthChecking(false);
@@ -108,10 +112,20 @@ function App() {
     api.loadActiveServer();
     setIsConnected(false);
 
+    if (!getAuthToken()) {
+      setUser(null);
+      return;
+    }
+
     try {
       const result = await checkAuth();
       setUser(result?.user ?? null);
-    } catch {
+    } catch (err) {
+      if (err instanceof AuthCheckTransientError) {
+        console.warn('Server switch auth check skipped:', err.message);
+        return;
+      }
+
       setUser(null);
     }
   }, [loadActiveServerSummary]);

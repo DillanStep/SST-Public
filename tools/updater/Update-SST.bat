@@ -93,11 +93,11 @@ if "%DRY_RUN%"=="1" (
 )
 
 call :log "Starting PowerShell updater."
-"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Update-SST.ps1" -RepoRoot "%REPO_ROOT%" -ArchiveUrl "%ARCHIVE_URL%" -TargetTag "%TARGET_TAG%" -StatePath "%STATE_PATH%" -LogPath "%LOG_PATH%" >> "%LOG_PATH%" 2>&1
+"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Update-SST.ps1" -RepoRoot "%REPO_ROOT%" -ArchiveUrl "%ARCHIVE_URL%" -TargetTag "%TARGET_TAG%" -StatePath "%STATE_PATH%" -LogPath "%LOG_PATH%"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
-  call :fail "Updater process exited with code %EXIT_CODE%. See the update log for details."
+  call :log "FAILED: Updater process exited with code %EXIT_CODE%. See the update log for details."
   exit /b %EXIT_CODE%
 )
 

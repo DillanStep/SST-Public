@@ -16,7 +16,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$transcriptStarted = $false
 
 function Write-UpdateState {
     param(
@@ -45,6 +44,18 @@ function Write-UpdateState {
     [System.IO.File]::WriteAllText($StatePath, $json, $utf8NoBom)
 }
 
+function Write-UpdateLog {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Message
+    )
+
+    $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
+    Write-Host $line
+    Add-Content -LiteralPath $LogPath -Value $line -Encoding UTF8
+}
+
 function Invoke-Step {
     param(
         [Parameter(Mandatory = $true)]
@@ -55,8 +66,46 @@ function Invoke-Step {
     )
 
     Write-UpdateState -Status "running" -Message $Message
-    Write-Host $Message
+    Write-UpdateLog $Message
     & $Script
+}
+
+function Get-NpmCommand {
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($npm) {
+        return $npm.Source
+    }
+
+    $npm = Get-Command npm -ErrorAction Stop
+    return $npm.Source
+}
+
+function Invoke-NativeCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [string[]]$Arguments = @(),
+
+        [int]$MaxSuccessfulExitCode = 0
+    )
+
+    $display = $FilePath
+    if ($Arguments.Count -gt 0) {
+        $display = "$display $($Arguments -join ' ')"
+    }
+    Write-UpdateLog "> $display"
+
+    & $FilePath @Arguments 2>&1 | ForEach-Object {
+        Write-UpdateLog ([string]$_)
+    }
+
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -gt $MaxSuccessfulExitCode) {
+        throw "$FilePath failed with exit code $exitCode."
+    }
+
+    return $exitCode
 }
 
 $logDir = Split-Path -Parent $LogPath
@@ -65,14 +114,6 @@ if (-not (Test-Path -LiteralPath $logDir)) {
 }
 
 try {
-    try {
-        Start-Transcript -Path $LogPath -Append -ErrorAction Stop | Out-Null
-        $transcriptStarted = $true
-    }
-    catch {
-        Write-Warning "Could not start transcript logging. Continuing with launcher log redirection. $($_.Exception.Message)"
-    }
-
     $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $backupRoot = Join-Path $RepoRoot "backups\update-$timestamp"
@@ -106,7 +147,11 @@ try {
     }
 
     Invoke-Step "Downloading $TargetTag." {
-        Invoke-WebRequest -Uri $ArchiveUrl -OutFile $zipPath -UseBasicParsing
+        if (Test-Path -LiteralPath $ArchiveUrl) {
+            Copy-Item -LiteralPath $ArchiveUrl -Destination $zipPath -Force
+        } else {
+            Invoke-WebRequest -Uri $ArchiveUrl -OutFile $zipPath -UseBasicParsing
+        }
     }
 
     Invoke-Step "Extracting update package." {
@@ -133,8 +178,8 @@ try {
         ) | ForEach-Object { Join-Path $sourceRoot.FullName $_ }
 
         $excludedFiles = @(
-            Join-Path $sourceRoot.FullName ".env",
-            Join-Path $sourceRoot.FullName "apps\api\.env"
+            (Join-Path $sourceRoot.FullName ".env"),
+            (Join-Path $sourceRoot.FullName "apps\api\.env")
         )
 
         $robocopyArgs = @(
@@ -149,16 +194,13 @@ try {
             "/XD"
         ) + $excludedDirs + @("/XF") + $excludedFiles
 
-        & robocopy @robocopyArgs
-        if ($LASTEXITCODE -gt 7) {
-            throw "Robocopy failed with exit code $LASTEXITCODE."
-        }
+        Invoke-NativeCommand -FilePath "robocopy.exe" -Arguments $robocopyArgs -MaxSuccessfulExitCode 7 | Out-Null
     }
 
     Invoke-Step "Installing API dependencies." {
         Push-Location (Join-Path $RepoRoot "apps\api")
         try {
-            npm install
+            Invoke-NativeCommand -FilePath (Get-NpmCommand) -Arguments @("install") | Out-Null
         }
         finally {
             Pop-Location
@@ -168,8 +210,9 @@ try {
     Invoke-Step "Installing web dependencies and rebuilding the dashboard." {
         Push-Location (Join-Path $RepoRoot "apps\web")
         try {
-            npm install
-            npm run build
+            $npm = Get-NpmCommand
+            Invoke-NativeCommand -FilePath $npm -Arguments @("install") | Out-Null
+            Invoke-NativeCommand -FilePath $npm -Arguments @("run", "build") | Out-Null
         }
         finally {
             Pop-Location
@@ -177,21 +220,15 @@ try {
     }
 
     Write-UpdateState -Status "success" -Message "Update to $TargetTag installed. Restart SST to load the new API code."
-    Write-Host "Update complete. Restart SST to load the new API code."
+    Write-UpdateLog "Update complete. Restart SST to load the new API code."
     exit 0
 }
 catch {
     Write-UpdateState -Status "failed" -Message $_.Exception.Message
+    Write-UpdateLog "FAILED: $($_.Exception.Message)"
+    if ($_.ScriptStackTrace) {
+        Write-UpdateLog $_.ScriptStackTrace
+    }
     Write-Error $_
     exit 1
-}
-finally {
-    if ($transcriptStarted) {
-        try {
-            Stop-Transcript | Out-Null
-        }
-        catch {
-            # Transcript may not have started.
-        }
-    }
 }
