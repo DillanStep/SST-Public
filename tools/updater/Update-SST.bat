@@ -92,8 +92,11 @@ if "%DRY_RUN%"=="1" (
   exit /b 0
 )
 
-call :log "Starting PowerShell updater."
-"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%Update-SST.ps1" -RepoRoot "%REPO_ROOT%" -ArchiveUrl "%ARCHIVE_URL%" -TargetTag "%TARGET_TAG%" -StatePath "%STATE_PATH%" -LogPath "%LOG_PATH%"
+set "UPDATER_PS1=%SCRIPT_DIR%Update-SST.ps1"
+call :prepare_target_updater
+
+call :log "Starting PowerShell updater: %UPDATER_PS1%"
+"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%UPDATER_PS1%" -RepoRoot "%REPO_ROOT%" -ArchiveUrl "%ARCHIVE_URL%" -TargetTag "%TARGET_TAG%" -StatePath "%STATE_PATH%" -LogPath "%LOG_PATH%"
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
@@ -141,6 +144,21 @@ if not defined TARGET_TAG (
   call :fail "Could not resolve the latest GitHub release for %SST_UPDATE_REPO%."
   exit /b 1
 )
+exit /b 0
+
+:prepare_target_updater
+set "TARGET_UPDATER_PS1=%TEMP%\sst-updater-%TARGET_TAG%-%RANDOM%-%RANDOM%.ps1"
+set "SST_TARGET_UPDATER_URL=https://raw.githubusercontent.com/%SST_UPDATE_REPO%/%TARGET_TAG%/tools/updater/Update-SST.ps1"
+set "SST_TARGET_UPDATER_PATH=%TARGET_UPDATER_PS1%"
+call :log "Checking target release updater script."
+"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $uri = $env:SST_TARGET_UPDATER_URL; $out = $env:SST_TARGET_UPDATER_PATH; Invoke-WebRequest -Uri $uri -OutFile $out -UseBasicParsing; if ((Get-Item -LiteralPath $out).Length -lt 1000) { throw 'Downloaded updater script was unexpectedly small.' }" >> "%LOG_PATH%" 2>&1
+if errorlevel 1 (
+  call :log "Could not download target release updater. Falling back to local updater."
+  del "%TARGET_UPDATER_PS1%" >nul 2>nul
+  exit /b 0
+)
+set "UPDATER_PS1=%TARGET_UPDATER_PS1%"
+call :log "Using target release updater script."
 exit /b 0
 
 :fail

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-05-07
+
+### Fixed
+- Fixed future dashboard updates to run the target release updater script when available, so older local updater scripts cannot block copying in newer updater fixes.
+- Backed up per-server API profile env files from `apps/api/profiles` during updates.
+
 ## [1.0.8] - 2026-05-07
 
 ### Fixed

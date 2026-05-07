@@ -240,6 +240,13 @@ SST_UPDATE_REPO=DillanStep/SST-Public
 SST_ALLOW_REMOTE_UPDATE=0
 ```
 
+If an older install fails with a PowerShell `ChildPath` / `System.Object[]` updater error, replace only the local updater script once, then run the dashboard update again:
+
+```powershell
+cd "C:\Path\To\SST"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.9/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
+```
+
 ### 2. Choose Local, FTP, or SFTP Storage
 
 The API needs to read the `$profile:SST` folder created by the mod.

@@ -129,6 +129,7 @@ try {
         $backupItems = @(
             "apps\api\.env",
             "apps\api\data",
+            "apps\api\profiles",
             "dayz\server-mod\@SST",
             "dayz\mod-source\SST",
             "@SST",
