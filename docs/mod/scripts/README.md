@@ -1,20 +1,20 @@
 # Mod Scripts (Enforce Script)
 
-This section documents each `.c` script file in `SST/Scripts/**`.
+This section documents each `.c` script file in `dayz/mod-source/SST/Scripts/**`.
 
 The SST mod uses a file-based bridge for most “API features”:
 
-- Server → API: the server exports JSON snapshots/logs under `$storage:SST/`
-- API → Server: the API writes JSON queues under `$storage:SST/api/`, the server processes them and writes `*_results.json`
+- Server → API: the server exports JSON snapshots/logs under `$profile:SST/`
+- API → Server: the API writes JSON queues under `$profile:SST/api/`, the server processes them and writes `*_results.json`
 
 ## Key folders written at runtime
 
-- `$storage:SST/inventories/` – per-player inventory exports
-- `$storage:SST/events/` – per-player inventory event logs
-- `$storage:SST/life_events/` – per-player life event logs
-- `$storage:SST/trades/` – per-player trade logs
-- `$storage:SST/vehicles/` – vehicle tracker state + purchase history (Expansion Vehicles)
-- `$storage:SST/api/` – API queues + results (commands, grants, deletes, keys)
+- `$profile:SST/inventories/` – per-player inventory exports
+- `$profile:SST/events/` – per-player inventory event logs
+- `$profile:SST/life_events/` – per-player life event logs
+- `$profile:SST/trades/` – per-player trade logs
+- `$profile:SST/vehicles/` – vehicle tracker state + purchase history (Expansion Vehicles)
+- `$profile:SST/api/` – API queues + results (commands, grants, deletes, keys)
 
 ## Pages
 

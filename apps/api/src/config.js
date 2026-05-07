@@ -25,9 +25,12 @@ const PROVIDER_SCOPED_ENV_KEYS = [
   "API_PATH",
   "ONLINE_PLAYERS_PATH",
   "ONLINE_PLAYERS_STALE_AFTER_MS",
+  "AI_POSITIONS_PATH",
+  "AI_POSITIONS_STALE_AFTER_MS",
   "EXPANSION_ENABLED",
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
+  "EXPANSION_ATM_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "MAP_PRESET",
@@ -193,7 +196,11 @@ function providerToEnv(providerName, providerConfig, provider) {
 function buildPaths(env) {
   const derivedBasePath = deriveSstBasePath(env);
   const defaultBasePath = derivedBasePath || "./profiles/SST";
-  const defaultExpansionPath = normalizeEnvPath(env.EXPANSION_TRADERS_PATH)?.replace(/\/Traders$/, "") || "./profiles/ExpansionMod";
+  const defaultExpansionPath =
+    stripSuffix(env.EXPANSION_ATM_PATH, "/ATM") ||
+    stripSuffix(env.EXPANSION_TRADERS_PATH, "/Traders") ||
+    stripSuffix(env.EXPANSION_MARKET_PATH, "/Market") ||
+    "./profiles/ExpansionMod";
   const defaultMissionPath = normalizeEnvPath(env.MISSION_PATH) || deriveMissionPathFromSstPath(env) || "./mpmissions/dayzOffline.chernarusplus";
   const defaultProfilesPath = deriveProfilesPath(env, defaultMissionPath) || "./profiles";
 
@@ -208,10 +215,12 @@ function buildPaths(env) {
     trades: normalizeEnvPath(env.TRADES_PATH) || `${defaultBasePath}/trades`,
     api: normalizeEnvPath(env.API_PATH) || `${defaultBasePath}/api`,
     onlinePlayers: normalizeEnvPath(env.ONLINE_PLAYERS_PATH) || (env.API_PATH ? `${normalizeEnvPath(env.API_PATH)}/online_players.json` : `${defaultBasePath}/api/online_players.json`),
+    aiPositions: normalizeEnvPath(env.AI_POSITIONS_PATH) || (env.API_PATH ? `${normalizeEnvPath(env.API_PATH)}/ai_positions.json` : `${defaultBasePath}/api/ai_positions.json`),
 
     // Expansion paths
     expansionTraders: normalizeEnvPath(env.EXPANSION_TRADERS_PATH) || `${defaultExpansionPath}/Traders`,
     expansionMarket: normalizeEnvPath(env.EXPANSION_MARKET_PATH) || `${defaultExpansionPath}/Market`,
+    expansionAtm: normalizeEnvPath(env.EXPANSION_ATM_PATH) || `${defaultExpansionPath}/ATM`,
 
     // Mission path (for trader zones and economy type files)
     missionFolder: normalizeEnvPath(env.MISSION_PATH) || defaultMissionPath,
@@ -379,6 +388,7 @@ export function logConfig() {
   if (context.features.expansionEnabled) {
     console.log(`  - Expansion Traders: ${context.paths.expansionTraders}`);
     console.log(`  - Expansion Market: ${context.paths.expansionMarket}`);
+    console.log(`  - Expansion ATM: ${context.paths.expansionAtm}`);
   } else {
     console.log("  - Expansion: DISABLED");
   }

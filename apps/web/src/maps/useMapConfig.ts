@@ -16,19 +16,19 @@ export function useMapConfig(isConnected: boolean): UseMapConfigResult {
   const [error, setError] = useState<string | null>(null);
 
   const loadMapConfig = useCallback(async () => {
+    const localOverride = getServerMapOverride(getActiveServer());
+
     if (!isConnected) {
-      setMapConfig(DEFAULT_MAP_CONFIG);
+      setMapConfig(resolveMapConfig(localOverride || DEFAULT_MAP_CONFIG));
       return;
     }
 
     setLoading(true);
     try {
       const config = await getMapConfig();
-      const localOverride = getServerMapOverride(getActiveServer());
-      setMapConfig(resolveMapConfig(localOverride ? { ...config, ...localOverride } : config));
+      setMapConfig(resolveMapConfig(config));
       setError(null);
     } catch (err) {
-      const localOverride = getServerMapOverride(getActiveServer());
       setMapConfig(resolveMapConfig(localOverride || DEFAULT_MAP_CONFIG));
       setError(localOverride ? null : err instanceof Error ? err.message : 'Failed to load map config');
     } finally {

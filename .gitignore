@@ -13,19 +13,23 @@ texHeaders.bin
 dayz.bin
 
 build/
+.*-logs/
 
 .vscode/
 .idea/
 
-Missions/**/storage_*
+dayz/missions/**/storage_*
 
 # Local reference copies (not for publishing)
 Script Refrences/
+DZexpansion*/
 
 # Published ready-to-install server-side mod package
-!@SST/
-!@SST/Addons/
-!@SST/Addons/*.pbo
+!dayz/
+!dayz/server-mod/
+!dayz/server-mod/@SST/
+!dayz/server-mod/@SST/Addons/
+!dayz/server-mod/@SST/Addons/*.pbo
 
 # --- Open-source safety (apps) ---
 # Secrets
@@ -37,6 +41,11 @@ Script Refrences/
 # Node
 node_modules/
 dist/
+
+# .NET
+bin/
+obj/
+tools/installer/assets/*.zip
 
 # Databases (SQLite)
 *.db

@@ -24,6 +24,9 @@ let state = {
   cacheRefreshMs: null,
   cacheLastUpdate: null,
   cacheIntervalMs: null,
+  modLastActivity: null,
+  modLastFile: null,
+  modOnlineCount: null,
 };
 
 let hasInit = false;
@@ -68,6 +71,10 @@ function panelLines() {
   const cacheInterval = typeof state.cacheIntervalMs === "number" ? `${Math.round(state.cacheIntervalMs / 1000)}s` : "—";
 
   const lastUpdate = state.cacheLastUpdate ? String(state.cacheLastUpdate) : "—";
+  const modOnline = typeof state.modOnlineCount === "number" ? state.modOnlineCount.toLocaleString() : "—";
+  const modLastActivity = state.modLastActivity
+    ? `${state.modLastActivity}${state.modLastFile ? ` (${state.modLastFile})` : ""}`
+    : "—";
 
   return [
     ...bannerLines(),
@@ -77,6 +84,7 @@ function panelLines() {
     `  Storage: ${state.storage}   Cache Interval: ${cacheInterval}`,
     `  Items: ${items}   Players Cached: ${cachePlayers}   Last Refresh: ${cacheMs}`,
     `  Cache Updated: ${lastUpdate}`,
+    `  Mod Online: ${modOnline}   Last Mod Write: ${modLastActivity}`,
     "  " + "─".repeat(58),
   ];
 }

@@ -13,7 +13,7 @@ No.
 
 ## Where does SST store files?
 
-SST uses the DayZ server `$profile` folder (typically under `profiles/`) and writes SST-specific JSON under `$storage:SST/`.
+SST uses the DayZ server `$profile` folder (typically under `profiles/`) and writes SST-specific JSON under `$profile:SST/`.
 
 See [In-Game Integration](../In-Game%20Integration/Mod%20Overview.md).
 

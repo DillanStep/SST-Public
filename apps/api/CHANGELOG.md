@@ -5,6 +5,29 @@ All notable changes to SST Node API will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.0.7] - 2026-05-07
+
+### Added
+- Added Expansion ATM account management in Player Manager, including balance lookup, compensation messages, manual overrides, hot reload support, and balance history charts.
+- Added optional DayZ Expansion AI positions on the live map when AI position exports are available.
+- Added a clearer Settings experience with grouped navigation, path browsing helpers, and local folder selection support.
+- Added mod activity monitoring so the API console reports heartbeat, player, grant, command, key grant, item, and AI bridge file updates as they arrive.
+- Added an optional Windows SST Manager wrapper that starts the API hidden, opens the dashboard, tails logs, and can run the updater from one tray app.
+- Added a self-contained Windows setup builder that produces `SST Setup.exe` with the SST payload and manager embedded.
+- Bundled the `@SST` server mod in the setup payload and added admin helpers for copying it to a local DayZ server folder.
+- Added a GitHub Release workflow that builds and uploads the Windows setup EXE plus a SHA256 checksum for version tags.
+- Added a strict non-commercial Terms and Conditions gate to the Windows setup installer.
+
+### Fixed
+- Fixed the heal command so admin healing restores player condition without knocking the player out or killing them.
+- Fixed dashboard static asset handling and launcher port checks so stale hashed web chunks and duplicate API instances do not break startup.
+- Added a Windows batch launcher for dashboard updates so installer startup, logging, and failures are reported reliably.
+- Wrote updater status JSON as UTF-8 without a BOM and made the API tolerate older BOM-written status files.
+- Fixed multi-server dashboard map selection by letting the active API profile map config override stale local map metadata.
+- Added automatic API profile matching for saved dashboard servers so numbered SUDO servers do not silently connect to the default profile.
+
 ## [1.0.6] - 2026-05-05
 
 ### Added
@@ -32,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added multi-server dashboard connection support for admins running several DayZ servers.
 
 ### Changed
-- Moved SST runtime bridge files to `$storage:SST`, with legacy `$profile:SST` reads kept in place so existing servers do not lose data after updating.
+- Standardized SST runtime bridge files under `$profile:SST` and centralized path handling so the API and mod use the same folder.
 - Reduced repeat disk writes from inventories, online players, trade logs, event logs, and vehicle tracking.
 - Reworked vehicle tracking to keep live references where possible and avoid routine whole-map scans.
 - Cleaned up the startup batch files and rebuilt the packed `@SST` mod as `SST.pbo`.
@@ -72,14 +95,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JWT tokens with session validation
 - Audit logging for all auth events
 - Prepared statements for all database queries
-
----
-
-## [Unreleased]
-
-### Planned
-- WebSocket support for real-time updates
-- Rate limiting middleware
-- Scheduled tasks (archiving, cleanup)
-- Multi-server support from single API
-- Plugin system for extensions

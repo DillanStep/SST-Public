@@ -23,6 +23,7 @@ import type {
   OnlinePlayersResponse,
   OnlinePlayerData,
   PlayerLocationsResponse,
+  AIPositionsResponse,
   HealRequest,
   TeleportRequest,
   MessageRequest,
@@ -43,6 +44,12 @@ import type {
   MarketSearchResult,
   ApplyPriceResult,
   ApplyPricesBulkResult,
+  ExpansionAtmAccountsResponse,
+  ExpansionAtmCompensateResponse,
+  ExpansionAtmHistoryResponse,
+  ExpansionAtmResultsResponse,
+  ExpansionAtmReloadResponse,
+  ExpansionAtmUpdateResponse,
   // Log types
   LogListResponse,
   LogContentResponse,
@@ -70,8 +77,12 @@ import type {
   RuntimeConfigResponse,
   RuntimeConfigUpdateResponse,
   RuntimeEnvValues,
+  ConfigBrowseMode,
+  ConfigBrowseResponse,
   ServerMapConfig,
   PlayerLeaderboardResponse,
+  SstModCopyResponse,
+  SstModInfoResponse,
 } from '../types';
 import { getActiveServer, getServers, migrateOldConfig } from './serverManager';
 import { getAuthToken } from './auth';
@@ -189,8 +200,25 @@ class SstApi {
     return response.data;
   }
 
+  async browseConfigPath(path?: string, mode: ConfigBrowseMode = 'folder'): Promise<ConfigBrowseResponse> {
+    const response = await this.client.get<ConfigBrowseResponse>('/config/browse', {
+      params: { path, mode },
+    });
+    return response.data;
+  }
+
   async getMapConfig(): Promise<ServerMapConfig> {
     const response = await this.client.get<ServerMapConfig>('/map/config');
+    return response.data;
+  }
+
+  async getSstModInfo(): Promise<SstModInfoResponse> {
+    const response = await this.client.get<SstModInfoResponse>('/mod');
+    return response.data;
+  }
+
+  async copySstMod(destination: string): Promise<SstModCopyResponse> {
+    const response = await this.client.post<SstModCopyResponse>('/mod/copy', { destination });
     return response.data;
   }
 
@@ -343,6 +371,11 @@ class SstApi {
     return response.data;
   }
 
+  async getAIPositions(): Promise<AIPositionsResponse> {
+    const response = await this.client.get<AIPositionsResponse>('/ai/positions');
+    return response.data;
+  }
+
   // Player Commands (heal, teleport)
   async healPlayer(request: HealRequest): Promise<CommandResponse> {
     const response = await this.client.post<CommandResponse>('/commands/heal', request);
@@ -451,6 +484,46 @@ class SstApi {
   // Apply multiple price changes at once
   async applyPriceChangesBulk(changes: PriceChange[]): Promise<ApplyPricesBulkResult> {
     const response = await this.client.post<ApplyPricesBulkResult>('/expansion/apply-prices-bulk', { changes });
+    return response.data;
+  }
+
+  async getExpansionAtmBalances(): Promise<ExpansionAtmAccountsResponse> {
+    const response = await this.client.get<ExpansionAtmAccountsResponse>('/expansion/atm');
+    return response.data;
+  }
+
+  async updateExpansionAtmBalance(playerId: string, balance: number, hotReload = true): Promise<ExpansionAtmUpdateResponse> {
+    const encodedPlayerId = encodeURIComponent(playerId);
+    const response = await this.client.put<ExpansionAtmUpdateResponse>(`/expansion/atm/${encodedPlayerId}`, {
+      balance,
+      hotReload,
+    });
+    return response.data;
+  }
+
+  async compensateExpansionAtmBalance(playerId: string, amount: number, reason: string): Promise<ExpansionAtmCompensateResponse> {
+    const encodedPlayerId = encodeURIComponent(playerId);
+    const response = await this.client.post<ExpansionAtmCompensateResponse>(`/expansion/atm/${encodedPlayerId}/compensate`, {
+      amount,
+      reason,
+    });
+    return response.data;
+  }
+
+  async reloadExpansionAtmBalances(): Promise<ExpansionAtmReloadResponse> {
+    const response = await this.client.post<ExpansionAtmReloadResponse>('/expansion/atm/reload');
+    return response.data;
+  }
+
+  async getExpansionAtmResults(): Promise<ExpansionAtmResultsResponse> {
+    const response = await this.client.get<ExpansionAtmResultsResponse>('/expansion/atm/results');
+    return response.data;
+  }
+
+  async getExpansionAtmHistory(playerId?: string): Promise<ExpansionAtmHistoryResponse> {
+    const response = await this.client.get<ExpansionAtmHistoryResponse>('/expansion/atm/history', {
+      params: playerId ? { playerId } : undefined,
+    });
     return response.data;
   }
 
@@ -597,6 +670,7 @@ export const getApiKey = () => api.getApiKey();
 export const getHealth = () => api.getHealth();
 export const getRuntimeConfig = () => api.getRuntimeConfig();
 export const updateRuntimeConfig = (env: RuntimeEnvValues) => api.updateRuntimeConfig(env);
+export const browseConfigPath = (path?: string, mode?: ConfigBrowseMode) => api.browseConfigPath(path, mode);
 export const getMapConfig = () => api.getMapConfig();
 export const getDashboard = () => api.getDashboard();
 export const getPlayer = (playerId: string) => api.getPlayer(playerId);
@@ -623,6 +697,7 @@ export const getOnlinePlayers = () => api.getOnlinePlayers();
 export const getActiveOnlinePlayers = () => api.getActiveOnlinePlayers();
 export const getPlayerOnlineStatus = (playerId: string) => api.getPlayerOnlineStatus(playerId);
 export const getAllPlayerLocations = () => api.getAllPlayerLocations();
+export const getAIPositions = () => api.getAIPositions();
 export const healPlayer = (request: HealRequest) => api.healPlayer(request);
 export const teleportPlayer = (request: TeleportRequest) => api.teleportPlayer(request);
 export const getCommandResults = () => api.getCommandResults();
@@ -645,6 +720,12 @@ export const deleteMarketItem = (fileName: string, className: string) => api.del
 export const searchMarketItem = (className: string) => api.searchMarketItem(className);
 export const applyPriceChange = (change: PriceChange) => api.applyPriceChange(change);
 export const applyPriceChangesBulk = (changes: PriceChange[]) => api.applyPriceChangesBulk(changes);
+export const getExpansionAtmBalances = () => api.getExpansionAtmBalances();
+export const updateExpansionAtmBalance = (playerId: string, balance: number, hotReload = true) => api.updateExpansionAtmBalance(playerId, balance, hotReload);
+export const compensateExpansionAtmBalance = (playerId: string, amount: number, reason: string) => api.compensateExpansionAtmBalance(playerId, amount, reason);
+export const reloadExpansionAtmBalances = () => api.reloadExpansionAtmBalances();
+export const getExpansionAtmResults = () => api.getExpansionAtmResults();
+export const getExpansionAtmHistory = (playerId?: string) => api.getExpansionAtmHistory(playerId);
 export const getExpansionData = () => api.getExpansionData();
 
 // Logs exports

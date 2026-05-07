@@ -47,6 +47,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   const [expansionEnabled, setExpansionEnabled] = useState(false);
   const [expansionTradersPath, setExpansionTradersPath] = useState('');
   const [expansionMarketPath, setExpansionMarketPath] = useState('');
+  const [expansionAtmPath, setExpansionAtmPath] = useState('');
   const [localPath, setLocalPath] = useState('');
   const [mapPreset, setMapPreset] = useState(defaultMap.id);
   const [mapLabel, setMapLabel] = useState('');
@@ -90,10 +91,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
       <div className="space-y-2">
         <p className="font-medium">Start the DayZ server with @SST before testing.</p>
         <p>
-          The mod creates a runtime folder at $storage:SST after it has loaded. Start DayZ with -scrAllowFileWrite, then point this field at the mission storage SST folder, not the @SST mod package or repo source folder.
+          The mod creates a runtime folder at $profile:SST after it has loaded. Start DayZ with -scrAllowFileWrite, then point this field at the SST folder inside your active profiles folder, not the @SST mod package or repo source folder.
         </p>
         <p className="text-xs text-amber-700">
-          Expected contents include api/online_players.json, api/server_items.json, inventories/, events/, life_events/, and optional trades/ or vehicles/ data when those features are used.
+          Expected contents include api/online_players.json, api/server_items.json, inventories/, events/, life_events/, and optional trades/, vehicles/, or api/ai_positions.json data when those features are used.
         </p>
       </div>
     </div>
@@ -144,6 +145,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
     expansionEnabled,
     expansionTradersPath,
     expansionMarketPath,
+    expansionAtmPath,
     localPath,
   ]);
 
@@ -290,6 +292,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         expansionEnabled,
         expansionTradersPath: hostingType === 'dedicated' ? expansionTradersPath : normalizeOptionalServerPath(expansionTradersPath),
         expansionMarketPath: hostingType === 'dedicated' ? expansionMarketPath : normalizeOptionalServerPath(expansionMarketPath),
+        expansionAtmPath: hostingType === 'dedicated' ? expansionAtmPath : normalizeOptionalServerPath(expansionAtmPath),
         mapPreset,
         mapLabel: mapLabel.trim(),
         mapImageUrl: mapImageUrl.trim(),
@@ -693,7 +696,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                   </label>
 
                   {expansionEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Traders Path</label>
                         <Input
@@ -712,6 +715,15 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                           placeholder="HostHavocDayZServer/profiles/ExpansionMod/Market"
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion ATM Path</label>
+                        <Input
+                          type="text"
+                          value={expansionAtmPath}
+                          onChange={(e) => setExpansionAtmPath(e.target.value)}
+                          placeholder="HostHavocDayZServer/profiles/ExpansionMod/ATM"
+                        />
+                      </div>
                     </div>
                   )}
                 </>
@@ -726,14 +738,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       type="text"
                       value={localPath}
                       onChange={(e) => setLocalPath(e.target.value)}
-                      placeholder="C:\\DayZServer\\mpmissions\\dayzOffline.chernarusplus\\storage_1\\SST"
+                      placeholder="C:\\DayZServer\\Server1\\SST"
                     />
                     <p className="text-xs text-surface-400 mt-2">
-                      Enter the full path to the generated SST runtime folder in mission storage.
+                      Enter the full path to the generated SST runtime folder in your active DayZ profile folder.
                     </p>
                     {localPath.trim().length > 0 && !isAbsoluteLocalPath(localPath) && (
                       <p className="text-xs text-red-600 mt-2">
-                        Use a full path like C:\DayZServer\mpmissions\dayzOffline.chernarusplus\storage_1\SST, not a placeholder or relative folder name.
+                        Use a full path like C:\DayZServer\Server1\SST, not a placeholder or relative folder name.
                       </p>
                     )}
                   </div>
@@ -770,7 +782,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                   </label>
 
                   {expansionEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Traders Path</label>
                         <Input
@@ -787,6 +799,15 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                           value={expansionMarketPath}
                           onChange={(e) => setExpansionMarketPath(e.target.value)}
                           placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\Market"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion ATM Path</label>
+                        <Input
+                          type="text"
+                          value={expansionAtmPath}
+                          onChange={(e) => setExpansionAtmPath(e.target.value)}
+                          placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\ATM"
                         />
                       </div>
                     </div>

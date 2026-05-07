@@ -47,6 +47,31 @@ const InventoryItemImage: React.FC<{ image?: ItemImageInfo | null; className: st
   );
 };
 
+const formatDateTime = (value?: string | null) => {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleString();
+};
+
+const formatTime = (value?: string | null) => {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleTimeString();
+};
+
+const formatAge = (ms?: number | null) => {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return 'no heartbeat';
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+};
+
 export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected }) => {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,6 +91,11 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [broadcastText, setBroadcastText] = useState('');
+  const onlineSource = dashboard?.onlineSource;
+  const isHeartbeatStale = Boolean(onlineSource?.isStale);
+  const commandDisabledReason = isHeartbeatStale
+    ? 'DayZ server heartbeat is stale. Live commands are disabled until the mod writes a fresh update.'
+    : undefined;
 
   const loadDashboard = useCallback(async () => {
     if (!isConnected) return;
@@ -119,7 +149,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
   };
 
   const handleSendMessage = async () => {
-    if (!messagePlayer || !messageText.trim()) return;
+    if (!messagePlayer || !messageText.trim() || isHeartbeatStale) return;
     
     setSendingMessage(true);
     try {
@@ -139,7 +169,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
   };
 
   const handleBroadcast = async () => {
-    if (!broadcastText.trim()) return;
+    if (!broadcastText.trim() || isHeartbeatStale) return;
     
     setSendingMessage(true);
     try {
@@ -231,14 +261,26 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
       icon={<Users size={20} />}
       actions={
         <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowBroadcastModal(true)}
-            icon={<MessageSquare size={14} />}
-          >
-            <span className="hidden sm:inline">Broadcast</span>
-          </Button>
+          {isHeartbeatStale ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled
+              title={commandDisabledReason}
+              icon={<MessageSquare size={14} />}
+            >
+              <span className="hidden sm:inline">Broadcast unavailable</span>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowBroadcastModal(true)}
+              icon={<MessageSquare size={14} />}
+            >
+              <span className="hidden sm:inline">Broadcast</span>
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -273,23 +315,40 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
       {dashboard && (
         <>
           {/* Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
-            <div className="bg-surface-50 rounded-lg p-3 sm:p-4 border border-surface-300">
-              <div className="flex items-center gap-2 text-dark-400 text-xs sm:text-sm mb-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-4">
+            <div className={`rounded-lg p-3 sm:p-4 border ${isHeartbeatStale ? 'bg-amber-50 border-amber-200' : 'bg-surface-50 border-surface-300'}`}>
+              <div className={`flex items-center gap-2 text-xs sm:text-sm mb-1 ${isHeartbeatStale ? 'text-amber-700' : 'text-dark-400'}`}>
                 <Users size={14} />
                 <span>Online Players</span>
               </div>
-              <div className="text-xl sm:text-2xl font-bold text-amethyst">{dashboard.onlineCount ?? 0}</div>
-              <div className="mt-1 text-[11px] text-surface-400">{dashboard.playerCount} known</div>
+              <div className={`text-xl sm:text-2xl font-bold ${isHeartbeatStale ? 'text-amber-900' : 'text-amethyst'}`}>
+                {dashboard.onlineCount ?? 0}
+              </div>
+              <div className="mt-1 text-[11px] text-surface-500">
+                {isHeartbeatStale ? 'forced offline' : `${dashboard.playerCount} known`}
+              </div>
             </div>
             
             <div className="bg-surface-50 rounded-lg p-3 sm:p-4 border border-surface-300">
               <div className="flex items-center gap-2 text-dark-400 text-xs sm:text-sm mb-1">
                 <Clock size={14} />
-                <span>Last Update</span>
+                <span>API Cache</span>
               </div>
               <div className="text-xs sm:text-sm font-medium text-amethyst">
-                {new Date(dashboard.lastUpdate).toLocaleTimeString()}
+                {formatTime(dashboard.lastUpdate)}
+              </div>
+            </div>
+
+            <div className={`rounded-lg p-3 sm:p-4 border ${isHeartbeatStale ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+              <div className={`flex items-center gap-2 text-xs sm:text-sm mb-1 ${isHeartbeatStale ? 'text-amber-700' : 'text-green-700'}`}>
+                <Activity size={14} />
+                <span>Mod Heartbeat</span>
+              </div>
+              <div className={`text-sm font-semibold ${isHeartbeatStale ? 'text-amber-900' : 'text-green-800'}`}>
+                {isHeartbeatStale ? 'Stale' : 'Fresh'}
+              </div>
+              <div className="mt-1 text-[11px] text-surface-500">
+                {formatAge(onlineSource?.sourceAgeMs)}
               </div>
             </div>
             
@@ -319,8 +378,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
           </div>
 
           {dashboard.onlineSource?.isStale && (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Online player data is stale, so SST is showing players as offline until the DayZ server writes a fresh update.
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <strong>DayZ server appears offline.</strong> The API cache refreshed, but the last SST mod heartbeat was {formatDateTime(onlineSource?.sourceUpdatedAt)} ({formatAge(onlineSource?.sourceAgeMs)}). Online players are forced offline and live commands are disabled until the DayZ server writes a new heartbeat.
             </div>
           )}
 
@@ -376,6 +435,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                   const invCount = invData?.inventory?.length || 0;
                   const playerName = invData?.playerName || playerData.online?.playerName || playerId.substring(0, 12) + '...';
                   const isOnline = playerData.online?.isOnline;
+                  const canMessagePlayer = !isHeartbeatStale && Boolean(isOnline);
                   const eventCount = playerData.events?.events?.length || 0;
                   const lifeEventCount = playerData.lifeEvents?.events?.length || 0;
                   
@@ -389,6 +449,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-amethyst font-medium">{playerName}</span>
                             {isOnline && <Badge variant="success">Online</Badge>}
+                            {!isOnline && isHeartbeatStale && <Badge variant="warning">Forced offline</Badge>}
+                            {!isOnline && !isHeartbeatStale && <Badge variant="default">Offline</Badge>}
                           </div>
                           <code className="text-primary-500 bg-surface-100 px-2 py-0.5 rounded text-xs">
                             {playerId}
@@ -412,15 +474,21 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openMessageModal(playerId, playerName)}
-                            icon={<MessageSquare size={14} />}
-                            title="Send message to player"
-                          >
-                            Msg
-                          </Button>
+                          {canMessagePlayer ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openMessageModal(playerId, playerName)}
+                              icon={<MessageSquare size={14} />}
+                              title="Send message to player"
+                            >
+                              Msg
+                            </Button>
+                          ) : (
+                            <Badge variant={isHeartbeatStale ? 'warning' : 'default'}>
+                              {isHeartbeatStale ? 'Live disabled' : 'Offline'}
+                            </Badge>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -680,7 +748,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                 </Button>
                 <Button
                   onClick={handleSendMessage}
-                  disabled={sendingMessage || !messageText.trim()}
+                  disabled={sendingMessage || !messageText.trim() || isHeartbeatStale}
+                  title={commandDisabledReason}
                   icon={<Send size={14} />}
                 >
                   {sendingMessage ? 'Sending...' : 'Send Message'}
@@ -711,11 +780,19 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <div className="bg-surface-50 border border-surface-200 rounded-md p-3">
-                <p className="text-sm text-dark-400">
-                  This message will be sent to <strong>all players</strong> currently on the server.
-                </p>
-              </div>
+              {isHeartbeatStale ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
+                  <p className="text-sm text-amber-900">
+                    The DayZ server heartbeat is stale. Broadcasts are disabled until the mod writes a fresh update.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-surface-50 border border-surface-200 rounded-md p-3">
+                  <p className="text-sm text-dark-400">
+                    This message will be sent to <strong>all players</strong> currently on the server.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-dark-400 mb-1">Message Type</label>
                 <Select
@@ -749,7 +826,8 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ isConnected })
                 </Button>
                 <Button
                   onClick={handleBroadcast}
-                  disabled={sendingMessage || !broadcastText.trim()}
+                  disabled={sendingMessage || !broadcastText.trim() || isHeartbeatStale}
+                  title={commandDisabledReason}
                   icon={<Radio size={14} />}
                 >
                   {sendingMessage ? 'Broadcasting...' : 'Broadcast'}

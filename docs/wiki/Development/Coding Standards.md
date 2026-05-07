@@ -28,7 +28,7 @@ Suggested conventions:
 - Prefer small, composable components.
 - Run `npm run lint` before PRs.
 
-## DayZ mod scripts (SST/Scripts)
+## DayZ mod scripts (`dayz/mod-source/SST/Scripts`)
 
 - Keep server-only work guarded with `GetGame().IsServer()`.
 - Avoid tight loops: use scheduled work (`CallLater`) with reasonable intervals.

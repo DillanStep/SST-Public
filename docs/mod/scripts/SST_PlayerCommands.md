@@ -2,14 +2,14 @@
 
 Purpose: processes admin/player commands queued by the Node API (heal, teleport, message, broadcast) and writes results.
 
-Source file: [SST/Scripts/4_World/SST/SST_PlayerCommands.c](../../../SST/Scripts/4_World/SST/SST_PlayerCommands.c)
+Source file: [dayz/mod-source/SST/Scripts/4_World/SST/SST_PlayerCommands.c](../../../dayz/mod-source/SST/Scripts/4_World/SST/SST_PlayerCommands.c)
 
 ---
 
 ## Files used
 
-- Queue (API → server): `$storage:SST/api/player_commands.json`
-- Results (server → API): `$storage:SST/api/player_commands_results.json`
+- Queue (API → server): `$profile:SST/api/player_commands.json`
+- Results (server → API): `$profile:SST/api/player_commands_results.json`
 
 Queue schema:
 

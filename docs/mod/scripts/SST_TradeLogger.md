@@ -1,8 +1,8 @@
 # SST_TradeLogger.c
 
-Purpose: logs **Expansion Market** purchases and sales to per-player JSON files under `$storage:SST/trades/`.
+Purpose: logs **Expansion Market** purchases and sales to per-player JSON files under `$profile:SST/trades/`.
 
-Source file: [SST/Scripts/4_World/SST/SST_TradeLogger.c](../../../SST/Scripts/4_World/SST/SST_TradeLogger.c)
+Source file: [dayz/mod-source/SST/Scripts/4_World/SST/SST_TradeLogger.c](../../../dayz/mod-source/SST/Scripts/4_World/SST/SST_TradeLogger.c)
 
 ---
 
@@ -10,7 +10,7 @@ Source file: [SST/Scripts/4_World/SST/SST_TradeLogger.c](../../../SST/Scripts/4_
 
 Per-player trade logs:
 
-- Folder: `$storage:SST/trades/`
+- Folder: `$profile:SST/trades/`
 - File pattern: `<steam64>_trades.json`
 
 The log structure is:

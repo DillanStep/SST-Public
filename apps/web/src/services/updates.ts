@@ -28,6 +28,7 @@ export interface UpdateInstallStatus {
   message: string | null;
   targetTag?: string;
   logPath?: string;
+  runnerPath?: string;
   updatedAt?: string | null;
   error?: string;
 }

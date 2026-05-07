@@ -2,7 +2,7 @@
 
 Purpose: a copy/paste template for adding a new SST feature that is backed by the Node API using the **standard JSON queue → processing → results** pattern.
 
-Source file: [SST/Scripts/4_World/SST/SST_ApiFeatureTemplate.c](../../../SST/Scripts/4_World/SST/SST_ApiFeatureTemplate.c)
+Source file: [dayz/mod-source/SST/Scripts/4_World/SST/SST_ApiFeatureTemplate.c](../../../dayz/mod-source/SST/Scripts/4_World/SST/SST_ApiFeatureTemplate.c)
 
 ---
 
@@ -22,9 +22,9 @@ This is the exact same “bridge” pattern used by existing SST features like p
 
 The template uses these paths (all relative to DayZ `$storage`):
 
-- Queue (API → server): `$storage:SST/api/template_queue.json`
-- Results (server → API): `$storage:SST/api/template_results.json`
-- Optional export (server → API snapshot): `$storage:SST/template_export.json`
+- Queue (API → server): `$profile:SST/api/template_queue.json`
+- Results (server → API): `$profile:SST/api/template_results.json`
+- Optional export (server → API snapshot): `$profile:SST/template_export.json`
 
 You should rename these filenames for your feature.
 
@@ -106,7 +106,7 @@ SST_TemplateService.Start();
 
 Internally it:
 
-- Ensures `$storage:SST` and `$storage:SST/api` exist
+- Ensures `$profile:SST` and `$profile:SST/api` exist
 - Guards server-only execution with `GetGame().IsServer()`
 - Uses `CallLater` to poll the queue periodically
 

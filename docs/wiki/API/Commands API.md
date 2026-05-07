@@ -13,8 +13,8 @@ Endpoints:
 
 Backing files:
 
-- `$storage:SST/api/player_commands.json`
-- `$storage:SST/api/player_commands_results.json`
+- `$profile:SST/api/player_commands.json`
+- `$profile:SST/api/player_commands_results.json`
 
 Implementation:
 

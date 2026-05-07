@@ -4,12 +4,12 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
   RefreshCw, Users, Wifi, ChevronLeft, ChevronRight, 
-  Heart, Droplets, Zap, MapPin, X, Navigation, Store
+  Heart, Droplets, Zap, MapPin, X, Navigation, Store, Bot
 } from 'lucide-react';
 import { Badge, Button } from '../ui';
 import { PlayerModal } from './PlayerModal';
-import { getOnlinePlayers, teleportPlayer, getTraderZones } from '../../services/api';
-import type { OnlinePlayerData, TraderZone } from '../../types';
+import { getOnlinePlayers, teleportPlayer, getTraderZones, getAIPositions } from '../../services/api';
+import type { OnlinePlayerData, TraderZone, AIPositionData } from '../../types';
 import { MapImageLayer } from '../../maps/MapImageLayer';
 import { gameToMap, mapCenter, mapRenderKey, mapToGame, paddedMapBounds, type ActiveMapConfig } from '../../maps/mapConfig';
 import { useMapConfig } from '../../maps/useMapConfig';
@@ -89,6 +89,46 @@ const PlayerMarker = memo(({
 
 PlayerMarker.displayName = 'PlayerMarker';
 
+const AIMarker = memo(({
+  unit,
+  mapConfig,
+}: {
+  unit: AIPositionData;
+  mapConfig: ActiveMapConfig;
+}) => {
+  const position = gameToMap(mapConfig, unit.position?.x || 0, unit.position?.z || 0);
+
+  return (
+    <CircleMarker
+      center={position}
+      radius={7}
+      pathOptions={{
+        color: '#c2410c',
+        fillColor: '#f97316',
+        fillOpacity: 0.85,
+        weight: 2,
+      }}
+    >
+      <Popup>
+        <div className="text-sm min-w-[150px]">
+          <div className="font-bold text-gray-900 flex items-center gap-1">
+            <Bot size={14} />
+            {unit.displayName || unit.typeName || 'Expansion AI'}
+          </div>
+          <div className="text-gray-600 mt-1 text-xs space-y-1">
+            {unit.faction && <div>Faction: {unit.faction}</div>}
+            {unit.groupName && <div>Group: {unit.groupName}</div>}
+            <div>Position: {Math.round(unit.position?.x || 0)}, {Math.round(unit.position?.z || 0)}</div>
+            <div>HP: {Math.round(unit.health || 0)}%</div>
+          </div>
+        </div>
+      </Popup>
+    </CircleMarker>
+  );
+});
+
+AIMarker.displayName = 'AIMarker';
+
 // Component to set initial view
 function SetView({ mapConfig }: { mapConfig: ActiveMapConfig }) {
   const map = useMap();
@@ -104,8 +144,10 @@ interface FullPageMapProps {
 
 export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
   const [players, setPlayers] = useState<OnlinePlayerData[]>([]);
+  const [aiUnits, setAiUnits] = useState<AIPositionData[]>([]);
   const [traderZones, setTraderZones] = useState<TraderZone[]>([]);
   const [showTraderZones, setShowTraderZones] = useState(true);
+  const [showAiUnits, setShowAiUnits] = useState(true);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -133,16 +175,24 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
     loadZones();
   }, [isConnected]);
 
-  const loadPlayers = useCallback(async () => {
+  const loadMapData = useCallback(async () => {
     if (!isConnected) return;
     
     setLoading(true);
     try {
-      const data = await getOnlinePlayers();
-      setPlayers(data.players?.filter(p => p.isOnline && p.position) || []);
+      const [playerData, aiData] = await Promise.all([
+        getOnlinePlayers(),
+        getAIPositions().catch((err) => {
+          console.error('Failed to load AI positions:', err);
+          return null;
+        }),
+      ]);
+
+      setPlayers(playerData.players?.filter(p => p.isOnline && p.position) || []);
+      setAiUnits(aiData?.ai?.filter(unit => unit.isAlive && unit.position) || []);
       setLastUpdate(new Date());
     } catch (err) {
-      console.error('Failed to load online players:', err);
+      console.error('Failed to load live map data:', err);
     } finally {
       setLoading(false);
     }
@@ -151,10 +201,10 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
   // Initial load and auto-refresh every 10 seconds
   useEffect(() => {
     if (!isConnected) return;
-    loadPlayers();
-    const interval = setInterval(loadPlayers, 10000);
+    loadMapData();
+    const interval = setInterval(loadMapData, 10000);
     return () => clearInterval(interval);
-  }, [isConnected, loadPlayers]);
+  }, [isConnected, loadMapData]);
 
   // Handle map click for teleport
   const handleMapClick = useCallback((lat: number, lng: number) => {
@@ -182,13 +232,13 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
       setTeleportTarget(null);
       
       // Refresh players after a short delay to see the new position
-      setTimeout(loadPlayers, 3000);
+      setTimeout(loadMapData, 3000);
     } catch (err) {
       console.error('Failed to teleport player:', err);
     } finally {
       setTeleportSending(false);
     }
-  }, [mapConfig, teleportMode, teleportTarget, loadPlayers]);
+  }, [mapConfig, teleportMode, teleportTarget, loadMapData]);
 
   // Cancel teleport mode
   const cancelTeleport = useCallback(() => {
@@ -210,6 +260,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
 
   // Memoize players to prevent unnecessary re-renders
   const memoizedPlayers = useMemo(() => players, [players]);
+  const memoizedAiUnits = useMemo(() => aiUnits, [aiUnits]);
 
   if (!isConnected) {
     return (
@@ -236,7 +287,7 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
                 <Users size={20} />
                 Live Map
               </h2>
-              <button onClick={loadPlayers} disabled={loading} className="p-1.5 hover:bg-surface-100 rounded">
+              <button onClick={loadMapData} disabled={loading} className="p-1.5 hover:bg-surface-100 rounded">
                 <RefreshCw size={16} className={`text-surface-500 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
@@ -244,6 +295,10 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
               <Badge variant={memoizedPlayers.length > 0 ? 'success' : 'default'}>
                 <Wifi size={10} className="mr-1" />
                 {memoizedPlayers.length} Online
+              </Badge>
+              <Badge variant={memoizedAiUnits.length > 0 ? 'warning' : 'default'}>
+                <Bot size={10} className="mr-1" />
+                {memoizedAiUnits.length} AI
               </Badge>
               {lastUpdate && (
                 <span className="text-xs text-surface-500">
@@ -302,6 +357,43 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
                 No players online
               </div>
             )}
+
+            {showAiUnits && memoizedAiUnits.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <div className="px-1 text-xs font-semibold text-surface-500 flex items-center gap-1">
+                  <Bot size={12} />
+                  Expansion AI
+                </div>
+                {memoizedAiUnits.map((unit) => (
+                  <div
+                    key={unit.aiId}
+                    className="w-full bg-amber-50 rounded-lg p-3 border border-amber-200"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                      <span className="font-medium text-surface-800 truncate flex-1">
+                        {unit.displayName || unit.typeName || 'Expansion AI'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-surface-500 mb-2">
+                      <MapPin size={10} />
+                      <span>{Math.round(unit.position?.x || 0)}, {Math.round(unit.position?.z || 0)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-xs">
+                      <div className="flex items-center gap-0.5 text-red-500">
+                        <Heart size={10} />
+                        <span>{Math.round(unit.health || 0)}</span>
+                      </div>
+                      {unit.faction && (
+                        <div className="truncate text-surface-500">
+                          {unit.faction}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Footer */}
@@ -315,6 +407,18 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
             <div className="flex items-center gap-2">
               <MapPin size={12} />
               <span>{mapLoading ? 'Loading map' : mapConfig.label}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-orange-500 border border-orange-600" />
+                <span>Show AI Positions ({memoizedAiUnits.length})</span>
+              </div>
+              <button
+                onClick={() => setShowAiUnits(!showAiUnits)}
+                className={`px-2 py-0.5 rounded text-xs ${showAiUnits ? 'bg-amber-500 text-white' : 'bg-surface-200 text-surface-600'}`}
+              >
+                {showAiUnits ? 'ON' : 'OFF'}
+              </button>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -439,6 +543,14 @@ export const FullPageMap: React.FC<FullPageMapProps> = ({ isConnected }) => {
               icon={crosshairIcon}
             />
           )}
+
+          {showAiUnits && memoizedAiUnits.filter(unit => unit.position).map((unit) => (
+            <AIMarker
+              key={unit.aiId}
+              unit={unit}
+              mapConfig={mapConfig}
+            />
+          ))}
 
           {memoizedPlayers.filter(p => p.position).map((player) => (
             <PlayerMarker

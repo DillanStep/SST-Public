@@ -2,7 +2,7 @@
 
 Purpose: shared JSON DTOs (data-only classes) used by multiple SST exporters and API queues.
 
-Source file: [SST/Scripts/3_Game/SST/SST_ATMExportManager.c](../../../SST/Scripts/3_Game/SST/SST_ATMExportManager.c)
+Source file: [dayz/mod-source/SST/Scripts/3_Game/SST/SST_ATMExportManager.c](../../../dayz/mod-source/SST/Scripts/3_Game/SST/SST_ATMExportManager.c)
 
 ---
 

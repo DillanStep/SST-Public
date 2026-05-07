@@ -5,22 +5,22 @@ This is the shortest path to get SST running on a Windows DayZ server or admin P
 ## Before You Start
 
 - Install Node.js 18 or newer from https://nodejs.org/.
-- Copy the included `@SST` folder to your DayZ server root.
+- Copy the included `dayz/server-mod/@SST` folder to your DayZ server root as `@SST`.
 - Load SST as a server-side mod, for example:
 
 ```text
--profiles=Server1 -storage=Server1Storage -serverMod=@SST -scrAllowFileWrite
+-profiles=Server1 -serverMod=@SST -scrAllowFileWrite
 ```
 
 Keep normal player/client mods in `-mod`. Keep `@SST` in `-serverMod` unless your host specifically requires a different field.
 
-Start the DayZ server once before configuring the app. SST creates its files under the DayZ storage root:
+Start the DayZ server once before configuring the app. SST creates its files under the active DayZ profile folder:
 
 ```text
-<DayZServerRoot>/Server1Storage/SST
+<DayZServerRoot>/Server1/SST
 ```
 
-The exact path depends on `-storage=`. If your host does not expose `-storage=`, look for the generated `SST/` folder wherever your host exposes DayZ storage/persistence files.
+The exact path depends on `-profiles=`. If your host hides the profile path, look for the generated `SST/` folder in the server file manager.
 
 Inside the folder you should see:
 
@@ -73,7 +73,7 @@ In the dashboard:
 For local files, use forward slashes:
 
 ```text
-C:/DayZServer/Server1Storage/SST
+C:/DayZServer/Server1/SST
 ```
 
 For hosted servers, stop the path at the `SST` folder. Do not include `/api/online_players.json`.

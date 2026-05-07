@@ -12,6 +12,6 @@ Common endpoints:
 
 Backing files:
 
-- `$storage:SST/vehicles/tracked.json`
-- `$storage:SST/api/key_grants.json` + `_results.json`
-- `$storage:SST/api/vehicle_delete.json` + `_results.json`
+- `$profile:SST/vehicles/tracked.json`
+- `$profile:SST/api/key_grants.json` + `_results.json`
+- `$profile:SST/api/vehicle_delete.json` + `_results.json`

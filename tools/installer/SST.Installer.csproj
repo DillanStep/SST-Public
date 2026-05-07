@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>SST Setup</AssemblyName>
+    <RootNamespace>SST.Installer</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\manager\assets\sst-manager.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="assets\sst-payload.zip" Condition="Exists('assets\sst-payload.zip')" />
+    <EmbeddedResource Include="..\..\apps\web\public\banners\LOGO.png" LogicalName="SST.Installer.Assets.LOGO.png" />
+    <EmbeddedResource Include="..\manager\assets\sst-manager.ico" LogicalName="SST.Installer.Assets.sst-manager.ico" />
+    <EmbeddedResource Include="..\..\docs\NON-COMMERCIAL-TERMS.md" LogicalName="SST.Installer.Assets.NON-COMMERCIAL-TERMS.md" />
+  </ItemGroup>
+</Project>

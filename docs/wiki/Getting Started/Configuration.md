@@ -2,7 +2,7 @@
 
 SST has three configuration surfaces:
 
-1. The DayZ mod writes data under the DayZ storage root.
+1. The DayZ mod writes data under the active DayZ profile folder.
 2. The Node API reads those files and writes command queues.
 3. The web dashboard connects to the API.
 
@@ -13,7 +13,7 @@ Copy `apps/api/.env.example` to `apps/api/.env`, then set the values for your se
 Important settings:
 
 - `STORAGE_BACKEND`: `local`, `ftp`, or `sftp`.
-- `SST_PATH`: the DayZ storage `SST` folder that contains `api/`, `inventories/`, `events/`, and related SST exports.
+- `SST_PATH`: the DayZ profile `SST` folder that contains `api/`, `inventories/`, `events/`, and related SST exports.
 - `PROFILES_PATH`: the active DayZ profile folder, useful for reading server logs.
 - `API_KEY`: leave blank to generate on first startup, or set your own 32+ byte secret.
 - `JWT_SECRET`: leave blank to generate on first startup, or set your own 32+ byte secret.
@@ -24,28 +24,25 @@ Important settings:
 
 ## Finding `SST_PATH`
 
-SST writes to `$storage:SST`. DayZ 1.20 added a `-storage=` launch parameter that defines the storage root exposed to scripts as `$storage:`. If your host allows it, set `-storage=Server1Storage` so the API path is predictable.
+SST writes to `$profile:SST`, so `SST_PATH` is the `SST` folder inside the active DayZ `-profiles` directory. The DayZ script log prints this path on startup as `Runtime path ready`.
 
 Examples:
 
 ```text
 -profiles=Server1
--storage=Server1Storage
-SST_PATH=<DayZServerRoot>/Server1Storage/SST
+SST_PATH=<DayZServerRoot>/Server1/SST
 PROFILES_PATH=<DayZServerRoot>/Server1
 
 -profiles=profiles
--storage=storage
-SST_PATH=<DayZServerRoot>/storage/SST
+SST_PATH=<DayZServerRoot>/profiles/SST
 PROFILES_PATH=<DayZServerRoot>/profiles
 
 -profiles=D:\DayZServer\profiles
--storage=D:\DayZServer\storage
-SST_PATH=D:/DayZServer/storage/SST
+SST_PATH=D:/DayZServer/profiles/SST
 PROFILES_PATH=D:/DayZServer/profiles
 ```
 
-Older SST builds wrote under `$profile:SST`. The mod keeps a legacy read/migration fallback, but the API should be pointed at the new `$storage:SST` folder after updating.
+If you are unsure, use the folder that contains `api/online_players.json` after the server has started with `@SST`.
 
 Run the DayZ server once with `@SST` loaded before testing the API connection. The setup test expects the mod to have generated `SST/api/online_players.json`.
 
@@ -53,7 +50,7 @@ Run the DayZ server once with `@SST` loaded before testing the API connection. T
 
 ```env
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server1Storage/SST
+SST_PATH=C:/DayZServer/Server1/SST
 PROFILES_PATH=C:/DayZServer/Server1
 MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.chernarusplus
 EXPANSION_ENABLED=0
@@ -68,7 +65,7 @@ SFTP_PORT=22
 SFTP_USER=your-username
 SFTP_PASSWORD=your-password
 SFTP_ROOT=/
-SST_PATH=Server1Storage/SST
+SST_PATH=Server1/SST
 ```
 
 If your provider shows a prefixed path such as `/123456/MyServer/SST/api/online_players.json`, set:
@@ -90,7 +87,7 @@ FTP_USER=your-username
 FTP_PASSWORD=your-password
 FTP_SECURE=true
 FTP_ROOT=/
-SST_PATH=Server1Storage/SST
+SST_PATH=Server1/SST
 ```
 
 If your provider does not support FTPS, set `FTP_SECURE=false`.

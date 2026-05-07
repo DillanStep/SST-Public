@@ -4,7 +4,7 @@ Inventories are exported by the mod to JSON and read by the Node API.
 
 ## Backing data
 
-- `$storage:SST/inventories/<steam64>.json`
+- `$profile:SST/inventories/<steam64>.json`
 
 ## Backing API endpoints
 

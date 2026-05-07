@@ -16,6 +16,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$transcriptStarted = $false
 
 function Write-UpdateState {
     param(
@@ -39,7 +40,9 @@ function Write-UpdateState {
         updatedAt = (Get-Date).ToUniversalTime().ToString("o")
     }
 
-    $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $StatePath -Encoding UTF8
+    $json = $state | ConvertTo-Json -Depth 4
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($StatePath, $json, $utf8NoBom)
 }
 
 function Invoke-Step {
@@ -62,7 +65,13 @@ if (-not (Test-Path -LiteralPath $logDir)) {
 }
 
 try {
-    Start-Transcript -Path $LogPath -Append | Out-Null
+    try {
+        Start-Transcript -Path $LogPath -Append -ErrorAction Stop | Out-Null
+        $transcriptStarted = $true
+    }
+    catch {
+        Write-Warning "Could not start transcript logging. Continuing with launcher log redirection. $($_.Exception.Message)"
+    }
 
     $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -79,6 +88,8 @@ try {
         $backupItems = @(
             "apps\api\.env",
             "apps\api\data",
+            "dayz\server-mod\@SST",
+            "dayz\mod-source\SST",
             "@SST",
             "SST"
         )
@@ -167,16 +178,20 @@ try {
 
     Write-UpdateState -Status "success" -Message "Update to $TargetTag installed. Restart SST to load the new API code."
     Write-Host "Update complete. Restart SST to load the new API code."
+    exit 0
 }
 catch {
     Write-UpdateState -Status "failed" -Message $_.Exception.Message
     Write-Error $_
+    exit 1
 }
 finally {
-    try {
-        Stop-Transcript | Out-Null
-    }
-    catch {
-        # Transcript may not have started.
+    if ($transcriptStarted) {
+        try {
+            Stop-Transcript | Out-Null
+        }
+        catch {
+            # Transcript may not have started.
+        }
     }
 }

@@ -4,7 +4,7 @@ The Map view renders player and/or vehicle locations.
 
 ## Backing data
 
-- Online players location export (`$storage:SST/online_players.json` or similar)
+- Online players location export (`$profile:SST/online_players.json` or similar)
 - Position history (SQLite via Node API) if enabled
 
 ## Backing API endpoints

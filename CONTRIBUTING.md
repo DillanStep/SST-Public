@@ -16,11 +16,14 @@ Public contributors do not need write access to the repository. Pull requests fr
 
 ## Repository Map
 
-- `SST/` - DayZ mod source in Enforce Script.
-- `Missions/` - supported mission configuration bundles.
+- `dayz/mod-source/SST/` - DayZ mod source in Enforce Script.
+- `dayz/server-mod/@SST/` - ready-to-install server-side mod package.
+- `dayz/missions/` - supported mission configuration bundles.
 - `apps/api/` - Node/Express API and server-side data access.
 - `apps/web/` - React dashboard.
+- `tools/launchers/` - Windows launcher implementations used by root wrappers.
 - `tools/setup-wizard/` - Windows setup wizard.
+- `tools/dayz/` - DayZ build and Workbench helper scripts.
 - `docs/wiki/` - user-facing documentation.
 - `.github/` - issue templates, pull request template, CI, and repository automation.
 

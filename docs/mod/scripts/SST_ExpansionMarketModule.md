@@ -2,7 +2,7 @@
 
 Purpose: hooks Expansion Market purchase/sell confirmation to log trades into SST.
 
-Source file: [SST/Scripts/4_World/SST/SST_ExpansionMarketModule.c](../../../SST/Scripts/4_World/SST/SST_ExpansionMarketModule.c)
+Source file: [dayz/mod-source/SST/Scripts/4_World/SST/SST_ExpansionMarketModule.c](../../../dayz/mod-source/SST/Scripts/4_World/SST/SST_ExpansionMarketModule.c)
 
 ---
 

@@ -5,9 +5,9 @@ SST can manage several DayZ servers from one dashboard, but each DayZ server sti
 The simple model is:
 
 ```text
-DayZ Server 1 -> $storage:SST -> SST API on port 3001 -> Dashboard saved server
-DayZ Server 2 -> $storage:SST -> SST API on port 3002 -> Dashboard saved server
-DayZ Server 3 -> $storage:SST -> SST API on port 3003 -> Dashboard saved server
+DayZ Server 1 -> $profile:SST -> SST API on port 3001 -> Dashboard saved server
+DayZ Server 2 -> $profile:SST -> SST API on port 3002 -> Dashboard saved server
+DayZ Server 3 -> $profile:SST -> SST API on port 3003 -> Dashboard saved server
 ```
 
 The web dashboard is the switcher. The API is not a combined hub yet; one API instance represents one DayZ server.
@@ -19,20 +19,19 @@ For each DayZ server, make sure:
 - `@SST` is loaded as a server-side mod.
 - `-scrAllowFileWrite` is enabled.
 - The server has its own `-profiles` folder.
-- The server has its own `-storage` folder where possible.
-- The server has been started once so SST creates `$storage:SST/api/online_players.json`.
+- The server has been started once so SST creates `$profile:SST/api/online_players.json`.
 
 Example DayZ launch arguments:
 
 ```text
 Server 1:
--profiles=Server1 -storage=Server1Storage -serverMod=@SST -scrAllowFileWrite
+-profiles=Server1 -serverMod=@SST -scrAllowFileWrite
 
 Server 2:
--profiles=Server2 -storage=Server2Storage -serverMod=@SST -scrAllowFileWrite
+-profiles=Server2 -serverMod=@SST -scrAllowFileWrite
 ```
 
-If your host does not expose `-storage`, use the storage folder shown in the host file manager. SST writes runtime data under `$storage:SST`, not the old `$profile:SST` location.
+Use the SST folder inside each server's profile directory. On hosted panels, that profile directory may be named `profiles`, `Server1`, or by your service slot.
 
 ## Recommended Layout
 
@@ -62,7 +61,7 @@ Server 1:
 PORT=3001
 HOST=0.0.0.0
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server1Storage/SST
+SST_PATH=C:/DayZServer/Server1/SST
 PROFILES_PATH=C:/DayZServer/Server1
 MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.chernarusplus
 MAP_PRESET=chernarusplus
@@ -79,7 +78,7 @@ Server 2:
 PORT=3002
 HOST=0.0.0.0
 STORAGE_BACKEND=local
-SST_PATH=C:/DayZServer/Server2Storage/SST
+SST_PATH=C:/DayZServer/Server2/SST
 PROFILES_PATH=C:/DayZServer/Server2
 MISSION_PATH=C:/DayZServer/mpmissions/dayzOffline.enoch
 MAP_PRESET=enoch
@@ -168,7 +167,7 @@ SFTP_PORT=22
 SFTP_USER=server3-user
 SFTP_PASSWORD=your-password
 SFTP_ROOT=/
-SST_PATH=Server3Storage/SST
+SST_PATH=Server3/SST
 PROFILES_PATH=Server3
 MISSION_PATH=mpmissions/dayzOffline.sakhal
 MAP_PRESET=sakhal
@@ -191,7 +190,7 @@ If the dashboard shows `0 players`:
 
 - Check that the selected dashboard server is the right one.
 - Check that the API URL points to the right port.
-- Check `SST_PATH`; it should point at `$storage:SST`, not `$profile:SST`.
+- Check `SST_PATH`; it should point at the same `$profile:SST` folder shown in the DayZ script log.
 - Confirm `SST/api/online_players.json` exists and updates while players are online.
 
 If two servers show the same data:
@@ -203,16 +202,16 @@ If an API will not start:
 
 - Check that no other API is already using the same `PORT`.
 - Check the env file path passed through `SST_API_ENV_PATH`.
-- Check that local paths use forward slashes, for example `C:/DayZServer/Server1Storage/SST`.
+- Check that local paths use forward slashes, for example `C:/DayZServer/Server1/SST`.
 
 ## Five Server Example
 
 ```text
-Chernarus Main   -> http://localhost:3001 -> .env.server1 -> C:/DayZServer/Server1Storage/SST
-Livonia PVE      -> http://localhost:3002 -> .env.server2 -> C:/DayZServer/Server2Storage/SST
-Sakhal PVP       -> http://localhost:3003 -> .env.server3 -> C:/DayZServer/Server3Storage/SST
-Namalsk Hardcore -> http://localhost:3004 -> .env.server4 -> C:/DayZServer/Server4Storage/SST
-Deer Isle RP     -> http://localhost:3005 -> .env.server5 -> C:/DayZServer/Server5Storage/SST
+Chernarus Main   -> http://localhost:3001 -> .env.server1 -> C:/DayZServer/Server1/SST
+Livonia PVE      -> http://localhost:3002 -> .env.server2 -> C:/DayZServer/Server2/SST
+Sakhal PVP       -> http://localhost:3003 -> .env.server3 -> C:/DayZServer/Server3/SST
+Namalsk Hardcore -> http://localhost:3004 -> .env.server4 -> C:/DayZServer/Server4/SST
+Deer Isle RP     -> http://localhost:3005 -> .env.server5 -> C:/DayZServer/Server5/SST
 ```
 
-Keep the names, ports, env files, database paths, and SST storage paths matched up. That is the bit that prevents most multi-server confusion.
+Keep the names, ports, env files, database paths, and SST profile paths matched up. That is the bit that prevents most multi-server confusion.

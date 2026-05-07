@@ -45,8 +45,6 @@ function requireSetupMode(req, res, next) {
   }
 }
 
-router.use(requireSetupMode);
-
 function normalizePosix(value) {
   if (!value) return "";
   return String(value).trim().replace(/\\/g, "/").replace(/\/+$/, "");
@@ -89,7 +87,7 @@ function parseSstPathFromLocal(sstPath) {
   const base = normalizeLocalPath(sstPath);
   if (!base) return null;
   if (!isAbsoluteLocalPath(base)) {
-    throw setupError("Local SST path must be a full path to the generated storage SST folder, for example C:/DayZServer/mpmissions/dayzOffline.chernarusplus/storage_1/SST.");
+    throw setupError("Local SST path must be a full path to the generated SST folder, for example C:/DayZServer/Server1/SST when the server starts with -profiles=Server1.");
   }
 
   const apiDir = path.join(base, "api");
@@ -168,7 +166,7 @@ async function validateOnlinePlayers(storage, parsed) {
   } catch (err) {
     if (isNotFoundError(err)) {
       throw setupError(
-        `Could not find SST online players file at '${checkedPath}'. Check that the path points to the DayZ storage SST folder. The @SST server mod must run once with -scrAllowFileWrite first to create $storage:SST/api/online_players.json.`,
+        `Could not find SST online players file at '${checkedPath}'. Check that the path points to the generated SST folder in the active DayZ profile. The @SST server mod must run once with -scrAllowFileWrite first to create $profile:SST/api/online_players.json.`,
         404,
         "ENOENT"
       );
@@ -197,40 +195,63 @@ async function validateOnlinePlayers(storage, parsed) {
 }
 
 router.get("/status", (req, res) => {
-  const envPath = resolveEnvPathForWrite();
+  try {
+    const setupRequired = userOps.count() === 0;
 
-  res.json({
-    ok: true,
-    setupRequired: true,
-    apiKey: getApiKey(),
-    env: {
-      path: envPath,
-      storageBackend: process.env.STORAGE_BACKEND || "local",
-      sftp: {
-        host: process.env.SFTP_HOST || "",
-        port: process.env.SFTP_PORT ? Number(process.env.SFTP_PORT) : 22,
-        user: process.env.SFTP_USER || "",
-        root: process.env.SFTP_ROOT || "/",
+    if (!setupRequired) {
+      return res.json({
+        ok: true,
+        setupRequired: false,
+      });
+    }
+
+    if (!isLocalRequest(req)) {
+      return res.status(403).json({
+        error: "Setup status is only available from localhost until setup is complete.",
+        code: "SETUP_LOCAL_ONLY",
+      });
+    }
+
+    const envPath = resolveEnvPathForWrite();
+
+    res.json({
+      ok: true,
+      setupRequired: true,
+      apiKey: getApiKey(),
+      env: {
+        path: envPath,
+        storageBackend: process.env.STORAGE_BACKEND || "local",
+        sftp: {
+          host: process.env.SFTP_HOST || "",
+          port: process.env.SFTP_PORT ? Number(process.env.SFTP_PORT) : 22,
+          user: process.env.SFTP_USER || "",
+          root: process.env.SFTP_ROOT || "/",
+        },
+        ftp: {
+          host: process.env.FTP_HOST || "",
+          port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
+          user: process.env.FTP_USER || "",
+          root: process.env.FTP_ROOT || "/",
+          secure: process.env.FTP_SECURE || "false",
+        },
+        paths: {
+          sst: process.env.SST_PATH || "",
+          mission: process.env.MISSION_PATH || "",
+          types: process.env.TYPES_PATH || "",
+          profiles: process.env.PROFILES_PATH || "",
+          expansionTraders: process.env.EXPANSION_TRADERS_PATH || "",
+          expansionMarket: process.env.EXPANSION_MARKET_PATH || "",
+          expansionAtm: process.env.EXPANSION_ATM_PATH || "",
+        },
+        expansionEnabled: process.env.EXPANSION_ENABLED || "0",
       },
-      ftp: {
-        host: process.env.FTP_HOST || "",
-        port: process.env.FTP_PORT ? Number(process.env.FTP_PORT) : 21,
-        user: process.env.FTP_USER || "",
-        root: process.env.FTP_ROOT || "/",
-        secure: process.env.FTP_SECURE || "false",
-      },
-      paths: {
-        sst: process.env.SST_PATH || "",
-        mission: process.env.MISSION_PATH || "",
-        types: process.env.TYPES_PATH || "",
-        profiles: process.env.PROFILES_PATH || "",
-        expansionTraders: process.env.EXPANSION_TRADERS_PATH || "",
-        expansionMarket: process.env.EXPANSION_MARKET_PATH || "",
-      },
-      expansionEnabled: process.env.EXPANSION_ENABLED || "0",
-    },
-  });
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get setup status", details: err?.message || String(err) });
+  }
 });
+
+router.use(requireSetupMode);
 
 router.post("/test", async (req, res) => {
   const { backend, sftp, ftp, sstPath } = req.body || {};
@@ -350,6 +371,7 @@ router.post("/apply", (req, res) => {
     expansionEnabled,
     expansionTradersPath,
     expansionMarketPath,
+    expansionAtmPath,
     mapPreset,
     mapLabel,
     mapImageUrl,
@@ -400,6 +422,10 @@ router.post("/apply", (req, res) => {
 
     if (expansionMarketPath && typeof expansionMarketPath === "string" && expansionMarketPath.trim()) {
       upsertEnvVar(envPath, "EXPANSION_MARKET_PATH", normalizePosix(expansionMarketPath));
+    }
+
+    if (expansionAtmPath && typeof expansionAtmPath === "string" && expansionAtmPath.trim()) {
+      upsertEnvVar(envPath, "EXPANSION_ATM_PATH", normalizePosix(expansionAtmPath));
     }
 
     if (mapPreset && typeof mapPreset === "string" && mapPreset.trim()) {

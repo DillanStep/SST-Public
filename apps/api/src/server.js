@@ -2,8 +2,9 @@ import "./appConfig.js";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { existsSync } from "fs";
-import { join, dirname } from "path";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "fs";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
+import { homedir, platform } from "os";
 import { fileURLToPath } from "url";
 import { stat, getStorageBackend } from "./storage/fs.js";
 
@@ -35,7 +36,9 @@ import grantRoutes from "./routes/grants.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import itemsRoutes from "./routes/items.js";
 import onlineRoutes from "./routes/online.js";
+import aiRoutes from "./routes/ai.js";
 import commandRoutes from "./routes/commands.js";
+import expansionAtmRoutes from "./routes/expansionAtm.js";
 import expansionRoutes from "./routes/expansion.js";
 import logsRoutes from "./routes/logs.js";
 import positionsRoutes from "./routes/positions.js";
@@ -46,6 +49,7 @@ import updateRoutes from "./routes/updates.js";
 import { readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
 import { getOnlinePlayersSnapshot } from "./utils/onlinePlayers.js";
+import { startModActivityMonitor } from "./utils/modActivityMonitor.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -85,9 +89,12 @@ const CONFIG_ENV_KEYS = [
   "API_PATH",
   "ONLINE_PLAYERS_PATH",
   "ONLINE_PLAYERS_STALE_AFTER_MS",
+  "AI_POSITIONS_PATH",
+  "AI_POSITIONS_STALE_AFTER_MS",
   "EXPANSION_ENABLED",
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
+  "EXPANSION_ATM_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "MAP_PRESET",
@@ -118,8 +125,10 @@ const PATH_ENV_KEYS = new Set([
   "TRADES_PATH",
   "API_PATH",
   "ONLINE_PLAYERS_PATH",
+  "AI_POSITIONS_PATH",
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
+  "EXPANSION_ATM_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "PROFILES_PATH",
@@ -134,6 +143,7 @@ const NUMBER_ENV_KEYS = new Set([
   "SFTP_PORT",
   "POSITION_TRACKING_INTERVAL",
   "ONLINE_PLAYERS_STALE_AFTER_MS",
+  "AI_POSITIONS_STALE_AFTER_MS",
   "ARCHIVE_HOUR",
   "ARCHIVE_MINUTE",
   "MAP_WORLD_SIZE_X",
@@ -198,6 +208,7 @@ function buildConfigSuggestions(env) {
     SST_ALLOW_REMOTE_UPDATE: "0",
     POSITION_TRACKING_INTERVAL: "30000",
     ONLINE_PLAYERS_STALE_AFTER_MS: "120000",
+    AI_POSITIONS_STALE_AFTER_MS: "120000",
     ARCHIVE_HOUR: "4",
     ARCHIVE_MINUTE: "0",
     MAP_INVERT_X: "0",
@@ -213,6 +224,7 @@ function buildConfigSuggestions(env) {
     addSuggestion(suggestions, "TRADES_PATH", joinConfigPath(sstPath, "trades"));
     addSuggestion(suggestions, "API_PATH", joinConfigPath(sstPath, "api"));
     addSuggestion(suggestions, "ONLINE_PLAYERS_PATH", joinConfigPath(sstPath, "api", "online_players.json"));
+    addSuggestion(suggestions, "AI_POSITIONS_PATH", joinConfigPath(sstPath, "api", "ai_positions.json"));
     addSuggestion(suggestions, "DATABASE_PATH", joinConfigPath(sstPath, "data", "sst_tracking.db"));
   }
 
@@ -252,27 +264,39 @@ function buildConfigSuggestions(env) {
     addSuggestion(suggestions, "PROFILES_PATH", profilesPath);
   }
 
-  const expansionBase = normalizeConfigPath(env.EXPANSION_TRADERS_PATH)
-    ? dirnameConfigPath(env.EXPANSION_TRADERS_PATH)
-    : profilesPath
-      ? joinConfigPath(profilesPath, "ExpansionMod")
-      : serverRoot
-        ? firstExistingPath([
-          joinConfigPath(serverRoot, "Server1", "ExpansionMod"),
-          joinConfigPath(serverRoot, "profiles", "ExpansionMod"),
-        ])
-        : "";
+  const expansionBase = (() => {
+    const expansionAtmPath = normalizeConfigPath(env.EXPANSION_ATM_PATH);
+    const expansionTradersPath = normalizeConfigPath(env.EXPANSION_TRADERS_PATH);
+    const expansionMarketPath = normalizeConfigPath(env.EXPANSION_MARKET_PATH);
+
+    if (expansionAtmPath) return dirnameConfigPath(expansionAtmPath);
+    if (expansionTradersPath) return dirnameConfigPath(expansionTradersPath);
+    if (expansionMarketPath) return dirnameConfigPath(expansionMarketPath);
+    if (profilesPath) return joinConfigPath(profilesPath, "ExpansionMod");
+    if (serverRoot) {
+      return firstExistingPath([
+        joinConfigPath(serverRoot, "Server1", "ExpansionMod"),
+        joinConfigPath(serverRoot, "profiles", "ExpansionMod"),
+      ]);
+    }
+
+    return "";
+  })();
 
   const expansionTraders = normalizeConfigPath(env.EXPANSION_TRADERS_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Traders") : "");
   const expansionMarket = normalizeConfigPath(env.EXPANSION_MARKET_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Market") : "");
+  const expansionAtm = normalizeConfigPath(env.EXPANSION_ATM_PATH) || (expansionBase ? joinConfigPath(expansionBase, "ATM") : "");
   if (expansionTraders) {
     addSuggestion(suggestions, "EXPANSION_TRADERS_PATH", expansionTraders);
   }
   if (expansionMarket) {
     addSuggestion(suggestions, "EXPANSION_MARKET_PATH", expansionMarket);
   }
+  if (expansionAtm) {
+    addSuggestion(suggestions, "EXPANSION_ATM_PATH", expansionAtm);
+  }
 
-  suggestions.EXPANSION_ENABLED = env.EXPANSION_ENABLED || (pathExists(expansionTraders) || pathExists(expansionMarket) ? "1" : "0");
+  suggestions.EXPANSION_ENABLED = env.EXPANSION_ENABLED || (pathExists(expansionTraders) || pathExists(expansionMarket) || pathExists(expansionAtm) ? "1" : "0");
 
   if (!env.ARCHIVE_DB_PATH) {
     addSuggestion(suggestions, "ARCHIVE_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", "archive.db")));
@@ -348,8 +372,212 @@ app.use(cookieParser());
 // Serve static web client from ../web/dist if it exists (production build)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDistPath = join(__dirname, "../../web/dist");
+const webIndexPath = join(webDistPath, "index.html");
+
+function setWebStaticCacheHeaders(res, assetPath) {
+  const normalizedPath = assetPath.replace(/\\/g, "/");
+
+  if (normalizedPath.endsWith("/index.html")) {
+    res.setHeader("Cache-Control", "no-store");
+    return;
+  }
+
+  if (normalizedPath.includes("/assets/")) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  }
+}
+
+function sendWebIndex(req, res, next) {
+  if (!existsSync(webIndexPath)) {
+    return next();
+  }
+
+  res.setHeader("Cache-Control", "no-store");
+  return res.sendFile(webIndexPath);
+}
+
+function commonPrefixLength(first, second) {
+  const maxLength = Math.min(first.length, second.length);
+  let length = 0;
+
+  while (length < maxLength && first[length] === second[length]) {
+    length += 1;
+  }
+
+  return length;
+}
+
+function findCurrentHashedAsset(requestedFile) {
+  const match = /^(.+)\.(js|css)$/.exec(requestedFile);
+  if (!match) return null;
+
+  const assetsPath = join(webDistPath, "assets");
+  if (!existsSync(assetsPath)) return null;
+
+  const [, requestedBase, extension] = match;
+  const suffix = `.${extension}`;
+
+  const candidates = readdirSync(assetsPath)
+    .filter((fileName) => fileName.endsWith(suffix))
+    .map((fileName) => {
+      const fullPath = join(assetsPath, fileName);
+      const score = commonPrefixLength(requestedBase, fileName.slice(0, -suffix.length));
+
+      return {
+        fullPath,
+        score,
+        modifiedAt: statSync(fullPath).mtimeMs,
+      };
+    })
+    .filter((candidate) => candidate.score > 0 && requestedBase.slice(0, candidate.score).includes("-"))
+    .sort((a, b) => b.score - a.score || b.modifiedAt - a.modifiedAt);
+
+  return candidates[0]?.fullPath || null;
+}
+
+function sendWebAssetFallback(req, res) {
+  const requestedFile = basename(req.params[0] || "");
+  const replacementPath = findCurrentHashedAsset(requestedFile);
+
+  if (replacementPath) {
+    res.setHeader("Cache-Control", "no-store");
+    return res.sendFile(replacementPath);
+  }
+
+  return res
+    .status(404)
+    .type("text/plain")
+    .send("Web asset not found. Rebuild apps/web and restart the SST API.");
+}
+
 if (existsSync(webDistPath)) {
-  app.use(express.static(webDistPath));
+  app.use(express.static(webDistPath, {
+    index: false,
+    setHeaders: setWebStaticCacheHeaders,
+  }));
+  app.get("/", sendWebIndex);
+  app.get("/assets/*", sendWebAssetFallback);
+} else {
+  console.warn(`[Web] Built dashboard not found at ${webDistPath}. Run the web build before using the API server as the dashboard host.`);
+}
+
+function getBundledModInfo() {
+  const candidates = [
+    resolve(__dirname, "../../..", "dayz", "server-mod", "@SST"),
+    resolve(__dirname, "../../..", "@SST"),
+  ];
+  const modPath = candidates.find((candidate) => existsSync(join(candidate, "Addons", "SST.pbo"))) || candidates[0];
+  const pboPath = join(modPath, "Addons", "SST.pbo");
+  const exists = existsSync(modPath) && existsSync(pboPath);
+  const pboSize = exists ? statSync(pboPath).size : 0;
+
+  return {
+    name: "@SST",
+    path: modPath,
+    exists,
+    pboPath,
+    pboSize,
+    launchParameter: "-serverMod=@SST",
+  };
+}
+
+function isPathInside(childPath, parentPath) {
+  const rel = relative(parentPath, childPath);
+  return Boolean(rel) && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+function getLocalBrowseRoots() {
+  if (platform() === "win32") {
+    const roots = [];
+    for (let code = 67; code <= 90; code += 1) {
+      const drive = `${String.fromCharCode(code)}:/`;
+      if (existsSync(drive)) {
+        roots.push({ name: drive, path: drive, type: "directory" });
+      }
+    }
+    return roots;
+  }
+
+  return [{ name: "/", path: "/", type: "directory" }];
+}
+
+function normalizeBrowsePath(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^[a-zA-Z]:$/.test(raw)) return `${raw}/`;
+  return raw.replace(/\\/g, "/");
+}
+
+function resolveBrowseStartPath(rawPath) {
+  const requested = normalizeBrowsePath(rawPath);
+  const fallbacks = [
+    requested,
+    requested ? dirname(requested) : "",
+    paths.sst,
+    paths.missionFolder,
+    homedir(),
+    process.cwd(),
+  ].filter(Boolean);
+
+  for (const candidate of fallbacks) {
+    try {
+      const resolved = resolve(candidate);
+      const candidateStat = statSync(resolved);
+      return candidateStat.isDirectory() ? resolved : dirname(resolved);
+    } catch {
+      // Try the next fallback.
+    }
+  }
+
+  return "";
+}
+
+function getParentBrowsePath(currentPath) {
+  const parentPath = dirname(currentPath);
+  return parentPath && parentPath !== currentPath ? parentPath : "";
+}
+
+function listBrowseEntries(currentPath, mode) {
+  const entries = readdirSync(currentPath, { withFileTypes: true })
+    .map((entry) => {
+      const entryPath = join(currentPath, entry.name);
+      const isDirectory = entry.isDirectory();
+      const isFile = entry.isFile();
+
+      if (!isDirectory && mode === "folder") {
+        return null;
+      }
+
+      if (!isDirectory && !isFile) {
+        return null;
+      }
+
+      try {
+        const entryStat = statSync(entryPath);
+        return {
+          name: entry.name,
+          path: entryPath,
+          type: isDirectory ? "directory" : "file",
+          size: isFile ? entryStat.size : null,
+          modifiedAt: entryStat.mtime instanceof Date ? entryStat.mtime.toISOString() : null,
+        };
+      } catch {
+        return {
+          name: entry.name,
+          path: entryPath,
+          type: isDirectory ? "directory" : "file",
+          size: null,
+          modifiedAt: null,
+        };
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  return entries.slice(0, 500);
 }
 
 // Health check - no auth required
@@ -417,6 +645,7 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
       } : null,
     },
     map: buildMapConfig({ env, missionPath: paths.missionFolder }),
+    mod: getBundledModInfo(),
     paths: {
       inventories: paths.inventories,
       events: paths.events,
@@ -426,6 +655,7 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
       onlinePlayers: paths.onlinePlayers,
       expansionTraders: features.expansionEnabled ? paths.expansionTraders : null,
       expansionMarket: features.expansionEnabled ? paths.expansionMarket : null,
+      expansionAtm: features.expansionEnabled ? paths.expansionAtm : null,
       missionFolder: paths.missionFolder,
       typesXml: paths.typesXml || `${paths.missionFolder}/db/types.xml`,
       profiles: paths.profiles,
@@ -469,6 +699,95 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
 
     res.json(response);
   });
+});
+
+app.get("/config/browse", requireApiKey, requireAuth, requireAdmin, (req, res) => {
+  if (!isLocalRequest(req) && process.env.SST_ALLOW_REMOTE_UPDATE !== "1") {
+    return res.status(403).json({ error: "Path browsing is only available from localhost." });
+  }
+
+  const mode = req.query.mode === "file" ? "file" : "folder";
+  const roots = getLocalBrowseRoots();
+  const requestedPath = normalizeBrowsePath(req.query.path);
+  const currentPath = resolveBrowseStartPath(requestedPath);
+
+  if (!currentPath) {
+    return res.json({
+      mode,
+      requestedPath,
+      currentPath: "",
+      parentPath: "",
+      roots,
+      entries: roots,
+    });
+  }
+
+  try {
+    res.json({
+      mode,
+      requestedPath,
+      currentPath,
+      parentPath: getParentBrowsePath(currentPath),
+      roots,
+      entries: listBrowseEntries(currentPath, mode),
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: "Failed to browse path",
+      details: err?.message || String(err),
+      mode,
+      requestedPath,
+      currentPath,
+      parentPath: getParentBrowsePath(currentPath),
+      roots,
+      entries: [],
+    });
+  }
+});
+
+app.get("/mod", requireApiKey, requireAuth, requireAdmin, (req, res) => {
+  res.json(getBundledModInfo());
+});
+
+app.post("/mod/copy", requireApiKey, requireAuth, requireAdmin, (req, res) => {
+  if (!isLocalRequest(req) && process.env.SST_ALLOW_REMOTE_UPDATE !== "1") {
+    return res.status(403).json({ error: "Mod copy is only allowed from localhost." });
+  }
+
+  const destination = String(req.body?.destination || "").trim();
+  if (!destination) {
+    return res.status(400).json({ error: "destination is required" });
+  }
+
+  const modInfo = getBundledModInfo();
+  if (!modInfo.exists) {
+    return res.status(404).json({ error: "@SST mod folder was not found", path: modInfo.path });
+  }
+
+  try {
+    const destinationRoot = resolve(destination);
+    const targetPath = basename(destinationRoot).toLowerCase() === "@sst"
+      ? destinationRoot
+      : join(destinationRoot, "@SST");
+
+    if (
+      targetPath.toLowerCase() === modInfo.path.toLowerCase()
+      || isPathInside(targetPath, modInfo.path)
+    ) {
+      return res.status(400).json({ error: "Choose a destination outside the bundled @SST folder." });
+    }
+
+    mkdirSync(dirname(targetPath), { recursive: true });
+    cpSync(modInfo.path, targetPath, { recursive: true, force: true, errorOnExist: false });
+
+    res.json({
+      sourcePath: modInfo.path,
+      destinationPath: targetPath,
+      message: `Copied @SST to ${targetPath}`,
+    });
+  } catch (err) {
+    res.status(400).json({ error: "Failed to copy @SST mod", details: err?.message || String(err) });
+  }
 });
 
 app.get("/map/config", requireAuth, requireApiKey, (req, res) => {
@@ -540,7 +859,9 @@ app.use("/grants", requireAuth, requireApiKey, grantRoutes);
 app.use("/dashboard", requireAuth, requireApiKey, dashboardRoutes);
 app.use("/items", requireAuth, requireApiKey, itemsRoutes);
 app.use("/online", requireAuth, requireApiKey, onlineRoutes);
+app.use("/ai", requireAuth, requireApiKey, aiRoutes);
 app.use("/commands", requireAuth, requireApiKey, commandRoutes);
+app.use("/expansion/atm", requireAuth, requireApiKey, expansionAtmRoutes);
 app.use("/expansion", requireAuth, requireApiKey, expansionRoutes);
 app.use("/logs", requireAuth, requireApiKey, logsRoutes);
 app.use("/positions", requireAuth, requireApiKey, positionsRoutes);
@@ -556,7 +877,7 @@ if (existsSync(webDistPath)) {
     if (req.path.startsWith("/api") || req.path.includes(".")) {
       return next();
     }
-    res.sendFile(join(webDistPath, "index.html"));
+    sendWebIndex(req, res, next);
   });
 }
 
@@ -628,13 +949,14 @@ async function startServer() {
     
     // Initialize archive database
     initArchiveDb();
+    startModActivityMonitor();
     
     // Schedule daily archive at 4:00 AM (configurable via env)
     const archiveHour = parseInt(process.env.ARCHIVE_HOUR) || 4;
     const archiveMinute = parseInt(process.env.ARCHIVE_MINUTE) || 0;
     scheduleArchive(archiveHour, archiveMinute);
 
-    app.listen(PORT, HOST, () => {
+    const server = app.listen(PORT, HOST, () => {
       consoleUi.update({ status: "API RUNNING" });
 
       const apiKeyMeta = getApiKeyMeta();
@@ -655,6 +977,16 @@ async function startServer() {
         console.log(`Position tracking enabled (every ${POSITION_TRACKING_INTERVAL / 1000}s)`);
         console.log(`Authentication enabled - login required`);
       }
+    });
+
+    server.on("error", (err) => {
+      if (err?.code === "EADDRINUSE") {
+        console.error(`[Startup] Port ${PORT} is already in use. SST is probably already running at http://localhost:${PORT}`);
+        process.exit(1);
+      }
+
+      console.error("[Startup] Failed to start API listener:", err?.message || err);
+      process.exit(1);
     });
   } catch (err) {
     console.error("Failed to start server:", err);

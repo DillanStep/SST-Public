@@ -15,6 +15,7 @@ const repoRoot = resolve(apiRoot, "../..");
 const dataDir = join(apiRoot, "data");
 const updateStatePath = join(dataDir, "update-state.json");
 const updaterScriptPath = join(repoRoot, "tools", "updater", "Update-SST.ps1");
+const updaterBatchPath = join(repoRoot, "tools", "updater", "Update-SST.bat");
 
 const updateRepo = process.env.SST_UPDATE_REPO || "DillanStep/SST-Public";
 const updateApiUrl = process.env.SST_UPDATE_API_URL || `https://api.github.com/repos/${updateRepo}/releases/latest`;
@@ -118,7 +119,7 @@ async function attachRuntimeStatus(status) {
 async function readUpdateState() {
   try {
     const raw = await readFile(updateStatePath, "utf8");
-    return JSON.parse(raw);
+    return JSON.parse(raw.replace(/^\uFEFF/, ""));
   } catch {
     return {
       status: "idle",
@@ -133,10 +134,12 @@ async function writeUpdateState(state) {
   await writeFile(updateStatePath, JSON.stringify(state, null, 2), "utf8");
 }
 
-function getPowerShellExe() {
-  const systemRoot = process.env.SystemRoot || "C:\\Windows";
-  const fullPath = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-  return existsSync(fullPath) ? fullPath : "powershell.exe";
+function quoteCmdArg(value) {
+  const text = String(value);
+  if (text.includes("\"")) {
+    throw new Error(`Updater argument cannot contain quotes: ${text}`);
+  }
+  return `"${text}"`;
 }
 
 router.get("/status", async (req, res) => {
@@ -176,6 +179,13 @@ router.post("/install", async (req, res) => {
     });
   }
 
+  if (!existsSync(updaterBatchPath)) {
+    return res.status(500).json({
+      ok: false,
+      error: `Updater batch script not found at ${updaterBatchPath}`,
+    });
+  }
+
   if (!existsSync(updaterScriptPath)) {
     return res.status(500).json({
       ok: false,
@@ -205,33 +215,44 @@ router.post("/install", async (req, res) => {
       releaseUrl: status.release.url,
       archiveUrl: status.release.archiveUrl,
       logPath,
+      runnerPath: updaterBatchPath,
       updatedAt: new Date().toISOString(),
     };
     await writeUpdateState(state);
 
-    const args = [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      updaterScriptPath,
-      "-RepoRoot",
-      repoRoot,
-      "-ArchiveUrl",
-      status.release.archiveUrl,
-      "-TargetTag",
-      status.release.tagName,
-      "-StatePath",
-      updateStatePath,
-      "-LogPath",
-      logPath,
-    ];
+    const command = [
+      "call",
+      quoteCmdArg(updaterBatchPath),
+      "--repo-root",
+      quoteCmdArg(repoRoot),
+      "--archive-url",
+      quoteCmdArg(status.release.archiveUrl),
+      "--target-tag",
+      quoteCmdArg(status.release.tagName),
+      "--state-path",
+      quoteCmdArg(updateStatePath),
+      "--log-path",
+      quoteCmdArg(logPath),
+    ].join(" ");
 
-    const child = spawn(getPowerShellExe(), args, {
+    const child = spawn(command, {
       cwd: repoRoot,
       detached: true,
       stdio: "ignore",
       windowsHide: true,
+      shell: true,
+    });
+    child.on("error", async (err) => {
+      try {
+        await writeUpdateState({
+          ...state,
+          status: "failed",
+          message: `Could not launch updater: ${err?.message || String(err)}`,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch {
+        // Nothing useful to do if even the status file cannot be written.
+      }
     });
     child.unref();
 

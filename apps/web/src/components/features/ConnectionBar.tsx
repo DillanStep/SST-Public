@@ -9,6 +9,7 @@ import {
   getServers,
   setActiveServerId,
 } from '../../services/serverManager';
+import { resolveServerProfile } from '../../services/serverProfiles';
 import type { ServerConfig } from '../../types';
 
 interface ConnectionBarProps {
@@ -17,13 +18,34 @@ interface ConnectionBarProps {
   isConnected: boolean;
 }
 
+type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'stale' | 'error';
+
+const formatStaleAge = (ms?: number | null) => {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) {
+    return 'no heartbeat';
+  }
+
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) {
+    return `${seconds}s stale`;
+  }
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m stale`;
+  }
+
+  return `${Math.round(minutes / 60)}h stale`;
+};
+
 export const ConnectionBar: React.FC<ConnectionBarProps> = ({ 
   onConnected, 
   onDisconnected
 }) => {
   const [servers, setServers] = useState<ServerConfig[]>([]);
   const [activeServer, setActiveServerState] = useState<ServerConfig | null>(null);
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [status, setStatus] = useState<ConnectionStatus>('idle');
+  const [statusMessage, setStatusMessage] = useState('');
   const [playerCount, setPlayerCount] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -31,6 +53,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
 
   const resetConnectionState = useCallback(() => {
     setStatus('idle');
+    setStatusMessage('');
     setPlayerCount(0);
     hasAttemptedAutoConnect.current = false;
     onDisconnected();
@@ -93,12 +116,19 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
   }, []);
 
   const connect = useCallback(async (server?: ServerConfig) => {
-    const serverToUse = server || activeServer;
+    let serverToUse = server || activeServer;
     if (!serverToUse) return;
     
     setStatus('connecting');
 
     try {
+      const resolved = await resolveServerProfile(serverToUse);
+      if (resolved.changed) {
+        serverToUse = resolved.server;
+        setActiveServerState(resolved.server);
+        loadServers();
+      }
+
       // Configure API with server
       api.configure(serverToUse.apiUrl, serverToUse.apiKey, serverToUse.apiProfile);
 
@@ -107,26 +137,43 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
 
       // Test authenticated endpoint
       const dashboard = await getDashboard();
-      
-      setPlayerCount(dashboard.onlineCount ?? 0);
-      setStatus('connected');
+
+      const onlineSource = dashboard.onlineSource;
+      setPlayerCount(onlineSource?.onlineCount ?? dashboard.onlineCount ?? 0);
+      if (onlineSource?.isStale) {
+        setStatus('stale');
+        setStatusMessage(`API connected, but the DayZ server heartbeat is ${formatStaleAge(onlineSource.sourceAgeMs)}.`);
+      } else {
+        setStatus('connected');
+        setStatusMessage('');
+      }
       onConnected();
-    } catch {
+    } catch (err) {
       setPlayerCount(0);
       setStatus('error');
+      setStatusMessage(err instanceof Error ? err.message : 'Could not connect to the SST API');
       onDisconnected();
     }
-  }, [activeServer, onConnected, onDisconnected]);
+  }, [activeServer, loadServers, onConnected, onDisconnected]);
 
   const refreshPlayerCount = useCallback(async () => {
-    if (status !== 'connected') return;
+    if (status !== 'connected' && status !== 'stale') return;
 
     try {
       const dashboard = await getDashboard();
-      setPlayerCount(dashboard.onlineCount ?? 0);
+      const onlineSource = dashboard.onlineSource;
+      setPlayerCount(onlineSource?.onlineCount ?? dashboard.onlineCount ?? 0);
+      if (onlineSource?.isStale) {
+        setStatus('stale');
+        setStatusMessage(`API connected, but the DayZ server heartbeat is ${formatStaleAge(onlineSource.sourceAgeMs)}.`);
+      } else {
+        setStatus('connected');
+        setStatusMessage('');
+      }
     } catch {
       setPlayerCount(0);
       setStatus('error');
+      setStatusMessage('Could not refresh the active SST API connection');
       onDisconnected();
     }
   }, [onDisconnected, status]);
@@ -156,7 +203,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
   };
 
   useEffect(() => {
-    if (status !== 'connected') return;
+    if (status !== 'connected' && status !== 'stale') return;
 
     const interval = window.setInterval(() => {
       refreshPlayerCount();
@@ -217,7 +264,15 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
       {status === 'connected' ? (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm">
           <Wifi size={14} />
-          <span>{playerCount} players</span>
+          <span>{playerCount} online</span>
+        </div>
+      ) : status === 'stale' ? (
+        <div
+          title={statusMessage || 'API connected, but the DayZ server heartbeat is stale'}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 text-sm"
+        >
+          <WifiOff size={14} />
+          <span>Game offline</span>
         </div>
       ) : status === 'connecting' ? (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-100 text-surface-600 text-sm">
@@ -227,6 +282,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
       ) : status === 'error' ? (
         <button
           onClick={handleReconnect}
+          title={statusMessage || 'Retry connection'}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-sm transition-colors"
         >
           <WifiOff size={14} />

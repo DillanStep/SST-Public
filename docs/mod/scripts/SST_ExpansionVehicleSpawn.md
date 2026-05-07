@@ -2,7 +2,7 @@
 
 Purpose: hooks Expansion Vehicles key pairing to detect **trader vehicle purchases** and pass them into the SST vehicle tracker.
 
-Source file: [SST/Scripts/4_World/SST/SST_ExpansionVehicleSpawn.c](../../../SST/Scripts/4_World/SST/SST_ExpansionVehicleSpawn.c)
+Source file: [dayz/mod-source/SST/Scripts/4_World/SST/SST_ExpansionVehicleSpawn.c](../../../dayz/mod-source/SST/Scripts/4_World/SST/SST_ExpansionVehicleSpawn.c)
 
 ---
 

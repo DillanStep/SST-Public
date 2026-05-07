@@ -338,11 +338,11 @@ function App() {
           )}
           <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm ${
             isConnected 
-              ? 'bg-emerald-50 text-emerald-700' 
+              ? 'bg-sky-50 text-sky-700'
               : 'bg-surface-100 text-surface-600'
           }`}>
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-emerald-500' : 'bg-surface-400'}`} />
-            {sidebarOpen && <span>{isConnected ? 'Connected' : 'Disconnected'}</span>}
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isConnected ? 'bg-sky-500' : 'bg-surface-400'}`} />
+            {sidebarOpen && <span>{isConnected ? 'API connected' : 'API disconnected'}</span>}
           </div>
         </div>
 
@@ -364,7 +364,10 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             {/* Mini connection indicator for mobile */}
-            <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-surface-400'}`} />
+            <div
+              className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-sky-500' : 'bg-surface-400'}`}
+              title={isConnected ? 'API connected' : 'API disconnected'}
+            />
             <button
               className="p-2 text-surface-600 hover:text-surface-800 hover:bg-surface-100 rounded-xl transition-all"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

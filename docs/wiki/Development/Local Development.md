@@ -21,5 +21,5 @@ Use your normal DayZ mod workflow:
 
 ## Common gotchas
 
-- The API needs filesystem access to the DayZ storage `SST/` folder.
+- The API needs filesystem access to the DayZ profile `SST/` folder.
 - CORS must allow the dashboard origin if cross-origin.

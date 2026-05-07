@@ -184,17 +184,17 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({ playerId, playerName, 
   };
 
   // Heal player handler
-  const handleHeal = async () => {
+  const handleHeal = async (amount = healAmount) => {
     setHealSending(true);
     setHealResult(null);
     
     try {
       await healPlayer({
         playerId,
-        health: healAmount,
+        health: amount,
       });
       
-      setHealResult({ success: true, message: `Heal command queued (${healAmount}%)` });
+      setHealResult({ success: true, message: `Heal command queued (${amount}%)` });
     } catch (err) {
       setHealResult({ success: false, message: err instanceof Error ? err.message : 'Failed' });
     } finally {
@@ -349,7 +349,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({ playerId, playerName, 
                     </div>
                     
                     <p className="text-sm text-surface-500 mb-4">
-                      Restore player's health, blood, hunger, thirst, and remove shock.
+                      Restore player's health, blood, hunger, thirst, and shock.
                     </p>
                     
                     <div className="flex items-center gap-4 mb-4">
@@ -364,10 +364,10 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({ playerId, playerName, 
                       />
                       <span className="text-sm font-medium text-surface-800 w-12">{healAmount}%</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
-                      <Button 
-                        onClick={handleHeal} 
+                      <Button
+                        onClick={() => handleHeal()}
                         disabled={healSending}
                         className="flex items-center gap-2"
                       >
@@ -377,7 +377,7 @@ export const PlayerModal: React.FC<PlayerModalProps> = ({ playerId, playerName, 
                       
                       <Button 
                         variant="secondary"
-                        onClick={() => { setHealAmount(100); handleHeal(); }}
+                        onClick={() => { setHealAmount(100); handleHeal(100); }}
                         disabled={healSending}
                       >
                         Full Heal

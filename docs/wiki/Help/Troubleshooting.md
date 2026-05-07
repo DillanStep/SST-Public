@@ -14,8 +14,8 @@
 
 ## Nothing updates / data looks stale
 
-- Check the DayZ server `$storage:SST` folder for SST output.
-- Confirm the API is pointed at the same storage `SST/` path the mod is writing to.
+- Check the DayZ server `$profile:SST` folder for SST output.
+- Confirm the API is pointed at the same profile `SST/` path the mod is writing to.
 - Verify file permissions allow the API process to read/write those folders.
 
 ## Dashboard shows players online after the server stopped
@@ -28,16 +28,15 @@
 ## No `SST` folder was created
 
 - Confirm `@SST` is actually loaded by the DayZ server.
-- Check the active storage root, not only the profile folder.
-- If your startup has `-storage=Server1Storage`, check `<DayZServerRoot>/Server1Storage/SST`.
-- If your startup has `-storage=D:\DayZServer\storage`, check `D:\DayZServer\storage\SST`.
+- If your startup has `-profiles=Server1`, check `<DayZServerRoot>/Server1/SST`.
+- If your startup has `-profiles=D:\DayZServer\profiles`, check `D:\DayZServer\profiles\SST`.
 - Read the latest `.RPT` and `script_*.log` for SST script errors.
-- Make sure the server has permission to write to the storage folder.
+- Make sure the server has permission to write to the profile folder.
 
 ## Setup test cannot find `online_players.json`
 
 - Start the DayZ server once with `@SST` loaded before testing the API connection.
-- Point `SST_PATH` at the `SST` folder, not the repository `SST/Scripts` folder and not the `@SST` mod folder.
+- Point `SST_PATH` at the runtime `SST` folder, not the repository `dayz/mod-source/SST/Scripts` folder and not the `dayz/server-mod/@SST` mod package.
 - Stop the path at `SST`; do not include `/api/online_players.json`.
 - For hosted SFTP/FTP, split the path correctly between `SFTP_ROOT` or `FTP_ROOT` and `SST_PATH`.
 
@@ -52,7 +51,7 @@ SST_PATH:   HostHavocDayZServer/SST
 ## Command queue not executing
 
 - Confirm the mod is running server-side.
-- Check `$storage:SST/api/` (or your configured queue dir) for queued JSON.
+- Check `$profile:SST/api/` (or your configured queue dir) for queued JSON.
 - Ensure the mod is polling and writing results back.
 
 ## Players are kicked for missing or extra mods
@@ -77,6 +76,8 @@ SST_PATH:   HostHavocDayZServer/SST
 - Make sure `SST_DISABLE_UPDATE_CHECK=0`.
 - The API machine needs outbound access to `api.github.com`.
 - The install button is local-only unless `SST_ALLOW_REMOTE_UPDATE=1`.
+- The installer writes progress to `logs/update-*.log` and `apps/api/data/update-state.json`.
+- If the prompt stays on "Starting", run `tools/updater/Update-SST.bat --dry-run` from the API machine to test the launcher, or run `tools/updater/Update-SST.bat` to install the latest release manually.
 
 ## JSON performance is poor
 

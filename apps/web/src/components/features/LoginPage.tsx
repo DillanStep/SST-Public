@@ -69,7 +69,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         const setupResp = await fetch(`${url}/setup/status`, { method: 'GET', credentials: 'include' });
         if (setupResp.ok) {
           const setupData = await setupResp.json() as { apiKey?: string; setupRequired?: boolean };
-          
+
+          if (!setupData.setupRequired) {
+            setServerName('Local SST Server');
+            setServerUrl(url);
+            continue;
+          }
+
           // Auto-configure server with the API key from status
           const autoServer = addServer({
             name: 'Local SST Server',

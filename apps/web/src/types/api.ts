@@ -38,6 +38,7 @@ export interface SetupStoragePayload {
   expansionEnabled?: boolean;
   expansionTradersPath?: string;
   expansionMarketPath?: string;
+  expansionAtmPath?: string;
   mapPreset?: string;
   mapLabel?: string;
   mapImageUrl?: string;
@@ -73,6 +74,7 @@ export interface RuntimeConfigResponse {
   env: RuntimeEnvValues;
   suggestions?: RuntimeEnvValues;
   map?: ServerMapConfig;
+  mod?: SstModInfoResponse;
   storage?: {
     backend: string;
   };
@@ -88,6 +90,40 @@ export interface RuntimeConfigResponse {
       path?: string;
     };
   };
+}
+
+export type ConfigBrowseMode = 'folder' | 'file';
+
+export interface ConfigBrowseEntry {
+  name: string;
+  path: string;
+  type: 'directory' | 'file';
+  size?: number | null;
+  modifiedAt?: string | null;
+}
+
+export interface ConfigBrowseResponse {
+  mode: ConfigBrowseMode;
+  requestedPath: string;
+  currentPath: string;
+  parentPath: string;
+  roots: ConfigBrowseEntry[];
+  entries: ConfigBrowseEntry[];
+}
+
+export interface SstModInfoResponse {
+  name: string;
+  path: string;
+  exists: boolean;
+  pboPath: string;
+  pboSize: number;
+  launchParameter: string;
+}
+
+export interface SstModCopyResponse {
+  sourcePath: string;
+  destinationPath: string;
+  message: string;
 }
 
 export interface MapPresetOption {
@@ -716,6 +752,35 @@ export interface PlayerLocationsResponse {
   }[];
 }
 
+export interface AIPositionData {
+  aiId: string;
+  displayName: string;
+  typeName: string;
+  faction: string;
+  groupName: string;
+  lastUpdate: string;
+  position: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  health: number;
+  isAlive: boolean;
+  isUnconscious: boolean;
+}
+
+export interface AIPositionsResponse {
+  generatedAt: string | null;
+  modVersion?: string | null;
+  protocolVersion?: string | null;
+  sourceUpdatedAt?: string | null;
+  sourceAgeMs?: number | null;
+  staleAfterMs?: number;
+  isStale?: boolean;
+  aiCount: number;
+  ai: AIPositionData[];
+}
+
 // Player Command Types (heal, teleport, message)
 export interface HealRequest {
   playerId: string;
@@ -902,6 +967,84 @@ export interface ApplyPricesBulkResult {
     newPrice?: number;
     error?: string;
   }[];
+}
+
+export interface ExpansionAtmAccount {
+  playerId: string;
+  biId: string;
+  steamId: string | null;
+  playerName: string | null;
+  balance: number;
+  fileName: string;
+  updatedAt: string | null;
+}
+
+export interface ExpansionAtmAccountsResponse {
+  generatedAt: string;
+  count: number;
+  path: string;
+  accounts: ExpansionAtmAccount[];
+}
+
+export interface ExpansionAtmCommand {
+  requestId: string;
+  commandType: 'setAtmBalance' | 'reloadAtmBalances' | 'compensateAtmBalance' | string;
+  playerId?: string;
+  balance?: number;
+  amount?: number;
+  previousBalance?: number;
+  reason?: string;
+  requestedAt: string;
+  processed: boolean;
+  status: 'pending' | 'completed' | 'failed' | string;
+  result: string;
+}
+
+export interface ExpansionAtmHistoryEntry {
+  id: string;
+  timestamp: string;
+  action: 'compensate' | 'override' | string;
+  playerId: string;
+  biId: string;
+  steamId: string | null;
+  playerName: string | null;
+  previousBalance: number;
+  balance: number;
+  changeAmount: number;
+  reason: string;
+  requestId: string | null;
+}
+
+export interface ExpansionAtmUpdateResponse {
+  success: boolean;
+  account: ExpansionAtmAccount;
+  command?: ExpansionAtmCommand | null;
+  historyEntry?: ExpansionAtmHistoryEntry;
+  message: string;
+}
+
+export interface ExpansionAtmCompensateResponse {
+  success: boolean;
+  account: ExpansionAtmAccount;
+  command: ExpansionAtmCommand;
+  historyEntry: ExpansionAtmHistoryEntry;
+  message: string;
+}
+
+export interface ExpansionAtmReloadResponse {
+  success: boolean;
+  command: ExpansionAtmCommand;
+  message: string;
+}
+
+export interface ExpansionAtmResultsResponse {
+  requests: ExpansionAtmCommand[];
+}
+
+export interface ExpansionAtmHistoryResponse {
+  generatedAt: string;
+  count: number;
+  entries: ExpansionAtmHistoryEntry[];
 }
 
 // Bulk expansion data response

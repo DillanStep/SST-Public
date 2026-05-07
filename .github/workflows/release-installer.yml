@@ -1,0 +1,190 @@
+name: Release Installer
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build, for example v1.0.7"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    name: Build Windows Installer
+    runs-on: windows-latest
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ inputs.tag }}"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($tag) -or -not $tag.StartsWith("v")) {
+            throw "Release tag must be provided and must start with v, for example v1.0.7."
+          }
+
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "asset_name=SST-Setup-$tag.exe" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/web/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: npm ci
+
+      - name: Check API syntax
+        shell: pwsh
+        run: |
+          Get-ChildItem -LiteralPath apps/api/src -Recurse -Filter *.js | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+      - name: Install dashboard dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build dashboard
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Build all-in-one setup
+        shell: cmd
+        run: tools\installer\Build-SST-Installer.bat
+
+      - name: Verify installer payload
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zipPath = "tools\installer\assets\sst-payload.zip"
+          if (-not (Test-Path -LiteralPath $zipPath)) {
+            throw "Payload zip was not generated."
+          }
+
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $entries = $zip.Entries.FullName
+            $required = @(
+              "build/SST-Manager/SST Manager.exe",
+              "dayz/server-mod/@SST/Addons/SST.pbo",
+              "dayz/server-mod/@SST/README.md",
+              "docs/NON-COMMERCIAL-TERMS.md",
+              "apps/api/src/server.js",
+              "apps/web/dist/index.html"
+            )
+
+            foreach ($entry in $required) {
+              if ($entries -notcontains $entry) {
+                throw "Payload is missing $entry."
+              }
+            }
+
+            if ($entries -contains "apps/api/.env") {
+              throw "Payload must not include apps/api/.env."
+            }
+
+            if ($entries | Where-Object { $_ -like "*node_modules/*" } | Select-Object -First 1) {
+              throw "Payload must not include node_modules."
+            }
+          } finally {
+            $zip.Dispose()
+          }
+
+      - name: Prepare release assets
+        id: assets
+        shell: pwsh
+        run: |
+          $publishDir = "build\SST-Installer\publish"
+          $sourceExe = Join-Path $publishDir "SST Setup.exe"
+          $assetName = "${{ steps.release.outputs.asset_name }}"
+          $releaseExe = Join-Path $publishDir $assetName
+          $checksumPath = "$releaseExe.sha256"
+
+          if (-not (Test-Path -LiteralPath $sourceExe)) {
+            throw "Installer executable was not built."
+          }
+
+          Copy-Item -LiteralPath $sourceExe -Destination $releaseExe -Force
+          $hash = (Get-FileHash -LiteralPath $releaseExe -Algorithm SHA256).Hash
+          Set-Content -LiteralPath $checksumPath -Value "$hash  $assetName" -Encoding ASCII
+
+          "exe=$releaseExe" >> $env:GITHUB_OUTPUT
+          "checksum=$checksumPath" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke test installer
+        shell: pwsh
+        run: |
+          $process = Start-Process `
+            -FilePath "${{ steps.assets.outputs.exe }}" `
+            -ArgumentList @("--smoke-test") `
+            -Wait `
+            -PassThru
+
+          if ($process.ExitCode -ne 0) {
+            throw "Installer smoke test failed with exit code $($process.ExitCode)."
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sst-setup-${{ steps.release.outputs.tag }}
+          path: |
+            ${{ steps.assets.outputs.exe }}
+            ${{ steps.assets.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Upload release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          $exe = "${{ steps.assets.outputs.exe }}"
+          $checksum = "${{ steps.assets.outputs.checksum }}"
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag `
+              --title "SST $tag" `
+              --notes "Windows installer release for SST $tag."
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+          gh release upload $tag $exe $checksum --clobber

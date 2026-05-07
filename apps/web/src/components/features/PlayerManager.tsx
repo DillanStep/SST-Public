@@ -4,7 +4,7 @@ import {
   CheckCircle, XCircle, Clock, ChevronLeft, Activity, Search,
   MapPin, Heart, Droplets, Zap, Wifi, WifiOff, X, ArrowDown, ArrowUp,
   DollarSign, Skull, LogIn, LogOut, UserPlus, RotateCw, Backpack, PackagePlus,
-  PackageMinus, ShieldPlus
+  PackageMinus, ShieldPlus, Banknote
 } from 'lucide-react';
 import L from 'leaflet';
 import { MapContainer, CircleMarker, useMap } from 'react-leaflet';
@@ -12,6 +12,7 @@ import 'leaflet/dist/leaflet.css';
 import { Card, Button, Badge, Input, Select } from '../ui';
 import { InventoryTree } from './InventoryTree';
 import { flattenInventory } from './inventoryUtils';
+import { PlayerBankPanel } from './PlayerBankPanel';
 import { getDashboard, refreshDashboard, getPlayer, createGrant, getGrantResults, getOnlinePlayers, getPlayerTrades, searchItems, getCategories, deleteItemFromPlayer } from '../../services/api';
 import type { DashboardResponse, PlayerData, GrantResult, OnlinePlayerData, PlayerEvent, TradeLog, Item, CategoriesResponse } from '../../types';
 import { MapImageLayer } from '../../maps/MapImageLayer';
@@ -254,7 +255,7 @@ interface PlayerSummary {
   onlineData?: OnlinePlayerData;
 }
 
-type TabType = 'inventory' | 'events' | 'life' | 'trades' | 'grant';
+type TabType = 'inventory' | 'events' | 'life' | 'trades' | 'bank' | 'grant';
 
 export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
@@ -632,48 +633,84 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
     // Get online data for this player
     const selectedOnlineData = onlinePlayers.find(p => p.playerId === selectedPlayerId);
     const isOnline = selectedOnlineData?.isOnline || false;
+    const playerBiId = invData?.biId || selectedOnlineData?.biId || playerDetails.online?.biId || '';
 
     const tabs: { id: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
       { id: 'inventory', label: 'Inventory', icon: <Package size={16} />, count: totalItems },
       { id: 'events', label: 'Item Events', icon: <Backpack size={16} />, count: itemEvents.length },
       { id: 'life', label: 'Life Events', icon: <Skull size={16} />, count: lifeEvents.length },
       { id: 'trades', label: 'Trades', icon: <ArrowDown size={16} />, count: trades.length },
+      { id: 'bank', label: 'Bank', icon: <Banknote size={16} /> },
       { id: 'grant', label: 'Grant Items', icon: <Gift size={16} /> },
     ];
 
     return (
       <Card compact>
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBackToList}
-            icon={<ChevronLeft size={16} />}
-          >
-            Back
-          </Button>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg sm:text-xl font-bold text-surface-800">{playerName}</h2>
-              <Badge variant={isOnline ? 'success' : 'default'}>
-                {isOnline ? <Wifi size={12} className="mr-1" /> : <WifiOff size={12} className="mr-1" />}
-                {isOnline ? 'Online' : 'Offline'}
-              </Badge>
+        <div className="mb-5 rounded-lg border border-surface-200 bg-surface-50 p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToList}
+                icon={<ChevronLeft size={16} />}
+              >
+                Back
+              </Button>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-xl font-bold text-surface-900">{playerName}</h2>
+                  <Badge variant={isOnline ? 'success' : 'default'}>
+                    {isOnline ? <Wifi size={12} className="mr-1" /> : <WifiOff size={12} className="mr-1" />}
+                    {isOnline ? 'Online' : 'Offline'}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <code className="rounded-md bg-white px-2 py-1 text-xs text-primary-600 ring-1 ring-surface-200">
+                    Steam {selectedPlayerId}
+                  </code>
+                  {playerBiId && (
+                    <code className="rounded-md bg-white px-2 py-1 text-xs text-surface-600 ring-1 ring-surface-200">
+                      BI {playerBiId}
+                    </code>
+                  )}
+                </div>
+              </div>
             </div>
-            <code className="text-primary-500 bg-surface-100 px-2 py-0.5 rounded text-xs sm:text-sm break-all">
-              {selectedPlayerId}
-            </code>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => loadPlayerDetails(selectedPlayerId)}
+              loading={loadingPlayer}
+              icon={<RefreshCw size={14} />}
+            >
+              Refresh
+            </Button>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => loadPlayerDetails(selectedPlayerId)}
-            loading={loadingPlayer}
-            icon={<RefreshCw size={14} />}
-          >
-            Refresh
-          </Button>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="rounded-lg bg-white p-3 ring-1 ring-surface-200">
+              <div className="text-xs text-surface-500">Inventory</div>
+              <div className="mt-1 text-lg font-semibold text-surface-900">{totalItems.toLocaleString()}</div>
+            </div>
+            <div className="rounded-lg bg-white p-3 ring-1 ring-surface-200">
+              <div className="text-xs text-surface-500">Item Events</div>
+              <div className="mt-1 text-lg font-semibold text-surface-900">{itemEvents.length.toLocaleString()}</div>
+            </div>
+            <div className="rounded-lg bg-white p-3 ring-1 ring-surface-200">
+              <div className="text-xs text-surface-500">Life Events</div>
+              <div className="mt-1 text-lg font-semibold text-surface-900">{lifeEvents.length.toLocaleString()}</div>
+            </div>
+            <div className="rounded-lg bg-white p-3 ring-1 ring-surface-200">
+              <div className="text-xs text-surface-500">Trades</div>
+              <div className="mt-1 text-lg font-semibold text-surface-900">{trades.length.toLocaleString()}</div>
+            </div>
+            <div className="rounded-lg bg-white p-3 ring-1 ring-surface-200">
+              <div className="text-xs text-surface-500">Grants</div>
+              <div className="mt-1 text-lg font-semibold text-surface-900">{playerGrants.length.toLocaleString()}</div>
+            </div>
+          </div>
         </div>
 
         {/* Online Player Status Bar */}
@@ -722,15 +759,15 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-surface-300 mb-6">
+        <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-surface-100 p-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? 'border-primary-500 text-primary-500'
-                  : 'border-transparent text-surface-600 hover:text-surface-800 hover:bg-surface-50'
+                  ? 'bg-white text-surface-900 shadow-sm'
+                  : 'text-surface-600 hover:bg-white/70 hover:text-surface-900'
               }`}
             >
               {tab.icon}
@@ -1030,6 +1067,15 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                 </div>
               )}
             </div>
+          )}
+
+          {/* Bank Tab */}
+          {activeTab === 'bank' && (
+            <PlayerBankPanel
+              steamId={selectedPlayerId}
+              biId={playerBiId}
+              playerName={playerName}
+            />
           )}
 
           {/* Grant Items Tab */}

@@ -1,8 +1,8 @@
 # SudoServerTools_Init.c
 
-Purpose: mission-side initialization and scheduled exporters that write server state JSON under `$storage:SST/`.
+Purpose: mission-side initialization and scheduled exporters that write server state JSON under `$profile:SST/`.
 
-Source file: [SST/Scripts/5_Mission/SST/SudoServerTools_Init.c](../../../SST/Scripts/5_Mission/SST/SudoServerTools_Init.c)
+Source file: [dayz/mod-source/SST/Scripts/5_Mission/SST/SudoServerTools_Init.c](../../../dayz/mod-source/SST/Scripts/5_Mission/SST/SudoServerTools_Init.c)
 
 ---
 
@@ -22,7 +22,7 @@ It contains:
 
 ### Output
 
-- Folder: `$storage:SST/inventories/`
+- Folder: `$profile:SST/inventories/`
 - Per-player file: `<steam64>.json`
 
 This is the file the Node API reads for:
