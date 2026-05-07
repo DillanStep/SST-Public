@@ -111,6 +111,12 @@ export interface CreateServerProfileResponse {
     name: string;
     envPath: string;
   };
+  profiles?: Array<{
+    id: string;
+    name?: string;
+    aliases?: string[];
+    isDefault?: boolean;
+  }>;
   message?: string;
 }
 

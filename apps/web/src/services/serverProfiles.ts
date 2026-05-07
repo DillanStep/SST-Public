@@ -1,5 +1,6 @@
 import type { ServerConfig } from '../types';
-import { updateServer } from './serverManager';
+import { getServers, updateServer } from './serverManager';
+import { getAuthToken } from './auth';
 
 export interface ApiServerProfile {
   id: string;
@@ -19,6 +20,43 @@ export interface ResolvedServerProfile {
   activeProfile?: string;
   changed: boolean;
 }
+
+export interface ResolveServerProfileOptions {
+  createIfMissing?: boolean;
+}
+
+export const normalizeApiUrl = (value?: string | null): string => {
+  return String(value || '').trim().replace(/\/+$/, '');
+};
+
+export const slugifyProfileName = (value: string): string => {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+export const buildUniqueProfileName = (serverName: string, ignoreServerId?: string): string => {
+  const base = slugifyProfileName(serverName) || 'server';
+  const usedProfiles = new Set(
+    getServers()
+      .filter(server => server.id !== ignoreServerId)
+      .map(server => server.apiProfile)
+      .filter(Boolean)
+      .map(profile => slugifyProfileName(profile || ''))
+  );
+
+  let candidate = base;
+  let suffix = 2;
+  while (usedProfiles.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+};
 
 function normalizeProfileValue(value?: string | null): string {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -95,7 +133,82 @@ async function fetchProfiles(server: ServerConfig, profileOverride?: string): Pr
   return data as ApiServerProfilesResponse;
 }
 
-export async function resolveServerProfile(server: ServerConfig): Promise<ResolvedServerProfile> {
+function sameApiUrl(left?: string | null, right?: string | null): boolean {
+  return normalizeApiUrl(left).toLowerCase() === normalizeApiUrl(right).toLowerCase();
+}
+
+function getSameApiUrlServers(server: ServerConfig): ServerConfig[] {
+  return getServers().filter(item => sameApiUrl(item.apiUrl, server.apiUrl));
+}
+
+function isDefaultServerForApiUrl(server: ServerConfig): boolean {
+  const sameUrlServers = getSameApiUrlServers(server);
+  return sameUrlServers.length <= 1 || sameUrlServers[0]?.id === server.id;
+}
+
+function profileExists(profiles: ApiServerProfile[], profileId: string): boolean {
+  const normalizedProfileId = normalizeProfileValue(profileId);
+  return profiles.some(profile =>
+    profileCandidates(profile).some(candidate => normalizeProfileValue(candidate) === normalizedProfileId)
+  );
+}
+
+function buildUniqueProfileNameForApi(server: ServerConfig, profiles: ApiServerProfile[]): string {
+  const base = slugifyProfileName(server.apiProfile || server.name) || 'server';
+  let candidate = base;
+  let suffix = 2;
+
+  while (profileExists(profiles, candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+async function createProfileOnApi(
+  server: ServerConfig,
+  profileId: string
+): Promise<{ profile?: ApiServerProfile; profiles?: ApiServerProfile[] }> {
+  const token = getAuthToken();
+  const response = await fetch(`${normalizeApiUrl(server.apiUrl)}/servers/profiles`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': server.apiKey,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      name: server.name,
+      profile: profileId,
+      mapPreset: server.mapPreset,
+      mapLabel: server.mapLabel,
+      mapImageUrl: server.mapImageUrl,
+      mapWorldSizeX: server.mapWorldSizeX,
+      mapWorldSizeZ: server.mapWorldSizeZ,
+      mapInvertX: server.mapInvertX,
+      mapInvertZ: server.mapInvertZ,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = typeof data?.details === 'string'
+      ? data.details
+      : typeof data?.error === 'string'
+        ? data.error
+        : `Profile creation failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  return data as { profile?: ApiServerProfile; profiles?: ApiServerProfile[] };
+}
+
+export async function resolveServerProfile(
+  server: ServerConfig,
+  options: ResolveServerProfileOptions = {}
+): Promise<ResolvedServerProfile> {
   let response: ApiServerProfilesResponse;
   let ignoreSavedProfile = false;
 
@@ -108,17 +221,30 @@ export async function resolveServerProfile(server: ServerConfig): Promise<Resolv
   }
 
   const profiles = response.profiles || [];
+  const serverForInference = ignoreSavedProfile ? { ...server, apiProfile: '' } : server;
   const inferredProfile = inferApiProfile(
-    ignoreSavedProfile ? { ...server, apiProfile: '' } : server,
+    serverForInference,
     profiles
   );
-  const nextProfile = inferredProfile ?? server.apiProfile ?? '';
+  let nextProfile = inferredProfile ?? serverForInference.apiProfile ?? '';
+  let nextProfiles = profiles;
+
+  if (
+    options.createIfMissing &&
+    !nextProfile &&
+    !isDefaultServerForApiUrl(server)
+  ) {
+    const profileId = buildUniqueProfileNameForApi(server, profiles);
+    const created = await createProfileOnApi(server, profileId);
+    nextProfile = created.profile?.id || profileId;
+    nextProfiles = created.profiles || profiles;
+  }
 
   if ((server.apiProfile || '') !== nextProfile) {
     const updated = updateServer(server.id, { apiProfile: nextProfile });
     return {
       server: updated || { ...server, apiProfile: nextProfile },
-      profiles,
+      profiles: nextProfiles,
       activeProfile: response.active,
       changed: true,
     };
@@ -126,7 +252,7 @@ export async function resolveServerProfile(server: ServerConfig): Promise<Resolv
 
   return {
     server,
-    profiles,
+    profiles: nextProfiles,
     activeProfile: response.active,
     changed: false,
   };

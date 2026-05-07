@@ -9,7 +9,8 @@ import {
   getServers,
   setActiveServerId,
 } from '../../services/serverManager';
-import { resolveServerProfile } from '../../services/serverProfiles';
+import { copyAuthTokenToServer } from '../../services/auth';
+import { normalizeApiUrl, resolveServerProfile } from '../../services/serverProfiles';
 import type { ServerConfig } from '../../types';
 
 interface ConnectionBarProps {
@@ -36,6 +37,10 @@ const formatStaleAge = (ms?: number | null) => {
   }
 
   return `${Math.round(minutes / 60)}h stale`;
+};
+
+const sameApiUrl = (left?: string | null, right?: string | null) => {
+  return normalizeApiUrl(left).toLowerCase() === normalizeApiUrl(right).toLowerCase();
 };
 
 export const ConnectionBar: React.FC<ConnectionBarProps> = ({ 
@@ -122,7 +127,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
     setStatus('connecting');
 
     try {
-      const resolved = await resolveServerProfile(serverToUse);
+      const resolved = await resolveServerProfile(serverToUse, { createIfMissing: true });
       if (resolved.changed) {
         serverToUse = resolved.server;
         setActiveServerState(resolved.server);
@@ -186,15 +191,32 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
     }
   }, [activeServer, status, connect]);
 
-  const handleServerSelect = (server: ServerConfig) => {
+  const handleServerSelect = async (server: ServerConfig) => {
     if (server.id === activeServer?.id) {
       setDropdownOpen(false);
       return;
     }
 
-    setActiveServerId(server.id);
-    setActiveServerState(server);
     setDropdownOpen(false);
+    setStatus('connecting');
+    setStatusMessage('');
+
+    try {
+      const resolved = await resolveServerProfile(server, { createIfMissing: true });
+      const nextServer = resolved.server;
+
+      if (activeServer && sameApiUrl(activeServer.apiUrl, nextServer.apiUrl)) {
+        copyAuthTokenToServer(nextServer.id);
+      }
+
+      setActiveServerId(nextServer.id);
+      setActiveServerState(nextServer);
+      loadServers();
+    } catch (err) {
+      setStatus('error');
+      setStatusMessage(err instanceof Error ? err.message : 'Could not switch SST server profile');
+      onDisconnected();
+    }
   };
 
   const handleReconnect = () => {
@@ -220,6 +242,16 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
       </div>
     );
   }
+
+  const hasSameApiUrlPeers = (server: ServerConfig) => {
+    return servers.some(item => item.id !== server.id && sameApiUrl(item.apiUrl, server.apiUrl));
+  };
+
+  const getServerSubtitle = (server: ServerConfig) => {
+    if (server.apiProfile) return `${server.apiUrl} - ${server.apiProfile}`;
+    if (hasSameApiUrlPeers(server)) return `${server.apiUrl} - default`;
+    return server.apiUrl;
+  };
 
   return (
     <div className="flex items-center gap-2" ref={dropdownRef}>
@@ -248,7 +280,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{server.name}</div>
                   <div className="text-xs text-surface-500 truncate">
-                    {server.apiProfile ? `${server.apiUrl} - ${server.apiProfile}` : server.apiUrl}
+                    {getServerSubtitle(server)}
                   </div>
                 </div>
                 {server.id === activeServer?.id && (

@@ -4,14 +4,13 @@ import { Button, Card, Input } from '../ui';
 import api from '../../services/api';
 import { addServer, getActiveServer, getServers, setActiveServerId, updateServer } from '../../services/serverManager';
 import { copyAuthTokenToServer, getAuthToken } from '../../services/auth';
+import { buildUniqueProfileName, normalizeApiUrl, slugifyProfileName } from '../../services/serverProfiles';
 import { getMapPresetDefaults, MAP_PRESET_OPTIONS } from '../../maps/mapConfig';
 
 interface AddServerSetupProps {
   onCancel: () => void;
   onSaved: () => void;
 }
-
-const normalizeApiUrl = (value: string) => value.trim().replace(/\/+$/, '');
 
 const generateApiKey = () => {
   const bytes = new Uint8Array(32);
@@ -29,34 +28,6 @@ const generateApiKey = () => {
 const parsePositiveNumber = (value: string, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-
-const slugifyProfileName = (value: string) => {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/['"]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-};
-
-const buildUniqueProfileName = (serverName: string) => {
-  const base = slugifyProfileName(serverName) || 'server';
-  const usedProfiles = new Set(
-    getServers()
-      .map(server => server.apiProfile)
-      .filter(Boolean)
-      .map(profile => slugifyProfileName(profile || ''))
-  );
-
-  let candidate = base;
-  let suffix = 2;
-  while (usedProfiles.has(candidate)) {
-    candidate = `${base}-${suffix}`;
-    suffix += 1;
-  }
-
-  return candidate;
 };
 
 export const AddServerSetup: React.FC<AddServerSetupProps> = ({ onCancel, onSaved }) => {

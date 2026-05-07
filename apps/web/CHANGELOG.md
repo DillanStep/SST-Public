@@ -5,6 +5,13 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] - 2026-05-07
+
+### Fixed
+- Fixed switching between saved servers on the same API URL when older saved entries did not have an API profile attached.
+- Added profile-aware switching in the top connection menu and Settings server list.
+- Show the `default` or named API profile in the server dropdown so same-URL servers are easy to tell apart.
+
 ## [1.0.5] - 2026-05-04
 
 ### Added

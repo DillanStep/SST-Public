@@ -16,8 +16,8 @@ import {
   setActiveServerId 
 } from '../../services/serverManager';
 import api from '../../services/api';
-import { clearAuthTokenForServer } from '../../services/auth';
-import { resolveServerProfile } from '../../services/serverProfiles';
+import { clearAuthTokenForServer, copyAuthTokenToServer } from '../../services/auth';
+import { normalizeApiUrl, resolveServerProfile } from '../../services/serverProfiles';
 import type { ConfigBrowseResponse, RuntimeEnvValues, ServerConfig, SstModInfoResponse } from '../../types';
 import { getMapPresetDefaults, MAP_PRESET_OPTIONS } from '../../maps/mapConfig';
 import { AddServerSetup } from './AddServerSetup';
@@ -197,6 +197,10 @@ const ENV_GROUPS: EnvGroup[] = [
 
 const isToggleOn = (value: string | undefined) => value === '1' || value === 'true';
 
+const sameApiUrl = (left?: string | null, right?: string | null) => {
+  return normalizeApiUrl(left).toLowerCase() === normalizeApiUrl(right).toLowerCase();
+};
+
 const fillMissingEnvValues = (
   values: RuntimeEnvValues,
   suggestions: RuntimeEnvValues = {}
@@ -312,7 +316,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     setTestResults(prev => ({ ...prev, [server.id]: null }));
     
     try {
-      const resolved = await resolveServerProfile(server);
+      const resolved = await resolveServerProfile(server, { createIfMissing: true });
       if (resolved.changed) {
         loadServers();
         if (server.id === activeId) {
@@ -377,10 +381,26 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
   };
 
   // Switch active server
-  const handleSwitchServer = (id: string) => {
-    setActiveServerId(id);
-    setActiveId(id);
-    api.loadActiveServer();
+  const handleSwitchServer = async (id: string) => {
+    const currentServer = servers.find(server => server.id === activeId);
+    const targetServer = servers.find(server => server.id === id);
+    if (!targetServer) return;
+
+    setConfigError('');
+
+    try {
+      const resolved = await resolveServerProfile(targetServer, { createIfMissing: true });
+      if (currentServer && sameApiUrl(currentServer.apiUrl, resolved.server.apiUrl)) {
+        copyAuthTokenToServer(resolved.server.id);
+      }
+
+      setActiveServerId(resolved.server.id);
+      setActiveId(resolved.server.id);
+      loadServers();
+      api.loadActiveServer();
+    } catch (err) {
+      setConfigError(err instanceof Error ? err.message : 'Could not switch SST server profile');
+    }
   };
 
   // Start editing a server

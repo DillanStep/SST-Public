@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-05-07
+
+### Fixed
+- Fixed same-API server switching for older saved dashboard entries by resolving or creating the missing per-server API profile before switching.
+- Preserved the current admin session when switching between saved servers that share one API URL.
+- Made same-URL server dropdown entries show the active profile suffix, so it is clear whether a server is using `default` or its own `.env` profile.
+
 ## [1.0.9] - 2026-05-07
 
 ### Fixed
