@@ -212,8 +212,37 @@ try {
         Push-Location (Join-Path $RepoRoot "apps\web")
         try {
             $npm = Get-NpmCommand
+            $webDist = Join-Path $RepoRoot "apps\web\dist"
+            if (Test-Path -LiteralPath $webDist) {
+                Remove-Item -LiteralPath $webDist -Recurse -Force
+            }
             Invoke-NativeCommand -FilePath $npm -Arguments @("install") | Out-Null
             Invoke-NativeCommand -FilePath $npm -Arguments @("run", "build") | Out-Null
+
+            $webPackagePath = Join-Path $RepoRoot "apps\web\package.json"
+            $webPackage = Get-Content -LiteralPath $webPackagePath -Raw | ConvertFrom-Json
+            $expectedWebVersion = [string]$webPackage.version
+            if ("v$expectedWebVersion" -ne $TargetTag) {
+                throw "Updated web package version $expectedWebVersion does not match target $TargetTag."
+            }
+
+            $builtIndex = Join-Path $webDist "index.html"
+            if (-not (Test-Path -LiteralPath $builtIndex)) {
+                throw "Dashboard build did not create apps\web\dist\index.html."
+            }
+
+            $builtAssets = Get-ChildItem -LiteralPath (Join-Path $webDist "assets") -Filter "*.js" -File -ErrorAction SilentlyContinue
+            $versionInBundle = $false
+            foreach ($asset in $builtAssets) {
+                if (Select-String -LiteralPath $asset.FullName -Pattern $expectedWebVersion -Quiet) {
+                    $versionInBundle = $true
+                    break
+                }
+            }
+
+            if (-not $versionInBundle) {
+                throw "Dashboard build completed, but the web bundle does not contain version $expectedWebVersion."
+            }
         }
         finally {
             Pop-Location

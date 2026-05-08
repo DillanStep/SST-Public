@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-05-08
+
+### Fixed
+- Forced every dashboard API request to read the current active server profile at request time, preventing stale same-URL server data after switching.
+- Added a full server-context reset and loading overlay so pages remount and reload when admins switch servers.
+- Changed dashboard static asset caching to revalidate after updates and added updater verification that the rebuilt web bundle contains the target version.
+
 ## [1.0.10] - 2026-05-07
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "sst-node-api",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "sst": {
     "modVersion": "1.0.7"
   },

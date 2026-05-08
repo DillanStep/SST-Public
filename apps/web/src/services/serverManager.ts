@@ -6,6 +6,12 @@ const ACTIVE_SERVER_KEY = 'sst-active-server';
 export const SERVER_CONFIG_CHANGED_EVENT = 'sst:servers-changed';
 export const ACTIVE_SERVER_CHANGED_EVENT = 'sst:active-server-changed';
 
+export interface ActiveServerChangedDetail {
+  serverId: string | null;
+  server: ServerConfig | null;
+  contextKey: string;
+}
+
 const emitServerConfigChanged = (): void => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(SERVER_CONFIG_CHANGED_EVENT));
@@ -13,7 +19,14 @@ const emitServerConfigChanged = (): void => {
 
 const emitActiveServerChanged = (serverId: string | null): void => {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(ACTIVE_SERVER_CHANGED_EVENT, { detail: { serverId } }));
+  const server = serverId ? getServers().find(item => item.id === serverId) || null : null;
+  window.dispatchEvent(new CustomEvent<ActiveServerChangedDetail>(ACTIVE_SERVER_CHANGED_EVENT, {
+    detail: {
+      serverId,
+      server,
+      contextKey: getServerContextKey(server),
+    },
+  }));
 };
 
 // Generate a unique ID
@@ -66,6 +79,24 @@ export const getActiveServer = (): ServerConfig | null => {
   
   const servers = getServers();
   return servers.find(s => s.id === activeId) || null;
+};
+
+export const getServerContextKey = (server: ServerConfig | null = getActiveServer()): string => {
+  if (!server) return 'no-server';
+
+  return [
+    server.id,
+    server.apiUrl.trim().replace(/\/+$/, '').toLowerCase(),
+    server.apiProfile?.trim() || 'default',
+    server.mapPreset || '',
+    server.mapLabel || '',
+    server.mapImageUrl || '',
+    String(server.mapWorldSizeX || ''),
+    String(server.mapWorldSizeZ || ''),
+    server.mapInvertX ? 'invert-x' : '',
+    server.mapInvertZ ? 'invert-z' : '',
+    server.lastUsed || '',
+  ].join('|');
 };
 
 // Add a new server
@@ -156,6 +187,7 @@ export const serverManager = {
   getActiveServerId,
   setActiveServerId,
   getActiveServer,
+  getServerContextKey,
   addServer,
   updateServer,
   deleteServer,

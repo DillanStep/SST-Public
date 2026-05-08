@@ -112,10 +112,23 @@ class SstApi {
 
     // Add request interceptor to include Bearer token for cross-origin auth
     this.client.interceptors.request.use((config) => {
-      const token = getAuthToken();
-      if (this.apiProfile) {
-        config.headers['x-sst-server'] = this.apiProfile;
+      const activeServer = getActiveServer();
+      if (activeServer) {
+        this.baseUrl = activeServer.apiUrl;
+        this.apiKey = activeServer.apiKey;
+        this.apiProfile = activeServer.apiProfile?.trim() || '';
+
+        config.baseURL = activeServer.apiUrl;
+        config.headers['x-api-key'] = activeServer.apiKey;
+
+        if (this.apiProfile) {
+          config.headers['x-sst-server'] = this.apiProfile;
+        } else {
+          delete config.headers['x-sst-server'];
+        }
       }
+
+      const token = getAuthToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         config.withCredentials = true;

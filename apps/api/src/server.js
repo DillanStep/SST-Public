@@ -393,11 +393,12 @@ function getConfigEnvSnapshot() {
   const env = {};
 
   for (const key of CONFIG_ENV_KEYS) {
-    const fileVars = runtimeContext.envPath && PROFILE_SCOPED_ENV_KEYS.has(key)
-      ? profileFileVars
-      : globalFileVars;
+    if (runtimeContext.envPath && PROFILE_SCOPED_ENV_KEYS.has(key)) {
+      env[key] = profileFileVars[key] ?? runtimeEnv[key] ?? "";
+      continue;
+    }
 
-    env[key] = fileVars[key] ?? runtimeEnv[key] ?? process.env[key] ?? "";
+    env[key] = globalFileVars[key] ?? runtimeEnv[key] ?? process.env[key] ?? "";
   }
 
   if (!env.API_KEY) {
@@ -432,7 +433,7 @@ function setWebStaticCacheHeaders(res, assetPath) {
   }
 
   if (normalizedPath.includes("/assets/")) {
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Cache-Control", "no-cache");
   }
 }
 

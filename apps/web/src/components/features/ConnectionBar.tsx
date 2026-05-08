@@ -209,6 +209,7 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
         copyAuthTokenToServer(nextServer.id);
       }
 
+      api.configure(nextServer.apiUrl, nextServer.apiKey, nextServer.apiProfile);
       setActiveServerId(nextServer.id);
       setActiveServerState(nextServer);
       loadServers();
@@ -262,7 +263,9 @@ export const ConnectionBar: React.FC<ConnectionBarProps> = ({
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-700 text-sm transition-colors"
         >
           <Server size={14} />
-          <span className="max-w-[150px] truncate">{activeServer?.name || 'Select Server'}</span>
+          <span className="max-w-[180px] truncate">
+            {activeServer ? `${activeServer.name}${activeServer.apiProfile ? ` - ${activeServer.apiProfile}` : ''}` : 'Select Server'}
+          </span>
           <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
         </button>
 

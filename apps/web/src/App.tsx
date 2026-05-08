@@ -1,11 +1,11 @@
-import { lazy, Suspense, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy, Trophy } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy, Trophy, RefreshCw } from 'lucide-react';
 import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
 import { UpdateStatusBadge } from './components/features/UpdateStatusBadge';
 import { VersionCorner } from './components/features/VersionCorner';
-import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId } from './services/serverManager';
+import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId, getServerContextKey, type ActiveServerChangedDetail } from './services/serverManager';
 import { AuthCheckTransientError, checkAuth, getAuthToken, logout, type User } from './services/auth';
 import api from './services/api';
 
@@ -33,6 +33,17 @@ function FeatureLoading() {
   );
 }
 
+function ServerSwitchLoading({ serverName }: { serverName: string }) {
+  return (
+    <div className="absolute inset-0 z-30 flex items-start justify-center bg-surface-50/85 px-4 pt-14 backdrop-blur-sm">
+      <div className="flex items-center gap-3 rounded-xl border border-surface-200 bg-white px-4 py-3 text-sm font-medium text-surface-700 shadow-lg">
+        <RefreshCw size={16} className="animate-spin text-surface-500" />
+        <span>Loading {serverName || 'server'} data...</span>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -40,6 +51,9 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeServerName, setActiveServerName] = useState<string>('');
   const [activeServerId, setActiveServerIdState] = useState<string | null>(() => getActiveServerId());
+  const [activeServerContextKey, setActiveServerContextKey] = useState<string>(() => getServerContextKey());
+  const [serverSwitching, setServerSwitching] = useState(false);
+  const serverSwitchCounter = useRef(0);
   
   // Auth state
   const [user, setUser] = useState<User | null>(null);
@@ -101,6 +115,7 @@ function App() {
     const server = getActiveServer();
     setActiveServerName(server?.name || '');
     setActiveServerIdState(server?.id || getActiveServerId());
+    setActiveServerContextKey(getServerContextKey(server));
   }, []);
 
   useEffect(() => {
@@ -109,30 +124,49 @@ function App() {
 
   // Handle server change from settings
   const handleServerChange = useCallback(async () => {
-    loadActiveServerSummary();
-    api.loadActiveServer();
-    setIsConnected(false);
-
-    if (!getAuthToken()) {
-      setUser(null);
-      return;
-    }
+    const switchId = serverSwitchCounter.current + 1;
+    serverSwitchCounter.current = switchId;
+    setServerSwitching(true);
 
     try {
-      const result = await checkAuth();
-      setUser(result?.user ?? null);
-    } catch (err) {
-      if (err instanceof AuthCheckTransientError) {
-        console.warn('Server switch auth check skipped:', err.message);
+      loadActiveServerSummary();
+      api.loadActiveServer();
+      setIsConnected(false);
+
+      if (!getAuthToken()) {
+        setUser(null);
         return;
       }
 
-      setUser(null);
+      try {
+        const result = await checkAuth();
+        setUser(result?.user ?? null);
+      } catch (err) {
+        if (err instanceof AuthCheckTransientError) {
+          console.warn('Server switch auth check skipped:', err.message);
+          return;
+        }
+
+        setUser(null);
+      }
+    } finally {
+      window.setTimeout(() => {
+        if (serverSwitchCounter.current === switchId) {
+          setServerSwitching(false);
+        }
+      }, 350);
     }
   }, [loadActiveServerSummary]);
 
   useEffect(() => {
-    const handleActiveServerChanged = () => {
+    const handleActiveServerChanged = (event: Event) => {
+      const detail = (event as CustomEvent<ActiveServerChangedDetail>).detail;
+      if (detail) {
+        setActiveServerName(detail.server?.name || '');
+        setActiveServerIdState(detail.serverId);
+        setActiveServerContextKey(detail.contextKey);
+      }
+
       void handleServerChange();
     };
 
@@ -157,6 +191,7 @@ function App() {
 
   // Filter tabs based on user role
   const visibleTabs = tabs.filter(tab => !tab.adminOnly || user?.role === 'admin');
+  const serverContentKey = `${activeServerContextKey}:${activeServerId || 'none'}:${isConnected ? 'connected' : 'disconnected'}`;
 
   // Show loading spinner while checking auth
   if (authChecking) {
@@ -252,8 +287,9 @@ function App() {
         </div>
         
         {/* Full Page Content */}
-        <div className="flex-1">
-          <Suspense key={activeServerId || 'no-server'} fallback={<FeatureLoading />}>
+        <div className="relative flex-1">
+          {serverSwitching && <ServerSwitchLoading serverName={activeServerName} />}
+          <Suspense key={serverContentKey} fallback={<FeatureLoading />}>
           {activeTab === 'map' && <FullPageMap isConnected={isConnected} />}
           {activeTab === 'history' && <PlayerHistory isConnected={isConnected} />}
           {activeTab === 'vehicles' && <VehicleDashboard isConnected={isConnected} />}
@@ -457,8 +493,9 @@ function App() {
           />
         </div>
 
-        <div className="p-4 sm:p-5 lg:p-6 pt-18 md:pt-5 space-y-5">
-          <Suspense key={activeServerId || 'no-server'} fallback={<FeatureLoading />}>
+        <div className="relative p-4 sm:p-5 lg:p-6 pt-18 md:pt-5 space-y-5">
+          {serverSwitching && <ServerSwitchLoading serverName={activeServerName} />}
+          <Suspense key={serverContentKey} fallback={<FeatureLoading />}>
             {activeTab === 'dashboard' && (
               <PlayerDashboard isConnected={isConnected} />
             )}

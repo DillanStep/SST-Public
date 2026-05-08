@@ -244,8 +244,10 @@ If an older install fails with a PowerShell `ChildPath` / `System.Object[]` upda
 
 ```powershell
 cd "C:\Path\To\SST"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.10/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.11/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
 ```
+
+After an update, the bottom-right version badge should match the latest web version. If the sidebar says SST is current but the bottom-right badge still shows an older web version, refresh the browser after restarting SST; the updater now also verifies the rebuilt dashboard bundle before it reports success.
 
 When using one API for multiple DayZ servers, the server dropdown should show a profile suffix, for example `http://localhost:3001 - sudo-2`. If it only shows the API URL, switch to that server once while signed in as an admin; SST will attach or create the missing per-server `.env` profile.
 

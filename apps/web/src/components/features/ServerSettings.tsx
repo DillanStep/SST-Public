@@ -13,6 +13,8 @@ import {
   updateServer, 
   deleteServer, 
   getActiveServerId,
+  getActiveServer,
+  getServerContextKey,
   setActiveServerId 
 } from '../../services/serverManager';
 import api from '../../services/api';
@@ -224,6 +226,7 @@ const fillMissingEnvValues = (
 export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }) => {
   const [servers, setServers] = useState<ServerConfig[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeContextKey, setActiveContextKey] = useState(() => getServerContextKey());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   
@@ -258,6 +261,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
   const loadServers = useCallback(() => {
     setServers(getServers());
     setActiveId(getActiveServerId());
+    setActiveContextKey(getServerContextKey(getActiveServer()));
   }, []);
 
   const loadRuntimeConfig = useCallback(async () => {
@@ -298,7 +302,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
 
   useEffect(() => {
     loadRuntimeConfig();
-  }, [activeId, loadRuntimeConfig]);
+  }, [activeContextKey, loadRuntimeConfig]);
 
   useEffect(() => {
     window.addEventListener(SERVER_CONFIG_CHANGED_EVENT, loadServers);
@@ -394,10 +398,11 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
         copyAuthTokenToServer(resolved.server.id);
       }
 
+      api.configure(resolved.server.apiUrl, resolved.server.apiKey, resolved.server.apiProfile);
       setActiveServerId(resolved.server.id);
       setActiveId(resolved.server.id);
+      setActiveContextKey(getServerContextKey(resolved.server));
       loadServers();
-      api.loadActiveServer();
     } catch (err) {
       setConfigError(err instanceof Error ? err.message : 'Could not switch SST server profile');
     }

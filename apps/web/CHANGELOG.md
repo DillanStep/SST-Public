@@ -5,6 +5,13 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-05-08
+
+### Fixed
+- Fixed stale page data after server switches by resetting the whole page context whenever the active server changes.
+- Fixed API requests using an old same-URL profile by binding each request to the active saved server at send time.
+- Added a loading overlay during server switches so old player, map, log, economy, and settings data is not shown while the new server loads.
+
 ## [1.0.10] - 2026-05-07
 
 ### Fixed
