@@ -72,6 +72,16 @@ npm run build
 
 Output is in the `dist/` folder.
 
+### External Hosting
+
+When the API serves the built dashboard from the same host and port, no web env file is needed. For a separate web host, set `VITE_SST_API_URL` before building:
+
+```env
+VITE_SST_API_URL=https://your-sst-api.example.com
+```
+
+The API exposes `/client/bootstrap` so a fresh browser can load the configured server profiles automatically.
+
 ### Docker
 
 ```bash

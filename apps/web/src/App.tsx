@@ -5,7 +5,7 @@ import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
 import { UpdateStatusBadge } from './components/features/UpdateStatusBadge';
 import { VersionCorner } from './components/features/VersionCorner';
-import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId, getServerContextKey, type ActiveServerChangedDetail } from './services/serverManager';
+import { ACTIVE_SERVER_CHANGED_EVENT, bootstrapHostedServers, getActiveServer, getActiveServerId, getServerContextKey, type ActiveServerChangedDetail } from './services/serverManager';
 import { AuthCheckTransientError, checkAuth, getAuthToken, logout, type User } from './services/auth';
 import api from './services/api';
 
@@ -62,12 +62,24 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
 
+  // Load active server summary
+  const loadActiveServerSummary = useCallback(() => {
+    const server = getActiveServer();
+    setActiveServerName(server?.name || '');
+    setActiveServerIdState(server?.id || getActiveServerId());
+    setActiveServerContextKey(getServerContextKey(server));
+  }, []);
+
   // Check auth on mount
   useEffect(() => {
     let didFinish = false;
     
     const checkSession = async () => {
       try {
+        await bootstrapHostedServers();
+        api.loadActiveServer();
+        loadActiveServerSummary();
+
         const result = await checkAuth();
         if (result?.user) {
           setUser(result.user);
@@ -95,7 +107,7 @@ function App() {
     checkSession();
     
     return () => clearTimeout(safetyTimeout);
-  }, []);
+  }, [loadActiveServerSummary]);
 
   // Handle login
   const handleLogin = (loggedInUser: User) => {
@@ -112,14 +124,6 @@ function App() {
     setUser(null);
     setIsConnected(false);
   };
-
-  // Load active server summary
-  const loadActiveServerSummary = useCallback(() => {
-    const server = getActiveServer();
-    setActiveServerName(server?.name || '');
-    setActiveServerIdState(server?.id || getActiveServerId());
-    setActiveServerContextKey(getServerContextKey(server));
-  }, []);
 
   useEffect(() => {
     loadActiveServerSummary();

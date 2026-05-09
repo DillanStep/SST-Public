@@ -3,7 +3,8 @@ import { Server, LogIn, Eye, EyeOff, AlertCircle, Settings, Check, RefreshCw, Ch
 import { Button, Input } from '../ui';
 import { getAuthStatus, login, setupFirstAdmin } from '../../services/auth';
 import type { User } from '../../services/auth';
-import { getActiveServer, getServers, addServer, setActiveServerId, updateServer } from '../../services/serverManager';
+import { getActiveServer, getServers, addServer, setActiveServerId, updateServer, bootstrapHostedServers } from '../../services/serverManager';
+import { getBootstrapApiUrls } from '../../services/apiBase';
 import type { ServerConfig, SetupStatusResponse, SetupStoragePayload, SetupTestResponse, StorageBackend } from '../../types';
 import { SetupWizard } from './SetupWizard';
 
@@ -58,7 +59,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   // Auto-detect localhost API on first run
   const tryAutoDetectLocalApi = async () => {
     setAutoDetecting(true);
-    const localUrls = ['http://localhost:3001', 'http://127.0.0.1:3001'];
+    const hostedServers = await bootstrapHostedServers();
+    if (hostedServers.length > 0) {
+      const server = getActiveServer() || hostedServers[0];
+      setSavedServers(getServers());
+      setActiveServer(server);
+      setServerName(server.name);
+      setServerUrl(server.apiUrl);
+      setServerApiKey(server.apiKey);
+      setShowServerConfig(false);
+      setAutoDetecting(false);
+      return true;
+    }
+
+    const localUrls = getBootstrapApiUrls();
     
     for (const url of localUrls) {
       try {

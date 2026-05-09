@@ -102,9 +102,10 @@ import type {
 } from '../types';
 import { getActiveServer, getServers, migrateOldConfig } from './serverManager';
 import { getAuthToken } from './auth';
+import { getDefaultApiUrl } from './apiBase';
 
 // Default API base URL
-const DEFAULT_API_URL = 'http://localhost:3001';
+const DEFAULT_API_URL = getDefaultApiUrl();
 
 class SstApi {
   private client: AxiosInstance;

@@ -68,6 +68,8 @@ const ENV_GROUPS: EnvGroup[] = [
       { key: 'PORT', label: 'API Port', type: 'number' },
       { key: 'HOST', label: 'API Host' },
       { key: 'CORS_ORIGIN', label: 'CORS Origin' },
+      { key: 'SST_PUBLIC_API_URL', label: 'Public API URL' },
+      { key: 'SST_WEB_EXPOSE_API_KEY', label: 'Hosted Web Bootstrap', type: 'toggle' },
     ],
   },
   {

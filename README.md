@@ -535,6 +535,24 @@ http://localhost:3001
 
 If the dashboard asks for an API key, use the `API_KEY` from `apps/api/.env`. If you left it blank, restart the API once and check `.env`; SST should write the generated key there.
 
+### Hosting the Dashboard Externally
+
+The easiest production setup is to let the API serve the built dashboard and forward only the API port. New browsers will call `/client/bootstrap` and load the configured SST server profiles automatically, so admins do not have to add every DayZ server again.
+
+If the API is reached through a public hostname, set this in `apps/api/.env`:
+
+```env
+SST_PUBLIC_API_URL=https://your-sst-host.example.com
+```
+
+If the React dashboard is hosted on a different domain from the API, set the web build API URL:
+
+```env
+VITE_SST_API_URL=https://your-sst-api.example.com
+```
+
+For separate domains, also set `CORS_ORIGIN` in `apps/api/.env` to the dashboard URL.
+
 ### Multiple DayZ Servers
 
 The dashboard can manage multiple DayZ servers through the same SST API. Keep the API URL as normal, usually:

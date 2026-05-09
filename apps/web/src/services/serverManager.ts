@@ -1,4 +1,5 @@
 import type { ServerConfig } from '../types';
+import { getBootstrapApiUrls, getDefaultApiUrl } from './apiBase';
 
 const STORAGE_KEY = 'sst-servers';
 const ACTIVE_SERVER_KEY = 'sst-active-server';
@@ -10,6 +11,28 @@ export interface ActiveServerChangedDetail {
   serverId: string | null;
   server: ServerConfig | null;
   contextKey: string;
+}
+
+interface HostedBootstrapServer {
+  id?: string;
+  name?: string;
+  apiUrl?: string;
+  apiKey?: string;
+  apiProfile?: string;
+  mapPreset?: string;
+  mapLabel?: string;
+  mapImageUrl?: string;
+  mapWorldSizeX?: number;
+  mapWorldSizeZ?: number;
+  mapInvertX?: boolean;
+  mapInvertZ?: boolean;
+}
+
+interface HostedBootstrapResponse {
+  apiUrl?: string;
+  apiKey?: string;
+  active?: string;
+  servers?: HostedBootstrapServer[];
 }
 
 const emitServerConfigChanged = (): void => {
@@ -32,6 +55,10 @@ const emitActiveServerChanged = (serverId: string | null): void => {
 // Generate a unique ID
 const generateId = (): string => {
   return `server-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+const normalizeApiUrl = (value?: string | null): string => {
+  return String(value || '').trim().replace(/\/+$/, '');
 };
 
 // Get all saved servers
@@ -169,7 +196,7 @@ export const migrateOldConfig = (): void => {
   if (oldApiKey) {
     const migratedServer = addServer({
       name: 'Default Server',
-      apiUrl: oldApiUrl || 'http://localhost:3001',
+      apiUrl: oldApiUrl || getDefaultApiUrl(),
       apiKey: oldApiKey,
     });
     
@@ -180,6 +207,82 @@ export const migrateOldConfig = (): void => {
     localStorage.removeItem('sst-api-url');
   }
 };
+
+function toServerConfig(raw: HostedBootstrapServer, fallbackApiUrl: string, fallbackApiKey: string): ServerConfig | null {
+  const apiUrl = normalizeApiUrl(raw.apiUrl || fallbackApiUrl);
+  const apiKey = String(raw.apiKey || fallbackApiKey || '').trim();
+  const id = String(raw.id || raw.apiProfile || raw.name || '').trim();
+
+  if (!apiUrl || !apiKey || !id) return null;
+
+  return {
+    id: `hosted-${id}`,
+    name: String(raw.name || raw.apiProfile || id).trim() || 'SST Server',
+    apiUrl,
+    apiKey,
+    apiProfile: String(raw.apiProfile || '').trim(),
+    mapPreset: raw.mapPreset,
+    mapLabel: raw.mapLabel,
+    mapImageUrl: raw.mapImageUrl,
+    mapWorldSizeX: raw.mapWorldSizeX,
+    mapWorldSizeZ: raw.mapWorldSizeZ,
+    mapInvertX: raw.mapInvertX,
+    mapInvertZ: raw.mapInvertZ,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+let hostedBootstrapPromise: Promise<ServerConfig[]> | null = null;
+
+export async function bootstrapHostedServers(): Promise<ServerConfig[]> {
+  const existing = getServers();
+  if (existing.length > 0) return existing;
+  if (hostedBootstrapPromise) return hostedBootstrapPromise;
+
+  hostedBootstrapPromise = (async () => {
+    for (const baseUrl of getBootstrapApiUrls()) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+
+      try {
+        const response = await fetch(`${baseUrl}/client/bootstrap`, {
+          method: 'GET',
+          credentials: 'include',
+          signal: controller.signal,
+        });
+
+        if (!response.ok) continue;
+
+        const data = (await response.json()) as HostedBootstrapResponse;
+        const fallbackApiUrl = normalizeApiUrl(data.apiUrl || baseUrl);
+        const fallbackApiKey = String(data.apiKey || '').trim();
+        const servers = (data.servers || [])
+          .map(server => toServerConfig(server, fallbackApiUrl, fallbackApiKey))
+          .filter((server): server is ServerConfig => Boolean(server));
+
+        if (servers.length === 0) continue;
+
+        saveServers(servers);
+
+        const active = servers.find(server => server.apiProfile === data.active || server.id === `hosted-${data.active}`) || servers[0];
+        setActiveServerId(active.id);
+        return servers;
+      } catch {
+        // Try the next bootstrap URL.
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    return getServers();
+  })();
+
+  try {
+    return await hostedBootstrapPromise;
+  } finally {
+    hostedBootstrapPromise = null;
+  }
+}
 
 // Export all functions as a manager object too
 export const serverManager = {
@@ -192,6 +295,7 @@ export const serverManager = {
   updateServer,
   deleteServer,
   migrateOldConfig,
+  bootstrapHostedServers,
 };
 
 export default serverManager;

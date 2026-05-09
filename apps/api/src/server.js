@@ -82,6 +82,9 @@ const CONFIG_ENV_KEYS = [
   "INITIAL_ADMIN_USERNAME",
   "INITIAL_ADMIN_PASSWORD",
   "CORS_ORIGIN",
+  "SST_PUBLIC_API_URL",
+  "PUBLIC_API_URL",
+  "SST_WEB_EXPOSE_API_KEY",
   "SST_DISABLE_UPDATE_CHECK",
   "SST_UPDATE_REPO",
   "SST_ALLOW_REMOTE_UPDATE",
@@ -790,9 +793,68 @@ function upsertIfPresent(envPath, key, value) {
   return true;
 }
 
+function getRequestOrigin(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const proto = forwardedProto || req.protocol || "http";
+  const host = forwardedHost || req.get("host");
+  return host ? `${proto}://${host}` : "";
+}
+
+function getPublicApiUrl(req) {
+  return String(process.env.SST_PUBLIC_API_URL || process.env.PUBLIC_API_URL || getRequestOrigin(req)).replace(/\/+$/, "");
+}
+
+function exposeApiKeyToHostedWeb() {
+  return String(process.env.SST_WEB_EXPOSE_API_KEY ?? "1").trim() !== "0";
+}
+
+function getClientBootstrapServers(req) {
+  const apiUrl = getPublicApiUrl(req);
+  const apiKey = exposeApiKeyToHostedWeb() ? getApiKey() : "";
+  const contextsById = new Map(getAllServerContexts().map((context) => [context.id, context]));
+
+  return getConfiguredServerProfiles().map((profile) => {
+    const profileId = String(profile.id || "default");
+    const context = contextsById.get(profileId);
+    const mapConfig = buildMapConfig({
+      env: context?.env || {},
+      missionPath: context?.paths?.missionFolder || profile.paths?.missionFolder || "",
+    });
+
+    return {
+      id: profileId,
+      name: profile.name || (profile.isDefault ? "Local SST Server" : profileId),
+      apiUrl,
+      apiKey,
+      apiProfile: profile.isDefault ? "" : profileId,
+      mapPreset: mapConfig.preset,
+      mapLabel: mapConfig.label,
+      mapImageUrl: mapConfig.imageUrl,
+      mapWorldSizeX: mapConfig.worldSizeX,
+      mapWorldSizeZ: mapConfig.worldSizeZ,
+      mapInvertX: mapConfig.invertX,
+      mapInvertZ: mapConfig.invertZ,
+    };
+  });
+}
+
 // Health check - no auth required
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+app.get("/client/bootstrap", (req, res) => {
+  const servers = getClientBootstrapServers(req);
+  const active = servers.find((server) => !server.apiProfile)?.id || servers[0]?.id || "default";
+
+  res.json({
+    ok: true,
+    apiUrl: getPublicApiUrl(req),
+    apiKey: exposeApiKeyToHostedWeb() ? getApiKey() : "",
+    active,
+    servers,
+  });
 });
 
 app.post("/servers/profiles", requireApiKey, requireAuth, requireAdmin, (req, res) => {
