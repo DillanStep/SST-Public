@@ -179,11 +179,11 @@ const ENV_GROUPS: EnvGroup[] = [
   {
     id: 'discord-support',
     title: 'Discord Support',
-    description: 'Optional ticket bot setup. Users must provide a Steam64 ID when opening a ticket.',
+    description: 'Optional ticket bot setup. Players only provide a Steam64 ID when opening a ticket.',
     icon: <LifeBuoy size={16} />,
     fields: [
       { key: 'DISCORD_ENABLED', label: 'Discord Ticket Bot', type: 'toggle' },
-      { key: 'DISCORD_BOT_TOKEN', label: 'Bot Token', type: 'password', description: 'Saved to this server profile .env. Never commit this value.' },
+      { key: 'DISCORD_BOT_TOKEN', label: 'Bot Token', type: 'password', description: 'Admin-only token used by SST to run your Discord bot locally. Players never see or enter this value.' },
       { key: 'DISCORD_CLIENT_ID', label: 'Application Client ID', description: 'Application ID from the Discord Developer Portal.' },
       { key: 'DISCORD_GUILD_ID', label: 'Discord Server ID', description: 'Right-click your Discord server and copy ID.' },
       { key: 'DISCORD_TICKET_CATEGORY_ID', label: 'Ticket Category ID', description: 'Parent category where private ticket channels are created.' },
@@ -245,7 +245,6 @@ const DISCORD_ID_KEYS = new Set([
 ]);
 
 const DISCORD_REQUIRED_KEYS = [
-  'DISCORD_ENABLED',
   'DISCORD_BOT_TOKEN',
   'DISCORD_CLIENT_ID',
   'DISCORD_GUILD_ID',
@@ -856,7 +855,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
 
   const renderDiscordSupportPanel = () => {
     const requiredSetCount = DISCORD_REQUIRED_KEYS
-      .filter(key => key === 'DISCORD_ENABLED' ? isToggleOn(envValues[key]) : String(envValues[key] ?? '').trim())
+      .filter(key => String(envValues[key] ?? '').trim())
       .length;
     const isEnabled = isToggleOn(envValues.DISCORD_ENABLED);
 
@@ -871,7 +870,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
               </div>
               <h4 className="mt-2 text-lg font-semibold text-surface-900">Create private Discord ticket channels from SST</h4>
               <p className="mt-1 max-w-3xl text-sm leading-relaxed text-surface-600">
-                Fill the required items below. Users will click the public panel in your raise-ticket channel, enter their Steam64 ID, and SST will create a private ticket channel under your ticket category.
+                Only the SST admin needs the bot token. Players click the public panel in Discord, enter their Steam64 ID, and SST creates a private ticket channel linked to server data.
               </p>
             </div>
             <div className="rounded-xl border border-surface-200 bg-white px-4 py-3">
@@ -883,7 +882,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-surface-200 bg-white p-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">1. Bot application</div>
-              <div className="mt-1 text-sm text-surface-700">Token and Application ID from the Discord Developer Portal.</div>
+              <div className="mt-1 text-sm text-surface-700">Server owners create a Discord app once. New SST profiles can reuse saved bot details.</div>
             </div>
             <div className="rounded-xl border border-surface-200 bg-white p-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">2. Server IDs</div>
@@ -899,7 +898,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
         <label className="flex items-center justify-between gap-4 rounded-xl border border-surface-200 bg-white p-4">
           <span>
             <span className="block text-sm font-semibold text-surface-800">Enable Discord ticket bot</span>
-            <span className="mt-1 block text-xs text-surface-500">Leave this off until token, server ID, category, and raise-ticket channel are filled.</span>
+            <span className="mt-1 block text-xs text-surface-500">Leave this off until the required setup count is complete for this server profile.</span>
             <code className="mt-1 block text-[11px] text-surface-400">DISCORD_ENABLED</code>
           </span>
           <div className="flex items-center gap-3">

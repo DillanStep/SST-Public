@@ -49,7 +49,7 @@ import vehiclesRoutes from "./routes/vehicles.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import updateRoutes from "./routes/updates.js";
 import discordRoutes from "./routes/discord.js";
-import { normalizeEnvProfileId, readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
+import { listProfileEnvFiles, normalizeEnvProfileId, readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
 import { getOnlinePlayersSnapshot } from "./utils/onlinePlayers.js";
 import { startModActivityMonitor } from "./utils/modActivityMonitor.js";
@@ -233,6 +233,18 @@ const DISCORD_ID_ENV_KEYS = new Set([
   "DISCORD_LOG_CHANNEL_ID",
 ]);
 
+const DISCORD_REUSABLE_ENV_KEYS = [
+  "DISCORD_BOT_TOKEN",
+  "DISCORD_CLIENT_ID",
+  "DISCORD_GUILD_ID",
+  "DISCORD_TICKET_CATEGORY_ID",
+  "DISCORD_TICKET_PANEL_CHANNEL_ID",
+  "DISCORD_STAFF_ROLE_ID",
+  "DISCORD_LOG_CHANNEL_ID",
+  "DISCORD_COMMAND_NAME",
+  "DISCORD_TICKET_CHANNEL_PREFIX",
+];
+
 function normalizeConfigPath(value) {
   if (!value) return "";
   return String(value).trim().replace(/\\/g, "/").replace(/\/+$/, "");
@@ -285,6 +297,38 @@ function addSuggestion(suggestions, key, value) {
   if (normalized) {
     suggestions[key] = normalized;
   }
+}
+
+function collectReusableDiscordSettings(activeEnvPath = "") {
+  const candidates = [];
+  const seenPaths = new Set();
+
+  const addEnvFile = (filePath) => {
+    if (!filePath || seenPaths.has(filePath)) return;
+    seenPaths.add(filePath);
+    candidates.push(readEnvVars(filePath));
+  };
+
+  const globalEnvPath = resolveEnvPathForWrite();
+  addEnvFile(globalEnvPath);
+
+  for (const profileFile of listProfileEnvFiles()) {
+    if (profileFile.path === activeEnvPath) continue;
+    addEnvFile(profileFile.path);
+  }
+
+  const reusable = {};
+  for (const key of DISCORD_REUSABLE_ENV_KEYS) {
+    for (const candidate of candidates) {
+      const value = String(candidate?.[key] ?? "").trim();
+      if (value) {
+        reusable[key] = value;
+        break;
+      }
+    }
+  }
+
+  return reusable;
 }
 
 function buildConfigSuggestions(env) {
@@ -428,6 +472,13 @@ function buildConfigSuggestions(env) {
   if (!env.DISCORD_TICKET_DB_PATH) {
     const profileToken = safeConfigFileToken(env.SST_PROFILE_ID || env.HOST_PROVIDER || getRuntimeContext().id || "default");
     addSuggestion(suggestions, "DISCORD_TICKET_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", `discord_tickets_${profileToken}.db`)));
+  }
+
+  const reusableDiscord = collectReusableDiscordSettings(getRuntimeContext().envPath);
+  for (const key of DISCORD_REUSABLE_ENV_KEYS) {
+    if (!String(env[key] ?? "").trim() && reusableDiscord[key]) {
+      addSuggestion(suggestions, key, reusableDiscord[key]);
+    }
   }
 
   return suggestions;
