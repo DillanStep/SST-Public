@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.16] - 2026-05-09
+
+### Fixed
+- Added cache-busting to the GitHub latest-release redirect fallback so newly published releases are detected immediately.
+
 ## [1.0.15] - 2026-05-09
 
 ### Fixed

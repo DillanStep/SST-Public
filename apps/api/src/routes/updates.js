@@ -106,7 +106,8 @@ async function fetchJsonRelease(apiUrl) {
 }
 
 async function fetchLatestReleaseRedirect(repo) {
-  const latestUrl = `https://github.com/${repo}/releases/latest`;
+  const latestBaseUrl = `https://github.com/${repo}/releases/latest`;
+  const latestUrl = `${latestBaseUrl}?sst=${Date.now()}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
 
@@ -121,12 +122,12 @@ async function fetchLatestReleaseRedirect(repo) {
     });
 
     const location = response.headers.get("location") || response.url;
-    const redirectedUrl = new URL(location, latestUrl);
+    const redirectedUrl = new URL(location, latestBaseUrl);
     const match = redirectedUrl.pathname.match(/\/releases\/tag\/([^/]+)/);
     const tagName = match ? decodeURIComponent(match[1]) : "";
 
     if (!tagName) {
-      throw new Error(`Could not resolve latest release tag from ${latestUrl}`);
+      throw new Error(`Could not resolve latest release tag from ${latestBaseUrl}`);
     }
 
     return {
