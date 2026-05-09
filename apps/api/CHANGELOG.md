@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.17] - 2026-05-10
+
+### Added
+- Added the `/api/events` DayZ mod bridge endpoint so REST events from the server mod are accepted and stored without requiring a browser session.
+
+### Fixed
+- Updated the bundled mod REST event client to default to API port `3001`, support API key/profile headers, and print a useful hint for connection error 7.
+
 ## [1.0.16] - 2026-05-09
 
 ### Fixed

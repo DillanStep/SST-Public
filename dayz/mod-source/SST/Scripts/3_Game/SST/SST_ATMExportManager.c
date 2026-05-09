@@ -225,7 +225,7 @@ class SST_ServerItemList
 
 class SST_ModInfo
 {
-	static const string VERSION = "1.0.7";
+	static const string VERSION = "1.0.8";
 	static const string PROTOCOL_VERSION = "1";
 }
 

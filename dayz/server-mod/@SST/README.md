@@ -28,17 +28,22 @@ Expected runtime paths include `SST/api/online_players.json`,
 `SST/life_events/`, `SST/trades/`, and `SST/vehicles/`.
 
 REST event posting is configured at `SST/api/rest_config.json`. The default
-targets the local Aspire REST API:
+targets the local SST API:
 
 ```json
 {
   "restEnabled": true,
-  "baseUrl": "http://127.0.0.1:5106",
-  "eventsPath": "/api/events"
+  "baseUrl": "http://127.0.0.1:3001",
+  "eventsPath": "/api/events",
+  "apiKey": "",
+  "apiProfile": ""
 }
 ```
 
-Change `baseUrl` if the REST API runs on another machine.
+Change `baseUrl` if the API runs on another port or machine. If the API is
+not on the same machine, set `apiKey` to the SST API key. If one API manages
+multiple server profiles, set `apiProfile` to the matching profile id from the
+dashboard server dropdown.
 
 Players should not need to install this mod client-side when your host supports `-serverMod`.
 

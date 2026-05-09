@@ -8,7 +8,7 @@ import { homedir, platform } from "os";
 import { fileURLToPath } from "url";
 import { stat, getStorageBackend } from "./storage/fs.js";
 
-import { requireApiKey, getApiKey, getApiKeyMeta } from "./middleware/auth.js";
+import { requireApiKey, optionalApiKey, getApiKey, getApiKeyMeta } from "./middleware/auth.js";
 import { positionDb } from "./db/database.js";
 import { initArchiveDb, scheduleArchive } from "./db/archiveDb.js";
 import {
@@ -49,6 +49,7 @@ import vehiclesRoutes from "./routes/vehicles.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import updateRoutes from "./routes/updates.js";
 import discordRoutes from "./routes/discord.js";
+import modEventsRoutes from "./routes/modEvents.js";
 import { listProfileEnvFiles, normalizeEnvProfileId, readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
 import { getOnlinePlayersSnapshot } from "./utils/onlinePlayers.js";
@@ -974,6 +975,14 @@ function maybeRequireApiKey(req, res, next) {
   return requireApiKey(req, res, next);
 }
 
+function requireModBridgeApiKey(req, res, next) {
+  if (isLocalRequest(req)) {
+    return optionalApiKey(req, res, next);
+  }
+
+  return requireApiKey(req, res, next);
+}
+
 // First-run environment setup (localhost only, only when no users exist)
 app.use("/setup", setupRoutes);
 
@@ -1213,6 +1222,10 @@ app.put("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
 
 // Auth routes - no session required (login/logout)
 app.use("/auth", maybeRequireApiKey, authRoutes);
+
+// DayZ server mod bridge. Local posts are allowed without a browser session;
+// remote posts must include the API key because this endpoint writes runtime data.
+app.use("/api/events", requireModBridgeApiKey, modEventsRoutes);
 
 // User management routes - requires session auth
 app.use("/users", requireApiKey, userRoutes);

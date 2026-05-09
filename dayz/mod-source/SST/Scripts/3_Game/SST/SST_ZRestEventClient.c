@@ -27,10 +27,13 @@ class SST_TradeEventData
 
 class SST_RestEventConfiguration
 {
+	int configVersion = 2;
 	bool restEnabled = true;
-	string baseUrl = "http://127.0.0.1:5106";
+	string baseUrl = "http://127.0.0.1:3001";
 	string eventsPath = "/api/events";
 	string contentType = "application/json";
+	string apiKey = "";
+	string apiProfile = "";
 	bool debugEnabled = false;
 	bool logSuccess = false;
 	bool sendLifeEvents = true;
@@ -41,8 +44,11 @@ class SST_RestEventConfiguration
 
 	void Validate()
 	{
+		if (configVersion < 2 && baseUrl == "http://127.0.0.1:5106")
+			baseUrl = "http://127.0.0.1:3001";
+
 		if (baseUrl == "")
-			baseUrl = "http://127.0.0.1:5106";
+			baseUrl = "http://127.0.0.1:3001";
 
 		if (eventsPath == "")
 			eventsPath = "/api/events";
@@ -69,6 +75,8 @@ class SST_RestEventConfiguration
 
 		if (connectionTimeoutSeconds > 120)
 			connectionTimeoutSeconds = 120;
+
+		configVersion = 2;
 	}
 };
 
@@ -128,7 +136,11 @@ class SST_RestEventCallback : RestCallback
 
 	override void OnError(int errorCode)
 	{
-		Print("[SST] REST event failed (" + eventType + ") error=" + errorCode.ToString() + " summary=" + summary);
+		string hint = "";
+		if (errorCode == 7)
+			hint = " (connection failed: check SST/api/rest_config.json baseUrl, port, and that the SST API is running)";
+
+		Print("[SST] REST event failed (" + eventType + ") error=" + errorCode.ToString() + hint + " summary=" + summary);
 		SST_RestEventClient.GetInstance().ReleaseCallback(this);
 	}
 
@@ -194,6 +206,8 @@ class SST_RestEventClient
 		}
 
 		m_RestApi.EnableDebug(m_Config.debugEnabled);
+		m_RestApi.SetOption(ERESTOPTION_READOPERATION, m_Config.readTimeoutSeconds);
+		m_RestApi.SetOption(ERESTOPTION_CONNECTION, m_Config.connectionTimeoutSeconds);
 
 		m_RestContext = m_RestApi.GetRestContext(m_Config.baseUrl);
 		if (!m_RestContext)
@@ -202,7 +216,7 @@ class SST_RestEventClient
 			return;
 		}
 
-		m_RestContext.SetHeader(m_Config.contentType);
+		m_RestContext.SetHeader(BuildHeader());
 		Print("[SST] REST event client ready: " + m_Config.baseUrl + m_Config.eventsPath);
 	}
 
@@ -284,7 +298,27 @@ class SST_RestEventClient
 			return;
 		}
 
-		m_RestContext.POST(callback, m_Config.eventsPath, payload);
+		int state = m_RestContext.POST(callback, m_Config.eventsPath, payload);
+		if (state >= EREST_ERROR)
+		{
+			Print("[SST] ERROR: REST event POST refused (" + serverEvent.eventType + ") state=" + state.ToString());
+			ReleaseCallback(callback);
+		}
+	}
+
+	private string BuildHeader()
+	{
+		string header = m_Config.contentType;
+		if (header == "")
+			header = "application/json";
+
+		if (m_Config.apiKey != "")
+			header = header + "\r\nX-API-Key: " + m_Config.apiKey;
+
+		if (m_Config.apiProfile != "")
+			header = header + "\r\nX-SST-Server: " + m_Config.apiProfile;
+
+		return header;
 	}
 
 	private static ref SST_ServerEventRequest CreateBaseEvent(string eventType, string steamId, string playerName, vector position, string createdAt)
