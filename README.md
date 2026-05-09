@@ -244,7 +244,7 @@ If an older install fails with a PowerShell `ChildPath` / `System.Object[]` upda
 
 ```powershell
 cd "C:\Path\To\SST"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.13/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.14/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
 ```
 
 After an update, the bottom-right version badge should match the latest web version. If the sidebar says SST is current but the bottom-right badge still shows an older web version, refresh the browser after restarting SST; the updater now also verifies the rebuilt dashboard bundle before it reports success.

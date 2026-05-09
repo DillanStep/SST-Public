@@ -232,11 +232,65 @@ function toServerConfig(raw: HostedBootstrapServer, fallbackApiUrl: string, fall
   };
 }
 
+function getServerIdentity(server: Pick<ServerConfig, 'apiUrl' | 'apiProfile'>): string {
+  return `${normalizeApiUrl(server.apiUrl).toLowerCase()}|${String(server.apiProfile || '').trim().toLowerCase()}`;
+}
+
+function mergeHostedServers(hostedServers: ServerConfig[], activeHostedId?: string): ServerConfig[] {
+  const existingServers = getServers();
+  const existingByIdentity = new Map(existingServers.map(server => [getServerIdentity(server), server]));
+  let changed = false;
+
+  const merged = existingServers.map(server => {
+    const hosted = hostedServers.find(candidate => getServerIdentity(candidate) === getServerIdentity(server));
+    if (!hosted) return server;
+
+    const nextServer: ServerConfig = {
+      ...server,
+      apiUrl: hosted.apiUrl,
+      apiKey: hosted.apiKey,
+      apiProfile: hosted.apiProfile,
+      mapPreset: hosted.mapPreset,
+      mapLabel: hosted.mapLabel,
+      mapImageUrl: hosted.mapImageUrl,
+      mapWorldSizeX: hosted.mapWorldSizeX,
+      mapWorldSizeZ: hosted.mapWorldSizeZ,
+      mapInvertX: hosted.mapInvertX,
+      mapInvertZ: hosted.mapInvertZ,
+    };
+
+    if (JSON.stringify(nextServer) !== JSON.stringify(server)) {
+      changed = true;
+    }
+
+    return nextServer;
+  });
+
+  for (const hosted of hostedServers) {
+    if (existingByIdentity.has(getServerIdentity(hosted))) continue;
+    merged.push(hosted);
+    changed = true;
+  }
+
+  if (changed) {
+    saveServers(merged);
+  }
+
+  const activeId = getActiveServerId();
+  const hasActive = activeId ? merged.some(server => server.id === activeId) : false;
+  if (!hasActive && merged.length > 0) {
+    const active = activeHostedId
+      ? merged.find(server => server.apiProfile === activeHostedId || server.id === `hosted-${activeHostedId}`)
+      : null;
+    setActiveServerId((active || merged[0]).id);
+  }
+
+  return merged;
+}
+
 let hostedBootstrapPromise: Promise<ServerConfig[]> | null = null;
 
 export async function bootstrapHostedServers(): Promise<ServerConfig[]> {
-  const existing = getServers();
-  if (existing.length > 0) return existing;
   if (hostedBootstrapPromise) return hostedBootstrapPromise;
 
   hostedBootstrapPromise = (async () => {
@@ -262,11 +316,7 @@ export async function bootstrapHostedServers(): Promise<ServerConfig[]> {
 
         if (servers.length === 0) continue;
 
-        saveServers(servers);
-
-        const active = servers.find(server => server.apiProfile === data.active || server.id === `hosted-${data.active}`) || servers[0];
-        setActiveServerId(active.id);
-        return servers;
+        return mergeHostedServers(servers, data.active);
       } catch {
         // Try the next bootstrap URL.
       } finally {

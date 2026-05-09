@@ -5,6 +5,11 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.14] - 2026-05-09
+
+### Fixed
+- Fixed hosted dashboard bootstrap for existing browsers by merging API-provided server profiles into saved browser servers instead of skipping bootstrap whenever one server already existed.
+
 ## [1.0.13] - 2026-05-09
 
 ### Added

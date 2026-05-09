@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.14] - 2026-05-09
+
+### Fixed
+- Fixed hosted dashboard server sync for browsers that already had one saved server, so external installs merge all API profiles instead of showing only the old local entry.
+
 ## [1.0.13] - 2026-05-09
 
 ### Added
