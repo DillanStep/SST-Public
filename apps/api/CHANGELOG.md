@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.15] - 2026-05-09
+
+### Fixed
+- Fixed update checks when GitHub's API returns HTTP 403 by falling back to the normal GitHub latest-release redirect.
+- Fixed update routes reading stale update settings after remote update settings are changed from the dashboard.
+- Normalized update repository settings and added support for an optional `SST_UPDATE_API_URL` override.
+
 ## [1.0.14] - 2026-05-09
 
 ### Fixed

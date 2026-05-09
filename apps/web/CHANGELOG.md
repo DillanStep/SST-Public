@@ -5,6 +5,11 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.15] - 2026-05-09
+
+### Fixed
+- Improved updater error parsing so failed update checks show the real server response instead of a generic dashboard error.
+
 ## [1.0.14] - 2026-05-09
 
 ### Fixed

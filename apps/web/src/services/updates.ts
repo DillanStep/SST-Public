@@ -83,11 +83,23 @@ function getCredentials(): RequestCredentials {
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: unknown = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    const preview = text.replace(/\s+/g, ' ').slice(0, 160);
+    throw new Error(response.ok
+      ? 'Update request returned an invalid response.'
+      : `Update request failed (${response.status})${preview ? `: ${preview}` : ''}`);
+  }
 
   if (!response.ok) {
-    const message = typeof data?.error === 'string'
-      ? data.error
+    const error = typeof data === 'object' && data !== null && 'error' in data
+      ? (data as { error?: unknown }).error
+      : null;
+    const message = typeof error === 'string'
+      ? error
       : `Update request failed (${response.status})`;
     throw new Error(message);
   }

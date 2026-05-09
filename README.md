@@ -237,14 +237,17 @@ Update settings live in `apps/api/.env`:
 ```env
 SST_DISABLE_UPDATE_CHECK=0
 SST_UPDATE_REPO=DillanStep/SST-Public
+SST_UPDATE_API_URL=
 SST_ALLOW_REMOTE_UPDATE=0
 ```
+
+Leave `SST_UPDATE_API_URL` blank unless you intentionally host your own release metadata endpoint. If GitHub's API refuses a check with HTTP 403, current SST builds fall back to GitHub's normal latest-release redirect.
 
 If an older install fails with a PowerShell `ChildPath` / `System.Object[]` updater error, replace only the local updater script once, then run the dashboard update again:
 
 ```powershell
 cd "C:\Path\To\SST"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.14/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DillanStep/SST-Public/v1.0.15/tools/updater/Update-SST.ps1" -OutFile ".\tools\updater\Update-SST.ps1" -UseBasicParsing
 ```
 
 After an update, the bottom-right version badge should match the latest web version. If the sidebar says SST is current but the bottom-right badge still shows an older web version, refresh the browser after restarting SST; the updater now also verifies the rebuilt dashboard bundle before it reports success.

@@ -87,6 +87,7 @@ const CONFIG_ENV_KEYS = [
   "SST_WEB_EXPOSE_API_KEY",
   "SST_DISABLE_UPDATE_CHECK",
   "SST_UPDATE_REPO",
+  "SST_UPDATE_API_URL",
   "SST_ALLOW_REMOTE_UPDATE",
   "SST_PATH",
   "INVENTORIES_PATH",
@@ -283,6 +284,21 @@ function normalizeDiscordId(value) {
   return matches?.[matches.length - 1] || text;
 }
 
+function normalizeGitHubRepo(value) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+
+  text = text
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/^github\.com\//i, "")
+    .replace(/\.git$/i, "")
+    .replace(/\/releases\/.*$/i, "")
+    .replace(/\/tags\/.*$/i, "");
+
+  const parts = text.split("/").filter(Boolean);
+  return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : text;
+}
+
 function pathExists(value) {
   try {
     return Boolean(value) && existsSync(value);
@@ -347,6 +363,7 @@ function buildConfigSuggestions(env) {
     SST_AUTO_CREATE_ADMIN: "0",
     SST_DISABLE_UPDATE_CHECK: "0",
     SST_UPDATE_REPO: "DillanStep/SST-Public",
+    SST_UPDATE_API_URL: "",
     SST_ALLOW_REMOTE_UPDATE: "0",
     POSITION_TRACKING_INTERVAL: "30000",
     ONLINE_PLAYERS_STALE_AFTER_MS: "120000",
@@ -514,6 +531,26 @@ function normalizeEnvSetting(key, value) {
     normalized = normalizeDiscordId(normalized);
     if (normalized && !/^\d{16,22}$/.test(normalized)) {
       throw new Error(`${key} must be a Discord numeric ID. Right-click in Discord and use Copy ID, or paste a Discord link.`);
+    }
+  }
+
+  if (key === "SST_UPDATE_REPO") {
+    normalized = normalizeGitHubRepo(normalized);
+    if (normalized && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(normalized)) {
+      throw new Error("SST_UPDATE_REPO must look like owner/repository, for example DillanStep/SST-Public.");
+    }
+  }
+
+  if (key === "SST_UPDATE_API_URL" && normalized && !/^https?:\/\//i.test(normalized)) {
+    throw new Error("SST_UPDATE_API_URL must be a full http or https URL.");
+  }
+
+  if (key === "SST_DISABLE_UPDATE_CHECK" || key === "SST_ALLOW_REMOTE_UPDATE") {
+    const lowered = normalized.toLowerCase();
+    if (["1", "true", "yes", "on"].includes(lowered)) {
+      normalized = "1";
+    } else if (["", "0", "false", "no", "off"].includes(lowered)) {
+      normalized = "0";
     }
   }
 
