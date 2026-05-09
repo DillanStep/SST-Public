@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<modded_inputs>
+    <inputs>
+        <actions>
+            <input name="UASSTLeaderboardToggle" loc="Toggle SST Leaderboard" visible="true" />
+        </actions>
+    </inputs>
+
+    <preset>
+        <input name="UASSTLeaderboardToggle">
+            <btn name="kL">
+            </btn>
+        </input>
+    </preset>
+</modded_inputs>

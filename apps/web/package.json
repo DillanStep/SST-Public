@@ -1,7 +1,7 @@
 {
   "name": "sst-dashboard",
   "private": true,
-  "version": "1.0.17",
+  "version": "1.0.18",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {

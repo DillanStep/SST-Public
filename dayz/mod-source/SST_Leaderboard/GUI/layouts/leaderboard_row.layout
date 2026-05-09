@@ -1,0 +1,105 @@
+PanelWidgetClass Row {
+ ignorepointer 1
+ size 1 0.045
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 0
+ {
+  TextWidgetClass Rank {
+   ignorepointer 1
+   position 0.005 0
+   size 0.05 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" center
+   "text valign" center
+  }
+
+  TextWidgetClass Name {
+   ignorepointer 1
+   position 0.06 0
+   size 0.44 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" left
+   "text valign" center
+  }
+
+  TextWidgetClass Kills {
+   ignorepointer 1
+   position 0.50 0
+   size 0.10 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" center
+   "text valign" center
+  }
+
+  TextWidgetClass Deaths {
+   ignorepointer 1
+   position 0.60 0
+   size 0.10 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" center
+   "text valign" center
+  }
+
+  TextWidgetClass KD {
+   ignorepointer 1
+   position 0.70 0
+   size 0.10 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" center
+   "text valign" center
+  }
+
+  TextWidgetClass Value {
+   ignorepointer 1
+   position 0.80 0
+   size 0.195 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" right
+   "text valign" center
+  }
+ }
+}
