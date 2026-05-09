@@ -5,6 +5,15 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.13] - 2026-05-09
+
+### Added
+- Added hosted server bootstrap so externally opened dashboards auto-load API server profiles on fresh browsers.
+- Added support for `VITE_SST_API_URL` when the web bundle is hosted separately from the API.
+
+### Changed
+- Improved first-run API detection for remote dev and port-forwarded dashboard access.
+
 ## [1.0.12] - 2026-05-09
 
 ### Added

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.13] - 2026-05-09
+
+### Added
+- Added hosted dashboard bootstrap so new browsers can load configured server profiles from the API instead of manually re-adding every server.
+- Added public API URL and hosted web bootstrap settings for port-forwarded and externally hosted dashboard installs.
+
+### Changed
+- Updated production API URL resolution so same-host dashboard builds use the current browser origin by default.
+
 ## [1.0.12] - 2026-05-09
 
 ### Added
