@@ -85,6 +85,15 @@ class SST_ServerEventMetadata
 	string traderZone;
 	string causeOfDeath;
 	float healthAtDeath;
+	string weapon;
+	string ammo;
+	string hitZone;
+	string bodyPart;
+	string damageZone;
+	string hitComponent;
+	float damage;
+	float distance;
+	float speedCoef;
 };
 
 class SST_ServerEventRequest
@@ -323,12 +332,23 @@ class SST_RestEventClient
 			return;
 
 		ref SST_ServerEventRequest serverEvent = CreateBaseEvent("InventoryEvent", eventData.playerId, eventData.playerName, eventData.position, eventData.timestamp);
+		serverEvent.targetSteamId = eventData.targetPlayerId;
+		serverEvent.targetName = eventData.targetPlayerName;
 		serverEvent.summary = eventData.playerName + " " + eventData.eventType + " " + eventData.itemDisplayName;
 		serverEvent.metadata.action = eventData.eventType;
 		serverEvent.metadata.itemClassName = eventData.itemClassName;
 		serverEvent.metadata.itemDisplayName = eventData.itemDisplayName;
 		serverEvent.metadata.itemHealth = eventData.itemHealth;
 		serverEvent.metadata.itemQuantity = eventData.itemQuantity;
+		serverEvent.metadata.weapon = eventData.weapon;
+		serverEvent.metadata.ammo = eventData.ammo;
+		serverEvent.metadata.hitZone = eventData.hitZone;
+		serverEvent.metadata.bodyPart = eventData.bodyPart;
+		serverEvent.metadata.damageZone = eventData.damageZone;
+		serverEvent.metadata.hitComponent = eventData.hitComponent;
+		serverEvent.metadata.damage = eventData.damage;
+		serverEvent.metadata.distance = eventData.distance;
+		serverEvent.metadata.speedCoef = eventData.speedCoef;
 
 		client.SendEvent(serverEvent);
 	}
@@ -352,6 +372,14 @@ class SST_RestEventClient
 		serverEvent.metadata.action = eventData.eventType;
 		serverEvent.metadata.causeOfDeath = eventData.causeOfDeath;
 		serverEvent.metadata.healthAtDeath = eventData.healthAtDeath;
+		serverEvent.metadata.weapon = eventData.weapon;
+		serverEvent.metadata.ammo = eventData.ammo;
+		serverEvent.metadata.hitZone = eventData.hitZone;
+		serverEvent.metadata.bodyPart = eventData.bodyPart;
+		serverEvent.metadata.damageZone = eventData.damageZone;
+		serverEvent.metadata.hitComponent = eventData.hitComponent;
+		serverEvent.metadata.damage = eventData.damage;
+		serverEvent.metadata.distance = eventData.distance;
 
 		client.SendEvent(serverEvent);
 	}

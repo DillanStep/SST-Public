@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.12] - 2026-05-09
+
+### Added
+- Added optional Discord ticket bot APIs, ticket storage, dashboard ticket actions, and Steam64 player-context matching.
+- Added DayZ Expansion quest APIs for browser-based quest, objective, and NPC management.
+- Added Expansion AI analysis extraction for patrols, events, air drops, KOTH-style files, and configuration checks.
+
+### Changed
+- Added `discord.js` as an optional API dependency for support tickets.
+- Expanded example `.env` settings for Discord support, Expansion AI, and Expansion quests.
+
+### Fixed
+- Cleaned public release examples and local tooling paths so generated or machine-specific paths are not published.
+
 ## [1.0.11] - 2026-05-08
 
 ### Fixed

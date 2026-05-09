@@ -32,6 +32,8 @@ const PROVIDER_SCOPED_ENV_KEYS = [
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
   "EXPANSION_ATM_PATH",
+  "EXPANSION_AI_PATH",
+  "EXPANSION_QUESTS_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "MAP_PRESET",
@@ -45,6 +47,17 @@ const PROVIDER_SCOPED_ENV_KEYS = [
   "DATABASE_PATH",
   "POSITION_TRACKING_INTERVAL",
   "ARCHIVE_DB_PATH",
+  "DISCORD_ENABLED",
+  "DISCORD_BOT_TOKEN",
+  "DISCORD_CLIENT_ID",
+  "DISCORD_GUILD_ID",
+  "DISCORD_TICKET_CATEGORY_ID",
+  "DISCORD_TICKET_PANEL_CHANNEL_ID",
+  "DISCORD_STAFF_ROLE_ID",
+  "DISCORD_LOG_CHANNEL_ID",
+  "DISCORD_COMMAND_NAME",
+  "DISCORD_TICKET_CHANNEL_PREFIX",
+  "DISCORD_TICKET_DB_PATH",
 ];
 
 function normalizeEnvPath(value) {
@@ -77,6 +90,10 @@ function joinPosix(base, ...parts) {
   return [cleanBase, ...cleanParts].join("/");
 }
 
+function safeFileToken(value) {
+  return String(value || "default").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "default";
+}
+
 function pathExists(pathValue) {
   try {
     return Boolean(pathValue) && existsSync(pathValue);
@@ -87,6 +104,24 @@ function pathExists(pathValue) {
 
 function firstExistingPath(candidates) {
   return candidates.find(pathExists) || "";
+}
+
+function deriveExpansionBasePath(env, profilesPath = "") {
+  const normalizedProfilesPath = normalizeEnvPath(profilesPath);
+  if (normalizedProfilesPath) {
+    return joinPosix(normalizedProfilesPath, "ExpansionMod");
+  }
+
+  const explicitBase =
+    stripSuffix(env.EXPANSION_ATM_PATH, "/ATM") ||
+    stripSuffix(env.EXPANSION_TRADERS_PATH, "/Traders") ||
+    stripSuffix(env.EXPANSION_MARKET_PATH, "/Market") ||
+    stripSuffix(env.EXPANSION_AI_PATH, "/AI") ||
+    stripSuffix(env.EXPANSION_QUESTS_PATH, "/Quests");
+
+  if (explicitBase) return explicitBase;
+
+  return "./profiles/ExpansionMod";
 }
 
 function deriveSstBasePath(env) {
@@ -197,13 +232,12 @@ function providerToEnv(providerName, providerConfig, provider) {
 function buildPaths(env) {
   const derivedBasePath = deriveSstBasePath(env);
   const defaultBasePath = derivedBasePath || "./profiles/SST";
-  const defaultExpansionPath =
-    stripSuffix(env.EXPANSION_ATM_PATH, "/ATM") ||
-    stripSuffix(env.EXPANSION_TRADERS_PATH, "/Traders") ||
-    stripSuffix(env.EXPANSION_MARKET_PATH, "/Market") ||
-    "./profiles/ExpansionMod";
   const defaultMissionPath = normalizeEnvPath(env.MISSION_PATH) || deriveMissionPathFromSstPath(env) || "./mpmissions/dayzOffline.chernarusplus";
-  const defaultProfilesPath = deriveProfilesPath(env, defaultMissionPath) || "./profiles";
+  const profilesPathForExpansion = normalizeEnvPath(env.PROFILES_PATH) || deriveProfilesPath(env, defaultMissionPath);
+  const defaultProfilesPath = profilesPathForExpansion || "./profiles";
+  const defaultExpansionPath = deriveExpansionBasePath(env, profilesPathForExpansion);
+  const expansionFromProfiles = Boolean(profilesPathForExpansion);
+  const defaultDiscordTicketsDb = `./data/discord_tickets_${safeFileToken(env.SST_PROFILE_ID || env.HOST_PROVIDER || "default")}.db`;
 
   return {
     // SST base path
@@ -219,9 +253,11 @@ function buildPaths(env) {
     aiPositions: normalizeEnvPath(env.AI_POSITIONS_PATH) || (env.API_PATH ? `${normalizeEnvPath(env.API_PATH)}/ai_positions.json` : `${defaultBasePath}/api/ai_positions.json`),
 
     // Expansion paths
-    expansionTraders: normalizeEnvPath(env.EXPANSION_TRADERS_PATH) || `${defaultExpansionPath}/Traders`,
-    expansionMarket: normalizeEnvPath(env.EXPANSION_MARKET_PATH) || `${defaultExpansionPath}/Market`,
-    expansionAtm: normalizeEnvPath(env.EXPANSION_ATM_PATH) || `${defaultExpansionPath}/ATM`,
+    expansionTraders: expansionFromProfiles ? `${defaultExpansionPath}/Traders` : normalizeEnvPath(env.EXPANSION_TRADERS_PATH) || `${defaultExpansionPath}/Traders`,
+    expansionMarket: expansionFromProfiles ? `${defaultExpansionPath}/Market` : normalizeEnvPath(env.EXPANSION_MARKET_PATH) || `${defaultExpansionPath}/Market`,
+    expansionAtm: expansionFromProfiles ? `${defaultExpansionPath}/ATM` : normalizeEnvPath(env.EXPANSION_ATM_PATH) || `${defaultExpansionPath}/ATM`,
+    expansionAi: expansionFromProfiles ? `${defaultExpansionPath}/AI` : normalizeEnvPath(env.EXPANSION_AI_PATH) || `${defaultExpansionPath}/AI`,
+    expansionQuests: expansionFromProfiles ? `${defaultExpansionPath}/Quests` : normalizeEnvPath(env.EXPANSION_QUESTS_PATH) || `${defaultExpansionPath}/Quests`,
 
     // Mission path (for trader zones and economy type files)
     missionFolder: normalizeEnvPath(env.MISSION_PATH) || defaultMissionPath,
@@ -234,12 +270,16 @@ function buildPaths(env) {
 
     // SQLite database for position tracking
     database: normalizeEnvPath(env.DATABASE_PATH) || `${defaultBasePath}/data/sst_tracking.db`,
+
+    // Local SQLite database for Discord support tickets
+    discordTickets: normalizeEnvPath(env.DISCORD_TICKET_DB_PATH) || defaultDiscordTicketsDb,
   };
 }
 
 function buildFeatures(env) {
   return {
     expansionEnabled: env.EXPANSION_ENABLED !== "0" && env.EXPANSION_ENABLED !== "false",
+    discordEnabled: env.DISCORD_ENABLED === "1" || env.DISCORD_ENABLED === "true",
   };
 }
 
@@ -397,6 +437,7 @@ export function getConfiguredServerProfiles() {
       onlinePlayers: context.paths.onlinePlayers,
       missionFolder: context.paths.missionFolder,
       profiles: context.paths.profiles,
+      discordTickets: context.paths.discordTickets,
     },
   }));
 }
@@ -446,10 +487,15 @@ export function logConfig() {
     console.log(`  - Expansion Traders: ${context.paths.expansionTraders}`);
     console.log(`  - Expansion Market: ${context.paths.expansionMarket}`);
     console.log(`  - Expansion ATM: ${context.paths.expansionAtm}`);
+    console.log(`  - Expansion AI: ${context.paths.expansionAi}`);
+    console.log(`  - Expansion Quests: ${context.paths.expansionQuests}`);
   } else {
     console.log("  - Expansion: DISABLED");
   }
   console.log(`  - Profiles: ${context.paths.profiles}`);
+  if (context.features.discordEnabled) {
+    console.log(`  - Discord Tickets DB: ${context.paths.discordTickets}`);
+  }
 
   if (runtimeContexts.length > 1) {
     console.log(`[Config] Server profiles loaded: ${runtimeContexts.map((item) => item.id).join(", ")}`);

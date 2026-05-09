@@ -18,6 +18,7 @@ backups/
 
 .vscode/
 .idea/
+.claude/
 
 dayz/missions/**/storage_*
 

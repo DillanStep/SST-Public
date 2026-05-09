@@ -354,8 +354,8 @@ class SST_TemplateService
 			}
 		}
 
-		// TODO: implement action routing for your feature.
-		// e.g.
+		// Implement action routing for your feature.
+		// Example:
 		// if (req.action == "my_action") { ... }
 
 		req.status = "completed";

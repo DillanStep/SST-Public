@@ -242,6 +242,8 @@ router.get("/status", (req, res) => {
           expansionTraders: process.env.EXPANSION_TRADERS_PATH || "",
           expansionMarket: process.env.EXPANSION_MARKET_PATH || "",
           expansionAtm: process.env.EXPANSION_ATM_PATH || "",
+          expansionAi: process.env.EXPANSION_AI_PATH || "",
+          expansionQuests: process.env.EXPANSION_QUESTS_PATH || "",
         },
         expansionEnabled: process.env.EXPANSION_ENABLED || "0",
       },
@@ -372,6 +374,8 @@ router.post("/apply", (req, res) => {
     expansionTradersPath,
     expansionMarketPath,
     expansionAtmPath,
+    expansionAiPath,
+    expansionQuestsPath,
     mapPreset,
     mapLabel,
     mapImageUrl,
@@ -426,6 +430,14 @@ router.post("/apply", (req, res) => {
 
     if (expansionAtmPath && typeof expansionAtmPath === "string" && expansionAtmPath.trim()) {
       upsertEnvVar(envPath, "EXPANSION_ATM_PATH", normalizePosix(expansionAtmPath));
+    }
+
+    if (expansionAiPath && typeof expansionAiPath === "string" && expansionAiPath.trim()) {
+      upsertEnvVar(envPath, "EXPANSION_AI_PATH", normalizePosix(expansionAiPath));
+    }
+
+    if (expansionQuestsPath && typeof expansionQuestsPath === "string" && expansionQuestsPath.trim()) {
+      upsertEnvVar(envPath, "EXPANSION_QUESTS_PATH", normalizePosix(expansionQuestsPath));
     }
 
     if (mapPreset && typeof mapPreset === "string" && mapPreset.trim()) {

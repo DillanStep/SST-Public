@@ -69,7 +69,7 @@ if not "%SERVER_ROOT%"=="" (
 	echo.
 	echo No server path supplied, so only the project @SST package was updated.
 	echo To also replace a server install, run:
-	echo   tools\dayz\Build-Mod.bat "D:\SteamLibrary\steamapps\common\DayZServer Development Server"
+	echo   tools\dayz\Build-Mod.bat "C:\DayZServer"
 )
 
 echo.
@@ -93,12 +93,6 @@ if defined DAYZ_TOOLS (
 		set "ADDON_BUILDER=%DAYZ_TOOLS%\Bin\AddonBuilder\AddonBuilder.exe"
 		exit /b 0
 	)
-)
-
-if exist "D:\SteamLibrary\steamapps\common\DayZ Tools\Bin\AddonBuilder\AddonBuilder.exe" (
-	set "DAYZ_TOOLS=D:\SteamLibrary\steamapps\common\DayZ Tools"
-	set "ADDON_BUILDER=D:\SteamLibrary\steamapps\common\DayZ Tools\Bin\AddonBuilder\AddonBuilder.exe"
-	exit /b 0
 )
 
 if exist "C:\Program Files (x86)\Steam\steamapps\common\DayZ Tools\Bin\AddonBuilder\AddonBuilder.exe" (

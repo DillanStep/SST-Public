@@ -54,6 +54,7 @@ class SST_InventoryEventType
 	static const string REMOVED = "REMOVED";           // Item removed from player (given, stored, etc.)
 	static const string PICKED_UP = "PICKED_UP";       // Item picked up from ground
 	static const string ADDED = "ADDED";               // Item added to player inventory
+	static const string PLAYER_HIT = "PLAYER_HIT";     // Player damaged another player
 }
 
 // Single inventory event entry
@@ -68,6 +69,17 @@ class SST_InventoryEventData
 	float itemHealth;
 	float itemQuantity;
 	vector position;           // World position where event occurred
+	string targetPlayerName;
+	string targetPlayerId;
+	string weapon;
+	string ammo;
+	string hitZone;
+	string bodyPart;
+	string damageZone;
+	string hitComponent;
+	float damage;
+	float distance;
+	float speedCoef;
 }
 
 // Log file structure for a player's events
@@ -102,6 +114,14 @@ class SST_PlayerLifeEventData
 	vector position;
 	string causeOfDeath;       // Only for death events - killer info
 	float healthAtDeath;       // Only for death events
+	string weapon;
+	string ammo;
+	string hitZone;
+	string bodyPart;
+	string damageZone;
+	string hitComponent;
+	float damage;
+	float distance;
 }
 
 class SST_PlayerLifeEventsLog

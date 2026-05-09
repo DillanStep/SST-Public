@@ -110,6 +110,69 @@ class SST_InventoryEventLogger
 		Print("[SST] " + eventType + ": " + playerName + " - " + item.GetDisplayName() + " (" + item.GetType() + ")");
 	}
 
+	void LogPlayerHitEvent(PlayerBase attacker, PlayerBase target, EntityAI source, TotalDamageResult damageResult, int component, string dmgZone, string ammo, vector modelPos, float speedCoef)
+	{
+		if (!GetGame().IsServer())
+			return;
+
+		if (!attacker || !target || attacker == target)
+			return;
+
+		PlayerIdentity attackerIdentity = attacker.GetIdentity();
+		PlayerIdentity targetIdentity = target.GetIdentity();
+		if (!attackerIdentity || !targetIdentity)
+			return;
+
+		ref SST_InventoryEventData eventData = new SST_InventoryEventData();
+		eventData.timestamp = GetUTCTimestamp();
+		eventData.eventType = SST_InventoryEventType.PLAYER_HIT;
+		eventData.playerName = attackerIdentity.GetName();
+		eventData.playerId = attackerIdentity.GetPlainId();
+		eventData.targetPlayerName = targetIdentity.GetName();
+		eventData.targetPlayerId = targetIdentity.GetPlainId();
+		eventData.position = target.GetPosition();
+		eventData.ammo = ammo;
+		eventData.damageZone = dmgZone;
+		eventData.hitZone = dmgZone;
+		eventData.bodyPart = dmgZone;
+		eventData.hitComponent = component.ToString();
+		eventData.damage = GetHitDamage(damageResult, dmgZone);
+		eventData.distance = vector.Distance(attacker.GetPosition(), target.GetPosition());
+		eventData.speedCoef = speedCoef;
+
+		if (source)
+		{
+			eventData.weapon = source.GetType();
+			eventData.itemClassName = source.GetType();
+			eventData.itemDisplayName = source.GetDisplayName();
+		}
+
+		ref SST_PlayerInventoryEventsLog playerLog = GetOrCreatePlayerLog(eventData.playerId, eventData.playerName);
+		playerLog.events.Insert(eventData);
+
+		while (playerLog.events.Count() > 100)
+		{
+			playerLog.events.Remove(0);
+		}
+
+		MarkPlayerLogDirty(eventData.playerId);
+		SST_RestEventClient.SendInventoryEvent(eventData);
+
+		Print("[SST] PLAYER HIT: " + eventData.playerName + " -> " + eventData.targetPlayerName + " zone=" + dmgZone + " damage=" + eventData.damage.ToString());
+	}
+
+	static float GetHitDamage(TotalDamageResult damageResult, string dmgZone)
+	{
+		if (!damageResult)
+			return 0;
+
+		float damage = damageResult.GetDamage(dmgZone, "Health");
+		if (damage <= 0)
+			damage = damageResult.GetDamage("", "Health");
+
+		return damage;
+	}
+
 	protected void MarkPlayerLogDirty(string playerId)
 	{
 		if (m_DirtyEventLogIds.Find(playerId) == -1)
@@ -197,6 +260,11 @@ class SST_InventoryEventLogger
 	{
 		GetInstance().LogEvent(SST_InventoryEventType.ADDED, player, item, position);
 	}
+
+	static void LogPlayerHit(PlayerBase attacker, PlayerBase target, EntityAI source, TotalDamageResult damageResult, int component, string dmgZone, string ammo, vector modelPos, float speedCoef)
+	{
+		GetInstance().LogPlayerHitEvent(attacker, target, source, damageResult, component, dmgZone, ammo, modelPos, speedCoef);
+	}
 }
 
 class SST_InventoryDirtyTracker
@@ -267,7 +335,7 @@ class SST_PlayerLifeEventLogger
 		return s_Instance;
 	}
 
-	void LogLifeEvent(string eventType, PlayerBase player, string causeOfDeath = "", float healthAtDeath = -1, string targetPlayerId = "", string targetPlayerName = "")
+	void LogLifeEvent(string eventType, PlayerBase player, string causeOfDeath = "", float healthAtDeath = -1, string targetPlayerId = "", string targetPlayerName = "", string weapon = "", string ammo = "", string hitZone = "", string damageZone = "", string hitComponent = "", float damage = 0, float distance = 0)
 	{
 		if (!GetGame().IsServer())
 			return;
@@ -292,6 +360,14 @@ class SST_PlayerLifeEventLogger
 		eventData.position = player.GetPosition();
 		eventData.causeOfDeath = causeOfDeath;
 		eventData.healthAtDeath = healthAtDeath;
+		eventData.weapon = weapon;
+		eventData.ammo = ammo;
+		eventData.hitZone = hitZone;
+		eventData.bodyPart = hitZone;
+		eventData.damageZone = damageZone;
+		eventData.hitComponent = hitComponent;
+		eventData.damage = damage;
+		eventData.distance = distance;
 
 		ref SST_PlayerLifeEventsLog playerLog = GetOrCreateLifeLog(playerId, playerName);
 		playerLog.events.Insert(eventData);
@@ -346,7 +422,7 @@ class SST_PlayerLifeEventLogger
 	}
 
 	// Static helpers
-	static void LogDeath(PlayerBase player, Object killer)
+	static void LogDeath(PlayerBase player, Object killer, string weapon = "", string ammo = "", string hitZone = "", string damageZone = "", string hitComponent = "", float damage = 0, float distance = 0)
 	{
 		string cause = "";
 		string targetPlayerId = "";
@@ -363,7 +439,7 @@ class SST_PlayerLifeEventLogger
 				cause = "Player: " + targetPlayerName + " (" + targetPlayerId + ")";
 			}
 		}
-		GetInstance().LogLifeEvent(SST_PlayerLifeEventType.DIED, player, cause, player.GetHealth("", ""), targetPlayerId, targetPlayerName);
+		GetInstance().LogLifeEvent(SST_PlayerLifeEventType.DIED, player, cause, player.GetHealth("", ""), targetPlayerId, targetPlayerName, weapon, ammo, hitZone, damageZone, hitComponent, damage, distance);
 	}
 
 	static void LogSpawn(PlayerBase player)
@@ -1341,13 +1417,74 @@ class SST_RestEventClient
 modded class PlayerBase
 {
 	protected bool m_SST_HasLoggedSpawn = false;
+	protected string m_SST_LastCombatAttackerId = "";
+	protected string m_SST_LastCombatWeapon = "";
+	protected string m_SST_LastCombatAmmo = "";
+	protected string m_SST_LastCombatHitZone = "";
+	protected string m_SST_LastCombatDamageZone = "";
+	protected string m_SST_LastCombatHitComponent = "";
+	protected float m_SST_LastCombatDamage = 0;
+	protected float m_SST_LastCombatDistance = 0;
+
+	override void EEHitBy(TotalDamageResult damageResult, int damageType, EntityAI source, int component, string dmgZone, string ammo, vector modelPos, float speedCoef)
+	{
+		if (GetGame().IsServer())
+		{
+			SST_RecordCombatHit(damageResult, source, component, dmgZone, ammo, modelPos, speedCoef);
+		}
+
+		super.EEHitBy(damageResult, damageType, source, component, dmgZone, ammo, modelPos, speedCoef);
+	}
+
+	protected void SST_RecordCombatHit(TotalDamageResult damageResult, EntityAI source, int component, string dmgZone, string ammo, vector modelPos, float speedCoef)
+	{
+		if (!source)
+			return;
+
+		PlayerBase attacker = PlayerBase.Cast(source);
+		if (!attacker)
+			attacker = PlayerBase.Cast(source.GetHierarchyRootPlayer());
+		if (!attacker || attacker == this || !attacker.GetIdentity() || !GetIdentity())
+			return;
+
+		SST_InventoryEventLogger.LogPlayerHit(attacker, this, source, damageResult, component, dmgZone, ammo, modelPos, speedCoef);
+
+		m_SST_LastCombatAttackerId = attacker.GetIdentity().GetPlainId();
+		m_SST_LastCombatWeapon = source.GetType();
+		m_SST_LastCombatAmmo = ammo;
+		m_SST_LastCombatHitZone = dmgZone;
+		m_SST_LastCombatDamageZone = dmgZone;
+		m_SST_LastCombatHitComponent = component.ToString();
+		m_SST_LastCombatDamage = SST_InventoryEventLogger.GetHitDamage(damageResult, dmgZone);
+		m_SST_LastCombatDistance = vector.Distance(attacker.GetPosition(), GetPosition());
+	}
 
 	override void EEKilled(Object killer)
 	{
 		// Log death before calling super (which may clear some data)
 		if (GetGame().IsServer())
 		{
-			SST_PlayerLifeEventLogger.LogDeath(this, killer);
+			string weapon = "";
+			string ammo = "";
+			string hitZone = "";
+			string damageZone = "";
+			string hitComponent = "";
+			float damage = 0;
+			float distance = 0;
+
+			PlayerBase killerPlayer = PlayerBase.Cast(killer);
+			if (killerPlayer && killerPlayer.GetIdentity() && killerPlayer.GetIdentity().GetPlainId() == m_SST_LastCombatAttackerId)
+			{
+				weapon = m_SST_LastCombatWeapon;
+				ammo = m_SST_LastCombatAmmo;
+				hitZone = m_SST_LastCombatHitZone;
+				damageZone = m_SST_LastCombatDamageZone;
+				hitComponent = m_SST_LastCombatHitComponent;
+				damage = m_SST_LastCombatDamage;
+				distance = m_SST_LastCombatDistance;
+			}
+
+			SST_PlayerLifeEventLogger.LogDeath(this, killer, weapon, ammo, hitZone, damageZone, hitComponent, damage, distance);
 		}
 
 		super.EEKilled(killer);

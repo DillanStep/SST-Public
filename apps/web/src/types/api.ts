@@ -39,6 +39,8 @@ export interface SetupStoragePayload {
   expansionTradersPath?: string;
   expansionMarketPath?: string;
   expansionAtmPath?: string;
+  expansionAiPath?: string;
+  expansionQuestsPath?: string;
   mapPreset?: string;
   mapLabel?: string;
   mapImageUrl?: string;
@@ -189,6 +191,203 @@ export interface RuntimeConfigUpdateResponse {
   message: string;
 }
 
+export interface DiscordPlayerMatch {
+  steamId: string;
+  matched: boolean;
+  playerName: string;
+  source?: string;
+}
+
+export interface DiscordSupportEventSummary {
+  timestamp: string;
+  type: string;
+  playerName?: string;
+  item?: string;
+  weapon?: string;
+  target?: string;
+  trader?: string;
+  reason?: string;
+  quantity?: number | null;
+  price?: number | null;
+  amount?: number | null;
+  balance?: number | null;
+}
+
+export interface DiscordSupportInventoryItem {
+  className: string;
+  displayName: string;
+  slotName?: string;
+  quantity?: number | null;
+  quantityMax?: number | null;
+  health?: number | null;
+}
+
+export interface DiscordSupportPlayerContext {
+  steamId: string;
+  matched: boolean;
+  playerName: string;
+  biId: string;
+  online?: {
+    found: boolean;
+    isOnline: boolean;
+    isStale: boolean;
+    generatedAt?: string | null;
+    sourceUpdatedAt?: string | null;
+    playerName?: string;
+    biId?: string;
+    connectedAt?: string;
+    lastUpdate?: string;
+    position?: { x: number; y: number; z: number } | null;
+    health?: number | null;
+    blood?: number | null;
+    water?: number | null;
+    energy?: number | null;
+    isAlive?: boolean;
+    isUnconscious?: boolean;
+  };
+  inventory?: {
+    exists: boolean;
+    updatedAt?: string | null;
+    generatedAt?: string;
+    playerName?: string;
+    biId?: string;
+    itemCount: number;
+    equippedCount: number;
+    sample: DiscordSupportInventoryItem[];
+  };
+  itemEvents?: {
+    exists: boolean;
+    updatedAt?: string | null;
+    count: number;
+    deaths: number;
+    recent: DiscordSupportEventSummary[];
+  };
+  lifeEvents?: {
+    exists: boolean;
+    updatedAt?: string | null;
+    count: number;
+    deaths: number;
+    recent: DiscordSupportEventSummary[];
+  };
+  trades?: {
+    exists: boolean;
+    updatedAt?: string | null;
+    count: number;
+    purchases: number;
+    sales: number;
+    totalSpent: number;
+    totalEarned: number;
+    recent: DiscordSupportEventSummary[];
+  };
+  bank?: {
+    enabled: boolean;
+    account: {
+      playerId: string;
+      biId: string;
+      steamId: string;
+      playerName: string;
+      balance: number;
+      fileName: string;
+      updatedAt?: string | null;
+    } | null;
+    historyCount: number;
+    recentHistory: DiscordSupportEventSummary[];
+    error?: string;
+  };
+}
+
+export interface DiscordTicket {
+  id: number;
+  serverId: string;
+  status: 'open' | 'closed';
+  subject: string;
+  steamId: string;
+  playerName: string;
+  discordUserId: string;
+  discordUsername: string;
+  channelId: string;
+  guildId: string;
+  claimedById: string;
+  claimedByName: string;
+  closedById: string;
+  closedByName: string;
+  closeReason: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string;
+  messageCount: number;
+  playerMatch?: DiscordPlayerMatch;
+  playerContext?: DiscordSupportPlayerContext;
+}
+
+export interface DiscordTicketMessage {
+  id: number;
+  ticketId: number;
+  authorType: 'discord' | 'admin' | 'system';
+  authorId: string;
+  authorName: string;
+  message: string;
+  discordMessageId: string;
+  createdAt: string;
+}
+
+export interface DiscordBotStatus {
+  contextId: string;
+  contextName: string;
+  enabled: boolean;
+  status: 'disabled' | 'misconfigured' | 'starting' | 'ready' | 'error';
+  userTag: string;
+  startedAt: string | null;
+  commandsRegisteredAt: string;
+  lastError: string;
+  commandName: string;
+  ticketCategoryId: string;
+  panelChannelId: string;
+  panel?: DiscordTicketPanel | null;
+  staffRoleId: string;
+  logChannelId: string;
+  missing: string[];
+  messageContentIntentNeeded: boolean;
+}
+
+export interface DiscordTicketPanel {
+  serverId: string;
+  channelId: string;
+  messageId: string;
+  updatedAt: string;
+}
+
+export interface DiscordTicketStats {
+  total: number;
+  open: number;
+  closed: number;
+}
+
+export interface DiscordTicketsResponse {
+  tickets: DiscordTicket[];
+  stats: DiscordTicketStats;
+  bot: DiscordBotStatus;
+  panel?: DiscordTicketPanel | null;
+}
+
+export interface DiscordTicketDetailResponse {
+  ticket: DiscordTicket;
+  messages: DiscordTicketMessage[];
+  bot?: DiscordBotStatus;
+}
+
+export interface DiscordTicketActionResponse {
+  ok: boolean;
+  ticket: DiscordTicket;
+  messages: DiscordTicketMessage[];
+}
+
+export interface DiscordTicketPanelResponse {
+  ok: boolean;
+  panel: DiscordTicketPanel;
+  bot: DiscordBotStatus;
+}
+
 export interface InventoryItem {
   className: string;
   displayName?: string;
@@ -217,11 +416,28 @@ export interface PlayerEvent {
   eventType: string;
   playerName?: string;
   playerId?: string;
+  targetPlayerName?: string;
+  targetPlayerId?: string;
   itemClassName?: string;
   itemDisplayName?: string;
   itemHealth?: number;
   itemQuantity?: number;
   position?: number[];
+  weapon?: string;
+  ammo?: string;
+  damage?: number;
+  distance?: number;
+  speedCoef?: number;
+  hitZone?: string;
+  bodyPart?: string;
+  targetBodyPart?: string;
+  damageZone?: string;
+  hitSelection?: string;
+  hitComponent?: string;
+  selection?: string;
+  component?: string;
+  targetZone?: string;
+  zone?: string;
 }
 
 export interface PlayerEventsLog {
@@ -235,9 +451,25 @@ export interface LifeEvent {
   eventType: 'SPAWNED' | 'RESPAWNED' | 'DIED' | 'CONNECTED' | 'DISCONNECTED';
   playerName: string;
   playerId: string;
+  targetPlayerName?: string;
+  targetPlayerId?: string;
   position?: number[];
   causeOfDeath?: string;
   healthAtDeath?: number;
+  weapon?: string;
+  ammo?: string;
+  damage?: number;
+  distance?: number;
+  hitZone?: string;
+  bodyPart?: string;
+  targetBodyPart?: string;
+  damageZone?: string;
+  hitSelection?: string;
+  hitComponent?: string;
+  selection?: string;
+  component?: string;
+  targetZone?: string;
+  zone?: string;
 }
 
 export interface LifeEventsLog {
@@ -809,6 +1041,152 @@ export interface AIPositionsResponse {
   ai: AIPositionData[];
 }
 
+export type AIAnalysisSeverity = 'ok' | 'info' | 'warning' | 'critical';
+export type AIAnalysisImpact = 'low' | 'medium' | 'high';
+export type AIAnalysisDifficultyLabel = 'Unknown' | 'Low' | 'Moderate' | 'Hard' | 'Extreme';
+
+export interface AIAnalysisFileInfo {
+  name: string;
+  path: string;
+  found: boolean;
+  keys?: string[];
+  error?: string | null;
+}
+
+export interface AIAnalysisPatrol {
+  name: string;
+  faction: string;
+  type: string;
+  loadout: string;
+  unitCount: number;
+  maxUnitCount?: number | null;
+  behaviour?: string;
+  speed?: string;
+  waypoints: number;
+  waypointPositions?: Array<{ x: number; y: number | null; z: number }>;
+  dynamic: boolean;
+  position?: { x: number; y: number | null; z: number } | null;
+  respawnTime: number | null;
+  minDistance: number | null;
+  maxDistance: number | null;
+  sourcePath: string;
+}
+
+export type AIAnalysisEventType = 'airdrop' | 'contaminated' | 'roaming' | 'patrol' | 'quest' | 'koth';
+
+export interface AIAnalysisEventZone {
+  id: string;
+  type: AIAnalysisEventType;
+  name: string;
+  enabled: boolean;
+  x: number | null;
+  y: number | null;
+  z: number | null;
+  radius: number | null;
+  sourcePath: string;
+  detail: string;
+  meta: Record<string, string | number | boolean | null | undefined>;
+  waypoints?: Array<{ x: number; y: number | null; z: number }>;
+}
+
+export interface AIAnalysisEventCounts {
+  total: number;
+  enabled: number;
+  mapped: number;
+}
+
+export interface AIAnalysisEvents {
+  summary: {
+    airdrops: AIAnalysisEventCounts;
+    contaminatedAreas: AIAnalysisEventCounts;
+    roamingLocations: AIAnalysisEventCounts;
+    patrolRoutes: AIAnalysisEventCounts;
+    questAiObjectives: AIAnalysisEventCounts;
+    mapLayers: AIAnalysisEventCounts;
+    koth: {
+      detected: boolean;
+      files: string[];
+    };
+  };
+  airdrops: AIAnalysisEventZone[];
+  contaminatedAreas: AIAnalysisEventZone[];
+  roamingLocations: AIAnalysisEventZone[];
+  patrolRoutes: AIAnalysisEventZone[];
+  questAiObjectives: AIAnalysisEventZone[];
+  koth: {
+    detected: boolean;
+    files: string[];
+  };
+  mapLayers: AIAnalysisEventZone[];
+  configFiles?: {
+    airdropSettingsFile?: AIAnalysisFileInfo | null;
+  };
+}
+
+export interface AIAnalysisFactor {
+  label: string;
+  value: string;
+  impact: AIAnalysisImpact;
+  detail: string;
+  weight: number;
+}
+
+export interface AIAnalysisFinding {
+  severity: AIAnalysisSeverity;
+  title: string;
+  detail: string;
+  action?: string;
+  path?: string;
+}
+
+export interface AIAnalysisResponse {
+  generatedAt: string;
+  live: {
+    generatedAt: string | null;
+    modVersion?: string | null;
+    protocolVersion?: string | null;
+    sourceUpdatedAt?: string | null;
+    sourceAgeMs?: number | null;
+    staleAfterMs?: number;
+    isStale?: boolean;
+    aiCount: number;
+    byFaction: Record<string, number>;
+    byGroup: Record<string, number>;
+    unconscious: number;
+    averageHealth: number | null;
+  };
+  config: {
+    expansionEnabled: boolean;
+    expansionBases: string[];
+    aiSettingsFile: AIAnalysisFileInfo | null;
+    patrolSettingsFile: AIAnalysisFileInfo | null;
+    settingsFiles: AIAnalysisFileInfo[];
+    loadouts: {
+      count: number;
+      names: string[];
+    };
+  };
+  difficulty: {
+    score: number;
+    label: AIAnalysisDifficultyLabel;
+    factors: AIAnalysisFactor[];
+  };
+  findings: AIAnalysisFinding[];
+  metrics: {
+    liveAi: number;
+    patrolCount: number;
+    configuredUnits: number;
+    maxGroupSize: number;
+    avgGroupSize: number;
+    factionCount: number;
+    loadoutCount: number;
+    staticPatrols: number;
+    dynamicPatrols: number;
+  };
+  patrols: AIAnalysisPatrol[];
+  events?: AIAnalysisEvents;
+}
+
 // Player Command Types (heal, teleport, message)
 export interface HealRequest {
   playerId: string;
@@ -1080,6 +1458,240 @@ export interface ExpansionDataResponse {
   zones: TraderZone[];
   traders: TraderSummary[];
   market: MarketCategorySummary[];
+}
+
+export interface ExpansionQuestObjectiveRef {
+  ConfigVersion: number;
+  ID: number;
+  ObjectiveType: number;
+}
+
+export interface ExpansionQuestReward {
+  ClassName: string;
+  Amount: number;
+  Attachments?: string[];
+  DamagePercent?: number;
+  HealthPercent?: number;
+  QuestID?: number;
+  Chance?: number;
+}
+
+export interface ExpansionQuestConfig {
+  ConfigVersion: number;
+  ID: number;
+  Type: number;
+  Title: string;
+  Descriptions: string[];
+  ObjectiveText: string;
+  FollowUpQuest: number;
+  Repeatable: number;
+  IsDailyQuest: number;
+  IsWeeklyQuest: number;
+  CancelQuestOnPlayerDeath: number;
+  Autocomplete: number;
+  IsGroupQuest: number;
+  ObjectSetFileName: string;
+  QuestItems: Array<{ ClassName: string; Amount: number }>;
+  Rewards: ExpansionQuestReward[];
+  NeedToSelectReward: number;
+  RandomReward: number;
+  RandomRewardAmount: number;
+  RewardsForGroupOwnerOnly: number;
+  RewardBehavior: number;
+  QuestGiverIDs: number[];
+  QuestTurnInIDs: number[];
+  IsAchievement: number;
+  Objectives: ExpansionQuestObjectiveRef[];
+  QuestColor: number;
+  ReputationReward: number;
+  ReputationRequirement: number;
+  PreQuestIDs: number[];
+  RequiredFaction: string;
+  FactionReward: string;
+  PlayerNeedQuestItems: number;
+  DeleteQuestItems: number;
+  SequentialObjectives: number;
+  FactionReputationRequirements: Record<string, number>;
+  FactionReputationRewards: Record<string, number>;
+  SuppressQuestLogOnCompetion: number;
+  Active: number;
+  [key: string]: unknown;
+}
+
+export interface ExpansionQuestSummary {
+  fileName: string;
+  path: string;
+  updatedAt: string | null;
+  id: number;
+  title: string;
+  type: number;
+  active: boolean;
+  objectiveText: string;
+  objectiveCount: number;
+  objectives: Array<{
+    id: number;
+    objectiveType: number;
+    objectiveTypeLabel: string;
+  }>;
+  questGiverIds: number[];
+  questTurnInIds: number[];
+  preQuestIds: number[];
+  followUpQuest: number;
+  repeatable: boolean;
+  isDailyQuest: boolean;
+  isWeeklyQuest: boolean;
+  rewardCount: number;
+}
+
+export interface ExpansionQuestObjectiveConfig {
+  ConfigVersion: number;
+  ID: number;
+  ObjectiveType: number;
+  ObjectiveText: string;
+  TimeLimit: number;
+  Active: number;
+  Position?: number[];
+  MaxDistance?: number;
+  MinDistance?: number;
+  Amount?: number;
+  ClassNames?: string[];
+  Collections?: Array<{
+    Amount: number;
+    ClassName: string;
+    QuantityPercent: number;
+    MinQuantityPercent: number;
+  }>;
+  ActionNames?: string[];
+  AllowedClassNames?: string[];
+  ExcludedClassNames?: string[];
+  ExecutionAmount?: number;
+  MarkerName?: string;
+  ShowDistance?: number;
+  TriggerOnEnter?: number;
+  TriggerOnExit?: number;
+  [key: string]: unknown;
+}
+
+export interface ExpansionQuestObjectiveSummary {
+  fileName: string;
+  folder: string;
+  path: string;
+  updatedAt: string | null;
+  id: number;
+  objectiveType: number;
+  objectiveTypeLabel: string;
+  text: string;
+  active: boolean;
+  position: number[] | null;
+  positions?: number[][];
+  maxDistance: number | null;
+  amount: number | null;
+  collectionCount: number;
+  classNames: string[];
+}
+
+export interface ExpansionQuestNpcConfig {
+  ConfigVersion: number;
+  ID: number;
+  ClassName: string;
+  Position: number[];
+  Orientation: number[];
+  NPCName: string;
+  DefaultNPCText: string;
+  Waypoints: number[][];
+  NPCEmoteID: number;
+  NPCEmoteIsStatic: number;
+  NPCLoadoutFile: string;
+  NPCInteractionEmoteID: number;
+  NPCQuestCancelEmoteID: number;
+  NPCQuestStartEmoteID: number;
+  NPCQuestCompleteEmoteID: number;
+  NPCFaction: string;
+  NPCType: number;
+  Active: number;
+  [key: string]: unknown;
+}
+
+export interface ExpansionQuestNpcSummary {
+  fileName: string;
+  path: string;
+  updatedAt: string | null;
+  id: number;
+  name: string;
+  className: string;
+  active: boolean;
+  position: number[] | null;
+  npcType: number | null;
+  faction: string;
+}
+
+export interface ExpansionQuestObjectiveTypeTemplate {
+  type: number;
+  key: string;
+  label: string;
+  folder: string;
+  prefix: string;
+  template: ExpansionQuestObjectiveConfig;
+}
+
+export interface ExpansionQuestTemplatesResponse {
+  quest: ExpansionQuestConfig;
+  npc: ExpansionQuestNpcConfig;
+  objectiveTypes: ExpansionQuestObjectiveTypeTemplate[];
+}
+
+export interface ExpansionQuestListResponse {
+  path: string;
+  folders: {
+    quests: string;
+    objectives: string;
+    npcs: string;
+  };
+  counts: {
+    quests: number;
+    objectives: number;
+    npcs: number;
+  };
+  nextIds: {
+    quest: number;
+    objective: number;
+    npc: number;
+  };
+  quests: ExpansionQuestSummary[];
+  objectives: ExpansionQuestObjectiveSummary[];
+  npcs: ExpansionQuestNpcSummary[];
+  errors: Array<{ fileName: string; path: string; error: string }>;
+}
+
+export interface ExpansionQuestDetailResponse {
+  fileName: string;
+  path: string;
+  updatedAt?: string | null;
+  quest: ExpansionQuestConfig;
+}
+
+export interface ExpansionQuestObjectiveDetailResponse {
+  fileName: string;
+  path: string;
+  updatedAt?: string | null;
+  objective: ExpansionQuestObjectiveConfig;
+}
+
+export interface ExpansionQuestNpcDetailResponse {
+  fileName: string;
+  path: string;
+  updatedAt?: string | null;
+  npc: ExpansionQuestNpcConfig;
+}
+
+export interface ExpansionQuestSaveResponse {
+  success: boolean;
+  fileName: string;
+  path: string;
+  quest?: ExpansionQuestConfig;
+  objective?: ExpansionQuestObjectiveConfig;
+  npc?: ExpansionQuestNpcConfig;
+  message: string;
 }
 
 // Inventory Counts (how many of each item across all player inventories)

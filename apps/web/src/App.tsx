@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy, Trophy, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, Search, Users, Settings, Menu, X, Map, Store, FileText, History, TrendingUp, Shield, LogOut, Car, LifeBuoy, Trophy, RefreshCw, Bot, ScrollText } from 'lucide-react';
 import { ConnectionBar } from './components/features/ConnectionBar';
 import { LoginPage } from './components/features/LoginPage';
 import { UpdatePrompt } from './components/features/UpdatePrompt';
@@ -9,7 +9,7 @@ import { ACTIVE_SERVER_CHANGED_EVENT, getActiveServer, getActiveServerId, getSer
 import { AuthCheckTransientError, checkAuth, getAuthToken, logout, type User } from './services/auth';
 import api from './services/api';
 
-type TabType = 'dashboard' | 'items' | 'players' | 'leaderboard' | 'map' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'users' | 'settings';
+type TabType = 'dashboard' | 'items' | 'players' | 'leaderboard' | 'map' | 'ai' | 'quests' | 'vehicles' | 'market' | 'economy' | 'logs' | 'history' | 'support' | 'users' | 'settings';
 const DISCORD_SUPPORT_URL = 'https://discord.gg/jv52WVbFdj';
 
 const PlayerDashboard = lazy(() => import('./components/features/PlayerDashboard').then((module) => ({ default: module.PlayerDashboard })));
@@ -17,6 +17,8 @@ const ItemSearch = lazy(() => import('./components/features/ItemSearch').then((m
 const PlayerManager = lazy(() => import('./components/features/PlayerManager').then((module) => ({ default: module.PlayerManager })));
 const PlayerLeaderboard = lazy(() => import('./components/features/PlayerLeaderboard').then((module) => ({ default: module.PlayerLeaderboard })));
 const FullPageMap = lazy(() => import('./components/features/FullPageMap').then((module) => ({ default: module.FullPageMap })));
+const AIAnalysisDashboard = lazy(() => import('./components/features/AIAnalysisDashboard').then((module) => ({ default: module.AIAnalysisDashboard })));
+const QuestDesigner = lazy(() => import('./components/features/QuestDesigner').then((module) => ({ default: module.QuestDesigner })));
 const ServerSettings = lazy(() => import('./components/features/ServerSettings').then((module) => ({ default: module.ServerSettings })));
 const MarketEditor = lazy(() => import('./components/features/MarketEditor').then((module) => ({ default: module.MarketEditor })));
 const LogViewer = lazy(() => import('./components/features/LogViewer').then((module) => ({ default: module.LogViewer })));
@@ -24,6 +26,7 @@ const PlayerHistory = lazy(() => import('./components/features/PlayerHistory').t
 const EconomyDashboard = lazy(() => import('./components/features/EconomyDashboard').then((module) => ({ default: module.EconomyDashboard })));
 const UserManagement = lazy(() => import('./components/features/UserManagement').then((module) => ({ default: module.UserManagement })));
 const VehicleDashboard = lazy(() => import('./components/features/VehicleDashboard').then((module) => ({ default: module.VehicleDashboard })));
+const DiscordTickets = lazy(() => import('./components/features/DiscordTickets').then((module) => ({ default: module.DiscordTickets })));
 
 function FeatureLoading() {
   return (
@@ -177,6 +180,8 @@ function App() {
   const tabs: { id: TabType; label: string; icon: ReactNode; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'map', label: 'Live Map', icon: <Map size={20} /> },
+    { id: 'ai', label: 'AI Analysis', icon: <Bot size={20} /> },
+    { id: 'quests', label: 'Quest Designer', icon: <ScrollText size={20} />, adminOnly: true },
     { id: 'items', label: 'Item Search', icon: <Search size={20} /> },
     { id: 'players', label: 'Player Manager', icon: <Users size={20} /> },
     { id: 'leaderboard', label: 'Leaderboard', icon: <Trophy size={20} /> },
@@ -185,6 +190,7 @@ function App() {
     { id: 'economy', label: 'Economy', icon: <TrendingUp size={20} /> },
     { id: 'market', label: 'Market Editor', icon: <Store size={20} /> },
     { id: 'logs', label: 'Server Logs', icon: <FileText size={20} /> },
+    { id: 'support', label: 'Support Tickets', icon: <LifeBuoy size={20} />, adminOnly: true },
     { id: 'users', label: 'Users', icon: <Shield size={20} />, adminOnly: true },
     { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
   ];
@@ -512,6 +518,14 @@ function App() {
               <PlayerLeaderboard isConnected={isConnected} />
             )}
 
+            {activeTab === 'ai' && (
+              <AIAnalysisDashboard isConnected={isConnected} />
+            )}
+
+            {activeTab === 'quests' && (
+              <QuestDesigner isConnected={isConnected} />
+            )}
+
             {activeTab === 'market' && (
               <MarketEditor isConnected={isConnected} />
             )}
@@ -526,6 +540,10 @@ function App() {
 
             {activeTab === 'users' && (
               <UserManagement currentUser={user} />
+            )}
+
+            {activeTab === 'support' && (
+              <DiscordTickets isConnected={isConnected} />
             )}
 
             {activeTab === 'history' && !isConnected && (

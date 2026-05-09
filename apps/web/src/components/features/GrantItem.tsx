@@ -105,7 +105,7 @@ export const GrantItem: React.FC<GrantItemProps> = ({ isConnected, selectedItem 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <Input
             label="Player Steam64 ID"
-            placeholder="76561199516143070"
+            placeholder="7656119xxxxxxxxxx"
             value={playerId}
             onChange={(e) => setPlayerId(e.target.value)}
           />

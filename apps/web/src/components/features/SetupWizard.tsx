@@ -25,6 +25,14 @@ const isAbsoluteLocalPath = (value: string) => {
   return /^[a-zA-Z]:\//.test(trimmed) || trimmed.startsWith('/') || trimmed.startsWith('//');
 };
 
+const normalizeSetupPath = (value: string) => value.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+
+const joinSetupPath = (base: string, ...parts: string[]) => {
+  const cleanBase = normalizeSetupPath(base);
+  const cleanParts = parts.map(part => part.replace(/^\/+|\/+$/g, '')).filter(Boolean);
+  return cleanBase ? [cleanBase, ...cleanParts].join('/') : cleanParts.join('/');
+};
+
 export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) => {
   // Wizard step (1-5)
   const [step, setStep] = useState(1);
@@ -45,9 +53,6 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   const [missionPath, setMissionPath] = useState('');
   const [typesPath, setTypesPath] = useState('');
   const [expansionEnabled, setExpansionEnabled] = useState(false);
-  const [expansionTradersPath, setExpansionTradersPath] = useState('');
-  const [expansionMarketPath, setExpansionMarketPath] = useState('');
-  const [expansionAtmPath, setExpansionAtmPath] = useState('');
   const [localPath, setLocalPath] = useState('');
   const [mapPreset, setMapPreset] = useState(defaultMap.id);
   const [mapLabel, setMapLabel] = useState('');
@@ -84,6 +89,43 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const selectedMap = getMapPresetDefaults(mapPreset);
+  const derivedExpansionBase = profilesPath.trim()
+    ? joinSetupPath(profilesPath, 'ExpansionMod')
+    : '';
+  const derivedExpansionPaths = derivedExpansionBase
+    ? [
+        { label: 'Traders', path: joinSetupPath(derivedExpansionBase, 'Traders') },
+        { label: 'Market', path: joinSetupPath(derivedExpansionBase, 'Market') },
+        { label: 'ATM', path: joinSetupPath(derivedExpansionBase, 'ATM') },
+        { label: 'AI', path: joinSetupPath(derivedExpansionBase, 'AI') },
+      ]
+    : [];
+
+  const renderExpansionAutoDetect = () => (
+    <div className="rounded-xl border border-primary-200 bg-primary-50 p-4">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 size={18} className="mt-0.5 flex-shrink-0 text-primary-700" />
+        <div>
+          <div className="text-sm font-semibold text-primary-950">Expansion folders are auto-detected</div>
+          <p className="mt-1 text-sm text-primary-800">
+            SST will look for ExpansionMod inside the Profiles Path and use its Traders, Market, ATM, and AI folders automatically.
+          </p>
+        </div>
+      </div>
+      {derivedExpansionPaths.length > 0 ? (
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {derivedExpansionPaths.map(item => (
+            <div key={item.label} className="rounded-lg border border-primary-100 bg-white px-3 py-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">{item.label}</div>
+              <code className="mt-1 block break-all text-xs text-surface-700">{item.path}</code>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-primary-800">Add a Profiles Path above to preview the derived Expansion paths.</p>
+      )}
+    </div>
+  );
 
   const runtimeFolderWarning = (
     <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -143,9 +185,6 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
     missionPath,
     typesPath,
     expansionEnabled,
-    expansionTradersPath,
-    expansionMarketPath,
-    expansionAtmPath,
     localPath,
   ]);
 
@@ -290,9 +329,6 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
         missionPath: hostingType === 'dedicated' ? missionPath : normalizeOptionalServerPath(missionPath),
         typesPath: hostingType === 'dedicated' ? typesPath : normalizeOptionalServerPath(typesPath),
         expansionEnabled,
-        expansionTradersPath: hostingType === 'dedicated' ? expansionTradersPath : normalizeOptionalServerPath(expansionTradersPath),
-        expansionMarketPath: hostingType === 'dedicated' ? expansionMarketPath : normalizeOptionalServerPath(expansionMarketPath),
-        expansionAtmPath: hostingType === 'dedicated' ? expansionAtmPath : normalizeOptionalServerPath(expansionAtmPath),
         mapPreset,
         mapLabel: mapLabel.trim(),
         mapImageUrl: mapImageUrl.trim(),
@@ -660,7 +696,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       onChange={(e) => setProfilesPath(e.target.value)}
                       placeholder="HostHavocDayZServer/profiles"
                     />
-                    <p className="text-xs text-surface-400 mt-1">Path to server profiles folder (for logs). Leave empty to skip log features.</p>
+                    <p className="text-xs text-surface-400 mt-1">Path to the active profiles folder. Logs and ExpansionMod folders are detected from here.</p>
                   </div>
 
                   <div>
@@ -696,35 +732,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                   </label>
 
                   {expansionEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Traders Path</label>
-                        <Input
-                          type="text"
-                          value={expansionTradersPath}
-                          onChange={(e) => setExpansionTradersPath(e.target.value)}
-                          placeholder="HostHavocDayZServer/profiles/ExpansionMod/Traders"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Market Path</label>
-                        <Input
-                          type="text"
-                          value={expansionMarketPath}
-                          onChange={(e) => setExpansionMarketPath(e.target.value)}
-                          placeholder="HostHavocDayZServer/profiles/ExpansionMod/Market"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion ATM Path</label>
-                        <Input
-                          type="text"
-                          value={expansionAtmPath}
-                          onChange={(e) => setExpansionAtmPath(e.target.value)}
-                          placeholder="HostHavocDayZServer/profiles/ExpansionMod/ATM"
-                        />
-                      </div>
-                    </div>
+                    renderExpansionAutoDetect()
                   )}
                 </>
               ) : (
@@ -769,6 +777,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                       onChange={(e) => setProfilesPath(e.target.value)}
                       placeholder="C:\\DayZServer\\Server1"
                     />
+                    <p className="text-xs text-surface-400 mt-1">Path to the active profiles folder. Logs and ExpansionMod folders are detected from here.</p>
                   </div>
 
                   <label className="flex items-center gap-3 rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm text-surface-700">
@@ -782,35 +791,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ apiUrl, onComplete }) 
                   </label>
 
                   {expansionEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Traders Path</label>
-                        <Input
-                          type="text"
-                          value={expansionTradersPath}
-                          onChange={(e) => setExpansionTradersPath(e.target.value)}
-                          placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\Traders"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion Market Path</label>
-                        <Input
-                          type="text"
-                          value={expansionMarketPath}
-                          onChange={(e) => setExpansionMarketPath(e.target.value)}
-                          placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\Market"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-surface-600 mb-2">Expansion ATM Path</label>
-                        <Input
-                          type="text"
-                          value={expansionAtmPath}
-                          onChange={(e) => setExpansionAtmPath(e.target.value)}
-                          placeholder="C:\\DayZServer\\Server1\\ExpansionMod\\ATM"
-                        />
-                      </div>
-                    </div>
+                    renderExpansionAutoDetect()
                   )}
                 </div>
               )}

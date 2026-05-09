@@ -4,7 +4,7 @@ import {
   CheckCircle, XCircle, Clock, ChevronLeft, Activity, Search,
   MapPin, Heart, Droplets, Zap, Wifi, WifiOff, X, ArrowDown, ArrowUp,
   DollarSign, Skull, LogIn, LogOut, UserPlus, RotateCw, Backpack, PackagePlus,
-  PackageMinus, ShieldPlus, Banknote
+  PackageMinus, ShieldPlus, Banknote, Crosshair
 } from 'lucide-react';
 import L from 'leaflet';
 import { MapContainer, CircleMarker, useMap } from 'react-leaflet';
@@ -13,6 +13,8 @@ import { Card, Button, Badge, Input, Select } from '../ui';
 import { InventoryTree } from './InventoryTree';
 import { flattenInventory } from './inventoryUtils';
 import { PlayerBankPanel } from './PlayerBankPanel';
+import { PlayerCombatHeatmap } from './PlayerCombatHeatmap';
+import { getCombatReviewCount } from './playerCombatUtils';
 import { getDashboard, refreshDashboard, getPlayer, createGrant, getGrantResults, getOnlinePlayers, getPlayerTrades, searchItems, getCategories, deleteItemFromPlayer } from '../../services/api';
 import type { DashboardResponse, PlayerData, GrantResult, OnlinePlayerData, PlayerEvent, TradeLog, Item, CategoriesResponse } from '../../types';
 import { MapImageLayer } from '../../maps/MapImageLayer';
@@ -255,7 +257,7 @@ interface PlayerSummary {
   onlineData?: OnlinePlayerData;
 }
 
-type TabType = 'inventory' | 'events' | 'life' | 'trades' | 'bank' | 'grant';
+type TabType = 'inventory' | 'events' | 'life' | 'combat' | 'trades' | 'bank' | 'grant';
 
 export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
@@ -634,11 +636,13 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
     const selectedOnlineData = onlinePlayers.find(p => p.playerId === selectedPlayerId);
     const isOnline = selectedOnlineData?.isOnline || false;
     const playerBiId = invData?.biId || selectedOnlineData?.biId || playerDetails.online?.biId || '';
+    const combatCount = getCombatReviewCount(selectedPlayerId, dashboard?.players);
 
     const tabs: { id: TabType; label: string; icon: React.ReactNode; count?: number }[] = [
       { id: 'inventory', label: 'Inventory', icon: <Package size={16} />, count: totalItems },
       { id: 'events', label: 'Item Events', icon: <Backpack size={16} />, count: itemEvents.length },
       { id: 'life', label: 'Life Events', icon: <Skull size={16} />, count: lifeEvents.length },
+      { id: 'combat', label: 'Combat', icon: <Crosshair size={16} />, count: combatCount },
       { id: 'trades', label: 'Trades', icon: <ArrowDown size={16} />, count: trades.length },
       { id: 'bank', label: 'Bank', icon: <Banknote size={16} /> },
       { id: 'grant', label: 'Grant Items', icon: <Gift size={16} /> },
@@ -993,6 +997,17 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({ isConnected }) => 
                 </div>
               )}
             </div>
+          )}
+
+          {/* Combat Tab */}
+          {activeTab === 'combat' && (
+            <PlayerCombatHeatmap
+              playerId={selectedPlayerId}
+              playerName={playerName}
+              playerEvents={itemEvents}
+              playerLifeEvents={lifeEvents}
+              allPlayers={dashboard?.players}
+            />
           )}
 
           {/* Trades Tab */}

@@ -3,7 +3,7 @@ import {
   Server, Plus, Trash2, Edit2, Check, X, 
   ExternalLink, Key, Globe, Clock, Save, RefreshCw, SlidersHorizontal, Map as MapIcon,
   Package, Copy, FolderOpen, ChevronRight, File, Folder, HardDrive, Database,
-  Shield, Plug
+  Shield, Plug, LifeBuoy
 } from 'lucide-react';
 import { Button, Card, Badge } from '../ui';
 import {
@@ -141,12 +141,10 @@ const ENV_GROUPS: EnvGroup[] = [
     description: 'Mission files and DayZ Expansion configuration folders.',
     icon: <FolderOpen size={16} />,
     fields: [
+      { key: 'PROFILES_PATH', label: 'Profiles Path', pathMode: 'folder', description: 'Active DayZ -profiles folder. Expansion folders are auto-detected from ExpansionMod inside this folder.' },
       { key: 'MISSION_PATH', label: 'Mission Files Path', pathMode: 'folder' },
       { key: 'TYPES_PATH', label: 'Main Types.xml Override', pathMode: 'file' },
       { key: 'EXPANSION_ENABLED', label: 'DayZ Expansion', type: 'toggle' },
-      { key: 'EXPANSION_TRADERS_PATH', label: 'Expansion Traders Path', pathMode: 'folder' },
-      { key: 'EXPANSION_MARKET_PATH', label: 'Expansion Market Path', pathMode: 'folder' },
-      { key: 'EXPANSION_ATM_PATH', label: 'Expansion ATM Path', pathMode: 'folder' },
     ],
   },
   {
@@ -170,13 +168,31 @@ const ENV_GROUPS: EnvGroup[] = [
     description: 'Profiles folder, local databases, position tracking, and archive timing.',
     icon: <Clock size={16} />,
     fields: [
-      { key: 'PROFILES_PATH', label: 'Profiles Path', pathMode: 'folder' },
       { key: 'AUTH_DB_PATH', label: 'Auth Database Path', pathMode: 'file' },
       { key: 'DATABASE_PATH', label: 'Position Database Path', pathMode: 'file' },
       { key: 'POSITION_TRACKING_INTERVAL', label: 'Position Interval (ms)', type: 'number' },
       { key: 'ARCHIVE_HOUR', label: 'Archive Hour', type: 'number' },
       { key: 'ARCHIVE_MINUTE', label: 'Archive Minute', type: 'number' },
       { key: 'ARCHIVE_DB_PATH', label: 'Archive Database Path', pathMode: 'file' },
+    ],
+  },
+  {
+    id: 'discord-support',
+    title: 'Discord Support',
+    description: 'Optional ticket bot setup. Users must provide a Steam64 ID when opening a ticket.',
+    icon: <LifeBuoy size={16} />,
+    fields: [
+      { key: 'DISCORD_ENABLED', label: 'Discord Ticket Bot', type: 'toggle' },
+      { key: 'DISCORD_BOT_TOKEN', label: 'Bot Token', type: 'password', description: 'Saved to this server profile .env. Never commit this value.' },
+      { key: 'DISCORD_CLIENT_ID', label: 'Application Client ID', description: 'Application ID from the Discord Developer Portal.' },
+      { key: 'DISCORD_GUILD_ID', label: 'Discord Server ID', description: 'Right-click your Discord server and copy ID.' },
+      { key: 'DISCORD_TICKET_CATEGORY_ID', label: 'Ticket Category ID', description: 'Parent category where private ticket channels are created.' },
+      { key: 'DISCORD_TICKET_PANEL_CHANNEL_ID', label: 'Raise Ticket Channel ID', description: 'Public channel where SST publishes the dropdown ticket panel.' },
+      { key: 'DISCORD_STAFF_ROLE_ID', label: 'Staff Role ID', description: 'Staff role that can see private ticket channels.' },
+      { key: 'DISCORD_LOG_CHANNEL_ID', label: 'Log Channel ID', description: 'Optional channel for future ticket audit posts.' },
+      { key: 'DISCORD_COMMAND_NAME', label: 'Slash Command Name' },
+      { key: 'DISCORD_TICKET_CHANNEL_PREFIX', label: 'Ticket Channel Prefix' },
+      { key: 'DISCORD_TICKET_DB_PATH', label: 'Ticket Database Path', pathMode: 'file' },
     ],
   },
   {
@@ -198,9 +214,53 @@ const ENV_GROUPS: EnvGroup[] = [
 ];
 
 const isToggleOn = (value: string | undefined) => value === '1' || value === 'true';
+const EXPANSION_CHILD_PATH_KEYS = [
+  'EXPANSION_TRADERS_PATH',
+  'EXPANSION_MARKET_PATH',
+  'EXPANSION_ATM_PATH',
+  'EXPANSION_AI_PATH',
+  'EXPANSION_QUESTS_PATH',
+] as const;
+const AUTO_DERIVED_ENV_KEYS = new Set<string>(EXPANSION_CHILD_PATH_KEYS);
+
+const normalizeUiPath = (value: string | undefined) => String(value || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
+
+const joinUiPath = (base: string, ...parts: string[]) => {
+  const cleanBase = normalizeUiPath(base);
+  const cleanParts = parts.map(part => part.replace(/^\/+|\/+$/g, '')).filter(Boolean);
+  return cleanBase ? [cleanBase, ...cleanParts].join('/') : cleanParts.join('/');
+};
 
 const sameApiUrl = (left?: string | null, right?: string | null) => {
   return normalizeApiUrl(left).toLowerCase() === normalizeApiUrl(right).toLowerCase();
+};
+
+const DISCORD_ID_KEYS = new Set([
+  'DISCORD_CLIENT_ID',
+  'DISCORD_GUILD_ID',
+  'DISCORD_TICKET_CATEGORY_ID',
+  'DISCORD_TICKET_PANEL_CHANNEL_ID',
+  'DISCORD_STAFF_ROLE_ID',
+  'DISCORD_LOG_CHANNEL_ID',
+]);
+
+const DISCORD_REQUIRED_KEYS = [
+  'DISCORD_ENABLED',
+  'DISCORD_BOT_TOKEN',
+  'DISCORD_CLIENT_ID',
+  'DISCORD_GUILD_ID',
+  'DISCORD_TICKET_CATEGORY_ID',
+  'DISCORD_TICKET_PANEL_CHANNEL_ID',
+];
+
+const extractDiscordId = (value: string) => {
+  const matches = String(value || '').match(/\d{16,22}/g);
+  return matches?.[matches.length - 1] || value;
+};
+
+const getApiErrorMessage = (err: unknown, fallback: string) => {
+  const apiError = err as { response?: { data?: { error?: string; details?: string } }; message?: string };
+  return apiError.response?.data?.details || apiError.response?.data?.error || apiError.message || fallback;
 };
 
 const fillMissingEnvValues = (
@@ -211,6 +271,8 @@ const fillMissingEnvValues = (
   let filledCount = 0;
 
   for (const [key, suggestedValue] of Object.entries(suggestions)) {
+    if (AUTO_DERIVED_ENV_KEYS.has(key)) continue;
+
     const currentValue = String(nextValues[key] ?? '').trim();
     const normalizedSuggestion = String(suggestedValue ?? '').trim();
 
@@ -290,7 +352,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
         setConfigMessage(`Auto-filled ${filled.filledCount} unset settings from known server paths. Review them, then Save .env to persist.`);
       }
     } catch (err) {
-      setConfigError(err instanceof Error ? err.message : 'Failed to load server settings');
+      setConfigError(getApiErrorMessage(err, 'Failed to load server settings'));
     } finally {
       setConfigLoading(false);
     }
@@ -404,7 +466,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       setActiveContextKey(getServerContextKey(resolved.server));
       loadServers();
     } catch (err) {
-      setConfigError(err instanceof Error ? err.message : 'Could not switch SST server profile');
+      setConfigError(getApiErrorMessage(err, 'Could not switch SST server profile'));
     }
   };
 
@@ -429,8 +491,25 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
   };
 
   const updateEnvValue = (key: string, value: string) => {
-    setEnvValues(prev => ({ ...prev, [key]: value }));
-    setConfigMessage('');
+    const nextValue = DISCORD_ID_KEYS.has(key) ? extractDiscordId(value.trim()) : value;
+    setEnvValues(prev => {
+      const nextValues = { ...prev, [key]: nextValue };
+
+      if (key === 'PROFILES_PATH') {
+        for (const expansionKey of EXPANSION_CHILD_PATH_KEYS) {
+          nextValues[expansionKey] = '';
+        }
+      }
+
+      return nextValues;
+    });
+    if (key === 'PROFILES_PATH') {
+      setConfigMessage('Expansion folders will be auto-detected from the selected Profiles Path after saving.');
+    } else if (DISCORD_ID_KEYS.has(key) && nextValue !== value.trim()) {
+      setConfigMessage('Extracted the numeric Discord ID from the pasted link.');
+    } else {
+      setConfigMessage('');
+    }
     setConfigError('');
   };
 
@@ -500,7 +579,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
       loadServers();
       setConfigMessage(result.message || 'Settings saved.');
     } catch (err) {
-      setConfigError(err instanceof Error ? err.message : 'Failed to save server settings');
+      setConfigError(getApiErrorMessage(err, 'Failed to save server settings'));
     } finally {
       setConfigSaving(false);
     }
@@ -638,6 +717,228 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
     }
 
     setPathBrowser(null);
+  };
+
+  const resetExpansionPathsToAuto = () => {
+    setEnvValues(prev => {
+      const nextValues = { ...prev };
+      for (const key of EXPANSION_CHILD_PATH_KEYS) {
+        nextValues[key] = '';
+      }
+      return nextValues;
+    });
+    setConfigError('');
+    setConfigMessage('Expansion folder overrides cleared. Save .env and restart to use Profiles Path auto-detection.');
+  };
+
+  const renderExpansionAutoPaths = () => {
+    const profilesPath = normalizeUiPath(envValues.PROFILES_PATH || envSuggestions.PROFILES_PATH);
+    const expansionBase = profilesPath ? joinUiPath(profilesPath, 'ExpansionMod') : '';
+    const explicitOverrides = EXPANSION_CHILD_PATH_KEYS
+      .map(key => ({ key, value: normalizeUiPath(envValues[key]) }))
+      .filter(item => item.value);
+    const rows = [
+      { key: 'EXPANSION_TRADERS_PATH', label: 'Traders', path: expansionBase ? joinUiPath(expansionBase, 'Traders') : '' },
+      { key: 'EXPANSION_MARKET_PATH', label: 'Market', path: expansionBase ? joinUiPath(expansionBase, 'Market') : '' },
+      { key: 'EXPANSION_ATM_PATH', label: 'ATM', path: expansionBase ? joinUiPath(expansionBase, 'ATM') : '' },
+      { key: 'EXPANSION_AI_PATH', label: 'AI', path: expansionBase ? joinUiPath(expansionBase, 'AI') : '' },
+      { key: 'EXPANSION_QUESTS_PATH', label: 'Quests', path: expansionBase ? joinUiPath(expansionBase, 'Quests') : '' },
+    ];
+
+    return (
+      <div className="lg:col-span-2 rounded-xl border border-primary-200 bg-primary-50 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <FolderOpen size={16} className="text-primary-700" />
+              <h4 className="text-sm font-semibold text-primary-950">Expansion folders auto-detect from Profiles Path</h4>
+              <Badge variant={explicitOverrides.length > 0 ? 'warning' : 'success'}>
+                {explicitOverrides.length > 0 ? 'Stored overrides' : 'Auto'}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-primary-800">
+              Point Profiles Path at the active DayZ profile folder. SST will use the `ExpansionMod` folder inside it for Expansion tools.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={resetExpansionPathsToAuto}
+            disabled={explicitOverrides.length === 0}
+          >
+            Use Profiles Path
+          </Button>
+        </div>
+
+        {profilesPath ? (
+          <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+            {rows.map(row => {
+              const override = explicitOverrides.find(item => item.key === row.key);
+              return (
+                <div key={row.key} className="rounded-lg border border-primary-100 bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-surface-500">{row.label}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      override ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {override ? 'Stored' : 'Auto'}
+                    </span>
+                  </div>
+                  <code className="mt-2 block break-all text-xs text-surface-700">
+                    {override?.value || row.path}
+                  </code>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-dashed border-primary-200 bg-white/60 p-3 text-sm text-primary-800">
+            Choose a Profiles Path to enable automatic Expansion folder detection.
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const discordField = (key: string) => ENV_GROUPS
+    .find(group => group.id === 'discord-support')
+    ?.fields.find(field => field.key === key);
+
+  const renderDiscordTextField = (key: string, options: { required?: boolean; secret?: boolean; placeholder?: string } = {}) => {
+    const field = discordField(key);
+    if (!field) return null;
+
+    const value = envValues[key] ?? '';
+    const isMissing = options.required && !String(value).trim();
+
+    return (
+      <label key={key} className={`block rounded-xl border bg-white p-4 ${
+        isMissing ? 'border-amber-200' : 'border-surface-200'
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <span>
+            <span className="block text-sm font-semibold text-surface-800">{field.label}</span>
+            {field.description && <span className="mt-1 block text-xs leading-relaxed text-surface-500">{field.description}</span>}
+          </span>
+          {options.required && (
+            <Badge variant={isMissing ? 'warning' : 'success'}>
+              {isMissing ? 'Needed' : 'Set'}
+            </Badge>
+          )}
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <input
+            type={options.secret ? 'password' : 'text'}
+            value={value}
+            onChange={(event) => updateEnvValue(key, event.target.value)}
+            placeholder={options.placeholder || (DISCORD_ID_KEYS.has(key) ? 'Paste ID or Discord link' : '')}
+            className="w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-800 outline-none transition-colors focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+          />
+          {field.pathMode && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => openPathBrowser(field)}
+              icon={field.pathMode === 'file' ? <File size={14} /> : <FolderOpen size={14} />}
+              className="shrink-0"
+            >
+              Browse
+            </Button>
+          )}
+        </div>
+        <code className="mt-2 block text-[11px] text-surface-400">{key}</code>
+      </label>
+    );
+  };
+
+  const renderDiscordSupportPanel = () => {
+    const requiredSetCount = DISCORD_REQUIRED_KEYS
+      .filter(key => key === 'DISCORD_ENABLED' ? isToggleOn(envValues[key]) : String(envValues[key] ?? '').trim())
+      .length;
+    const isEnabled = isToggleOn(envValues.DISCORD_ENABLED);
+
+    return (
+      <div className="space-y-5 lg:col-span-2">
+        <div className="rounded-2xl border border-surface-200 bg-surface-50 p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-surface-500">
+                <LifeBuoy size={17} />
+                <span className="text-xs font-semibold uppercase tracking-wide">Ticket bot setup</span>
+              </div>
+              <h4 className="mt-2 text-lg font-semibold text-surface-900">Create private Discord ticket channels from SST</h4>
+              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-surface-600">
+                Fill the required items below. Users will click the public panel in your raise-ticket channel, enter their Steam64 ID, and SST will create a private ticket channel under your ticket category.
+              </p>
+            </div>
+            <div className="rounded-xl border border-surface-200 bg-white px-4 py-3">
+              <div className="text-xs font-medium text-surface-500">Required setup</div>
+              <div className="mt-1 text-2xl font-semibold text-surface-900">{requiredSetCount}/{DISCORD_REQUIRED_KEYS.length}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-surface-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">1. Bot application</div>
+              <div className="mt-1 text-sm text-surface-700">Token and Application ID from the Discord Developer Portal.</div>
+            </div>
+            <div className="rounded-xl border border-surface-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">2. Server IDs</div>
+              <div className="mt-1 text-sm text-surface-700">Server, category, and raise-ticket channel IDs. Pasted links are okay.</div>
+            </div>
+            <div className="rounded-xl border border-surface-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">3. Publish panel</div>
+              <div className="mt-1 text-sm text-surface-700">After saving and restart, use Support Tickets &gt; Publish Panel.</div>
+            </div>
+          </div>
+        </div>
+
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-surface-200 bg-white p-4">
+          <span>
+            <span className="block text-sm font-semibold text-surface-800">Enable Discord ticket bot</span>
+            <span className="mt-1 block text-xs text-surface-500">Leave this off until token, server ID, category, and raise-ticket channel are filled.</span>
+            <code className="mt-1 block text-[11px] text-surface-400">DISCORD_ENABLED</code>
+          </span>
+          <div className="flex items-center gap-3">
+            <Badge variant={isEnabled ? 'success' : 'default'}>{isEnabled ? 'On' : 'Off'}</Badge>
+            <input
+              type="checkbox"
+              checked={isEnabled}
+              onChange={(event) => updateEnvValue('DISCORD_ENABLED', event.target.checked ? '1' : '0')}
+              className="h-4 w-4 rounded border-surface-300"
+            />
+          </div>
+        </label>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {renderDiscordTextField('DISCORD_BOT_TOKEN', { required: true, secret: true, placeholder: 'Paste bot token' })}
+          {renderDiscordTextField('DISCORD_CLIENT_ID', { required: true })}
+          {renderDiscordTextField('DISCORD_GUILD_ID', { required: true, placeholder: 'Discord server ID' })}
+          {renderDiscordTextField('DISCORD_TICKET_CATEGORY_ID', { required: true, placeholder: 'Parent category ID for ticket-0001 channels' })}
+          {renderDiscordTextField('DISCORD_TICKET_PANEL_CHANNEL_ID', { required: true, placeholder: '#raise-ticket channel ID' })}
+          {renderDiscordTextField('DISCORD_STAFF_ROLE_ID', { placeholder: 'Staff role ID' })}
+        </div>
+
+        <div className="rounded-2xl border border-surface-200 bg-white p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-semibold text-surface-900">Advanced defaults</h4>
+              <p className="mt-1 text-sm text-surface-500">These can usually stay as-is.</p>
+            </div>
+            <Badge variant="default">Optional</Badge>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {renderDiscordTextField('DISCORD_COMMAND_NAME', { placeholder: 'ticket' })}
+            {renderDiscordTextField('DISCORD_TICKET_CHANNEL_PREFIX', { placeholder: 'ticket' })}
+            {renderDiscordTextField('DISCORD_LOG_CHANNEL_ID', { placeholder: 'Optional log channel ID' })}
+            {renderDiscordTextField('DISCORD_TICKET_DB_PATH', { placeholder: 'Leave blank for SST default' })}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderEnvField = (field: EnvField) => {
@@ -905,6 +1206,9 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
   const totalFieldCount = ENV_GROUPS.reduce((total, group) => total + group.fields.length, 0);
   const configuredCountForGroup = (group: EnvGroup) => group.fields
     .filter(field => String(envValues[field.key] ?? '').trim()).length;
+  const discordRequiredCount = DISCORD_REQUIRED_KEYS
+    .filter(key => key === 'DISCORD_ENABLED' ? isToggleOn(envValues[key]) : String(envValues[key] ?? '').trim())
+    .length;
 
   return (
     <div className="space-y-5">
@@ -952,7 +1256,9 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
                 ...ENV_GROUPS.map(group => ({
                   id: group.id,
                   title: group.title,
-                  description: `${configuredCountForGroup(group)}/${group.fields.length} filled`,
+                  description: group.id === 'discord-support'
+                    ? `${discordRequiredCount}/${DISCORD_REQUIRED_KEYS.length} required`
+                    : `${configuredCountForGroup(group)}/${group.fields.length} filled`,
                   icon: group.icon,
                 })),
               ].map(item => (
@@ -1160,9 +1466,12 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({ onServerChange }
                   <Server size={40} className="mb-3 opacity-50" />
                   <p>Select or add a server before editing runtime settings.</p>
                 </div>
+              ) : activeEnvGroup.id === 'discord-support' ? (
+                renderDiscordSupportPanel()
               ) : (
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {activeEnvGroup.fields.map(renderEnvField)}
+                  {activeEnvGroup.id === 'mission-expansion' && renderExpansionAutoPaths()}
                 </div>
               )}
             </Card>

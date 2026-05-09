@@ -40,6 +40,7 @@ import onlineRoutes from "./routes/online.js";
 import aiRoutes from "./routes/ai.js";
 import commandRoutes from "./routes/commands.js";
 import expansionAtmRoutes from "./routes/expansionAtm.js";
+import expansionQuestsRoutes from "./routes/expansionQuests.js";
 import expansionRoutes from "./routes/expansion.js";
 import logsRoutes from "./routes/logs.js";
 import positionsRoutes from "./routes/positions.js";
@@ -47,10 +48,12 @@ import archiveRoutes from "./routes/archive.js";
 import vehiclesRoutes from "./routes/vehicles.js";
 import leaderboardRoutes from "./routes/leaderboard.js";
 import updateRoutes from "./routes/updates.js";
+import discordRoutes from "./routes/discord.js";
 import { normalizeEnvProfileId, readEnvVars, resolveEnvPathForWrite, upsertEnvVar } from "./utils/envFile.js";
 import { buildMapConfig, detectMapPresetFromMissionPath, getBuiltinMaps } from "./utils/mapConfig.js";
 import { getOnlinePlayersSnapshot } from "./utils/onlinePlayers.js";
 import { startModActivityMonitor } from "./utils/modActivityMonitor.js";
+import { startDiscordBots } from "./services/discordBot.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -96,6 +99,8 @@ const CONFIG_ENV_KEYS = [
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
   "EXPANSION_ATM_PATH",
+  "EXPANSION_AI_PATH",
+  "EXPANSION_QUESTS_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "MAP_PRESET",
@@ -112,6 +117,17 @@ const CONFIG_ENV_KEYS = [
   "ARCHIVE_HOUR",
   "ARCHIVE_MINUTE",
   "ARCHIVE_DB_PATH",
+  "DISCORD_ENABLED",
+  "DISCORD_BOT_TOKEN",
+  "DISCORD_CLIENT_ID",
+  "DISCORD_GUILD_ID",
+  "DISCORD_TICKET_CATEGORY_ID",
+  "DISCORD_TICKET_PANEL_CHANNEL_ID",
+  "DISCORD_STAFF_ROLE_ID",
+  "DISCORD_LOG_CHANNEL_ID",
+  "DISCORD_COMMAND_NAME",
+  "DISCORD_TICKET_CHANNEL_PREFIX",
+  "DISCORD_TICKET_DB_PATH",
 ];
 
 const CONFIG_ENV_KEY_SET = new Set(CONFIG_ENV_KEYS);
@@ -142,6 +158,8 @@ const PROFILE_SCOPED_ENV_KEYS = new Set([
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
   "EXPANSION_ATM_PATH",
+  "EXPANSION_AI_PATH",
+  "EXPANSION_QUESTS_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "MAP_PRESET",
@@ -155,6 +173,17 @@ const PROFILE_SCOPED_ENV_KEYS = new Set([
   "DATABASE_PATH",
   "POSITION_TRACKING_INTERVAL",
   "ARCHIVE_DB_PATH",
+  "DISCORD_ENABLED",
+  "DISCORD_BOT_TOKEN",
+  "DISCORD_CLIENT_ID",
+  "DISCORD_GUILD_ID",
+  "DISCORD_TICKET_CATEGORY_ID",
+  "DISCORD_TICKET_PANEL_CHANNEL_ID",
+  "DISCORD_STAFF_ROLE_ID",
+  "DISCORD_LOG_CHANNEL_ID",
+  "DISCORD_COMMAND_NAME",
+  "DISCORD_TICKET_CHANNEL_PREFIX",
+  "DISCORD_TICKET_DB_PATH",
 ]);
 const PATH_ENV_KEYS = new Set([
   "SST_API_PROVIDER_CONFIG",
@@ -171,12 +200,15 @@ const PATH_ENV_KEYS = new Set([
   "EXPANSION_TRADERS_PATH",
   "EXPANSION_MARKET_PATH",
   "EXPANSION_ATM_PATH",
+  "EXPANSION_AI_PATH",
+  "EXPANSION_QUESTS_PATH",
   "MISSION_PATH",
   "TYPES_PATH",
   "PROFILES_PATH",
   "AUTH_DB_PATH",
   "DATABASE_PATH",
   "ARCHIVE_DB_PATH",
+  "DISCORD_TICKET_DB_PATH",
 ]);
 
 const NUMBER_ENV_KEYS = new Set([
@@ -190,6 +222,15 @@ const NUMBER_ENV_KEYS = new Set([
   "ARCHIVE_MINUTE",
   "MAP_WORLD_SIZE_X",
   "MAP_WORLD_SIZE_Z",
+]);
+
+const DISCORD_ID_ENV_KEYS = new Set([
+  "DISCORD_CLIENT_ID",
+  "DISCORD_GUILD_ID",
+  "DISCORD_TICKET_CATEGORY_ID",
+  "DISCORD_TICKET_PANEL_CHANNEL_ID",
+  "DISCORD_STAFF_ROLE_ID",
+  "DISCORD_LOG_CHANNEL_ID",
 ]);
 
 function normalizeConfigPath(value) {
@@ -213,6 +254,18 @@ function dirnameConfigPath(value) {
   const idx = normalized.lastIndexOf("/");
   if (idx <= 0) return normalized.startsWith("/") ? "/" : "";
   return normalized.slice(0, idx);
+}
+
+function safeConfigFileToken(value) {
+  return String(value || "default").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "default";
+}
+
+function normalizeDiscordId(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  const matches = text.match(/\d{16,22}/g);
+  return matches?.[matches.length - 1] || text;
 }
 
 function pathExists(value) {
@@ -255,6 +308,9 @@ function buildConfigSuggestions(env) {
     ARCHIVE_MINUTE: "0",
     MAP_INVERT_X: "0",
     MAP_INVERT_Z: "0",
+    DISCORD_ENABLED: "0",
+    DISCORD_COMMAND_NAME: "ticket",
+    DISCORD_TICKET_CHANNEL_PREFIX: "ticket",
   };
 
   const sstPath = normalizeConfigPath(env.SST_PATH || paths.sst);
@@ -307,14 +363,19 @@ function buildConfigSuggestions(env) {
   }
 
   const expansionBase = (() => {
+    if (profilesPath) return joinConfigPath(profilesPath, "ExpansionMod");
+
     const expansionAtmPath = normalizeConfigPath(env.EXPANSION_ATM_PATH);
     const expansionTradersPath = normalizeConfigPath(env.EXPANSION_TRADERS_PATH);
     const expansionMarketPath = normalizeConfigPath(env.EXPANSION_MARKET_PATH);
+    const expansionAiPath = normalizeConfigPath(env.EXPANSION_AI_PATH);
+    const expansionQuestsPath = normalizeConfigPath(env.EXPANSION_QUESTS_PATH);
 
     if (expansionAtmPath) return dirnameConfigPath(expansionAtmPath);
     if (expansionTradersPath) return dirnameConfigPath(expansionTradersPath);
     if (expansionMarketPath) return dirnameConfigPath(expansionMarketPath);
-    if (profilesPath) return joinConfigPath(profilesPath, "ExpansionMod");
+    if (expansionAiPath) return dirnameConfigPath(expansionAiPath);
+    if (expansionQuestsPath) return dirnameConfigPath(expansionQuestsPath);
     if (serverRoot) {
       return firstExistingPath([
         joinConfigPath(serverRoot, "Server1", "ExpansionMod"),
@@ -325,9 +386,21 @@ function buildConfigSuggestions(env) {
     return "";
   })();
 
-  const expansionTraders = normalizeConfigPath(env.EXPANSION_TRADERS_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Traders") : "");
-  const expansionMarket = normalizeConfigPath(env.EXPANSION_MARKET_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Market") : "");
-  const expansionAtm = normalizeConfigPath(env.EXPANSION_ATM_PATH) || (expansionBase ? joinConfigPath(expansionBase, "ATM") : "");
+  const expansionTraders = profilesPath && expansionBase
+    ? joinConfigPath(expansionBase, "Traders")
+    : normalizeConfigPath(env.EXPANSION_TRADERS_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Traders") : "");
+  const expansionMarket = profilesPath && expansionBase
+    ? joinConfigPath(expansionBase, "Market")
+    : normalizeConfigPath(env.EXPANSION_MARKET_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Market") : "");
+  const expansionAtm = profilesPath && expansionBase
+    ? joinConfigPath(expansionBase, "ATM")
+    : normalizeConfigPath(env.EXPANSION_ATM_PATH) || (expansionBase ? joinConfigPath(expansionBase, "ATM") : "");
+  const expansionAi = profilesPath && expansionBase
+    ? joinConfigPath(expansionBase, "AI")
+    : normalizeConfigPath(env.EXPANSION_AI_PATH) || (expansionBase ? joinConfigPath(expansionBase, "AI") : "");
+  const expansionQuests = profilesPath && expansionBase
+    ? joinConfigPath(expansionBase, "Quests")
+    : normalizeConfigPath(env.EXPANSION_QUESTS_PATH) || (expansionBase ? joinConfigPath(expansionBase, "Quests") : "");
   if (expansionTraders) {
     addSuggestion(suggestions, "EXPANSION_TRADERS_PATH", expansionTraders);
   }
@@ -337,14 +410,24 @@ function buildConfigSuggestions(env) {
   if (expansionAtm) {
     addSuggestion(suggestions, "EXPANSION_ATM_PATH", expansionAtm);
   }
+  if (expansionAi) {
+    addSuggestion(suggestions, "EXPANSION_AI_PATH", expansionAi);
+  }
+  if (expansionQuests) {
+    addSuggestion(suggestions, "EXPANSION_QUESTS_PATH", expansionQuests);
+  }
 
-  suggestions.EXPANSION_ENABLED = env.EXPANSION_ENABLED || (pathExists(expansionTraders) || pathExists(expansionMarket) || pathExists(expansionAtm) ? "1" : "0");
+  suggestions.EXPANSION_ENABLED = env.EXPANSION_ENABLED || (pathExists(expansionTraders) || pathExists(expansionMarket) || pathExists(expansionAtm) || pathExists(expansionAi) || pathExists(expansionQuests) ? "1" : "0");
 
   if (!env.ARCHIVE_DB_PATH) {
     addSuggestion(suggestions, "ARCHIVE_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", "archive.db")));
   }
   if (!env.AUTH_DB_PATH) {
     addSuggestion(suggestions, "AUTH_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", "auth.db")));
+  }
+  if (!env.DISCORD_TICKET_DB_PATH) {
+    const profileToken = safeConfigFileToken(env.SST_PROFILE_ID || env.HOST_PROVIDER || getRuntimeContext().id || "default");
+    addSuggestion(suggestions, "DISCORD_TICKET_DB_PATH", normalizeConfigPath(join(__dirname, "..", "data", `discord_tickets_${profileToken}.db`)));
   }
 
   return suggestions;
@@ -371,6 +454,13 @@ function normalizeEnvSetting(key, value) {
 
   if (NUMBER_ENV_KEYS.has(key) && normalized && !/^\d+$/.test(normalized)) {
     throw new Error(`${key} must be a whole number.`);
+  }
+
+  if (DISCORD_ID_ENV_KEYS.has(key)) {
+    normalized = normalizeDiscordId(normalized);
+    if (normalized && !/^\d{16,22}$/.test(normalized)) {
+      throw new Error(`${key} must be a Discord numeric ID. Right-click in Discord and use Copy ID, or paste a Discord link.`);
+    }
   }
 
   if (PATH_ENV_KEYS.has(key)) {
@@ -778,13 +868,16 @@ app.get("/config", requireApiKey, requireAuth, requireAdmin, (req, res) => {
       expansionTraders: features.expansionEnabled ? paths.expansionTraders : null,
       expansionMarket: features.expansionEnabled ? paths.expansionMarket : null,
       expansionAtm: features.expansionEnabled ? paths.expansionAtm : null,
+      expansionAi: features.expansionEnabled ? paths.expansionAi : null,
       missionFolder: paths.missionFolder,
       typesXml: paths.typesXml || `${paths.missionFolder}/db/types.xml`,
       profiles: paths.profiles,
       database: paths.database,
+      discordTickets: paths.discordTickets,
     },
     features: {
       expansionEnabled: features.expansionEnabled,
+      discordEnabled: features.discordEnabled,
     },
     checks: {
       onlinePlayers: { path: paths.onlinePlayers, ok: false, stat: null, error: null },
@@ -989,6 +1082,7 @@ app.use("/online", requireAuth, requireApiKey, onlineRoutes);
 app.use("/ai", requireAuth, requireApiKey, aiRoutes);
 app.use("/commands", requireAuth, requireApiKey, commandRoutes);
 app.use("/expansion/atm", requireAuth, requireApiKey, expansionAtmRoutes);
+app.use("/expansion/quests", requireAuth, requireApiKey, requireAdmin, expansionQuestsRoutes);
 app.use("/expansion", requireAuth, requireApiKey, expansionRoutes);
 app.use("/logs", requireAuth, requireApiKey, logsRoutes);
 app.use("/positions", requireAuth, requireApiKey, positionsRoutes);
@@ -996,6 +1090,7 @@ app.use("/archive", requireAuth, requireApiKey, archiveRoutes);
 app.use("/vehicles", requireAuth, requireApiKey, vehiclesRoutes);
 app.use("/leaderboard", requireAuth, requireApiKey, leaderboardRoutes);
 app.use("/updates", requireAuth, requireApiKey, requireAdmin, updateRoutes);
+app.use("/discord", requireAuth, requireApiKey, requireAdmin, discordRoutes);
 
 // SPA fallback: serve index.html for any non-API routes (client-side routing)
 if (existsSync(webDistPath)) {
@@ -1077,6 +1172,7 @@ async function startServer() {
     // Initialize archive database
     initArchiveDb();
     startModActivityMonitor();
+    await startDiscordBots();
     
     // Schedule daily archive at 4:00 AM (configurable via env)
     const archiveHour = parseInt(process.env.ARCHIVE_HOUR) || 4;

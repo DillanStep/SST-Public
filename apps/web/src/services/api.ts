@@ -24,6 +24,7 @@ import type {
   OnlinePlayerData,
   PlayerLocationsResponse,
   AIPositionsResponse,
+  AIAnalysisResponse,
   HealRequest,
   TeleportRequest,
   MessageRequest,
@@ -85,6 +86,19 @@ import type {
   PlayerLeaderboardResponse,
   SstModCopyResponse,
   SstModInfoResponse,
+  DiscordTicketActionResponse,
+  DiscordTicketDetailResponse,
+  DiscordTicketPanelResponse,
+  DiscordTicketsResponse,
+  ExpansionQuestConfig,
+  ExpansionQuestDetailResponse,
+  ExpansionQuestListResponse,
+  ExpansionQuestNpcConfig,
+  ExpansionQuestNpcDetailResponse,
+  ExpansionQuestObjectiveConfig,
+  ExpansionQuestObjectiveDetailResponse,
+  ExpansionQuestSaveResponse,
+  ExpansionQuestTemplatesResponse,
 } from '../types';
 import { getActiveServer, getServers, migrateOldConfig } from './serverManager';
 import { getAuthToken } from './auth';
@@ -396,6 +410,11 @@ class SstApi {
     return response.data;
   }
 
+  async getAIAnalysis(): Promise<AIAnalysisResponse> {
+    const response = await this.client.get<AIAnalysisResponse>('/ai/analysis');
+    return response.data;
+  }
+
   // Player Commands (heal, teleport)
   async healPlayer(request: HealRequest): Promise<CommandResponse> {
     const response = await this.client.post<CommandResponse>('/commands/heal', request);
@@ -553,6 +572,76 @@ class SstApi {
     return response.data;
   }
 
+  async getExpansionQuests(): Promise<ExpansionQuestListResponse> {
+    const response = await this.client.get<ExpansionQuestListResponse>('/expansion/quests');
+    return response.data;
+  }
+
+  async getExpansionQuestTemplates(): Promise<ExpansionQuestTemplatesResponse> {
+    const response = await this.client.get<ExpansionQuestTemplatesResponse>('/expansion/quests/templates');
+    return response.data;
+  }
+
+  async getExpansionQuest(fileName: string): Promise<ExpansionQuestDetailResponse> {
+    const response = await this.client.get<ExpansionQuestDetailResponse>(`/expansion/quests/quest/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
+  async createExpansionQuest(quest: ExpansionQuestConfig, fileName?: string): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.post<ExpansionQuestSaveResponse>('/expansion/quests/quest', { quest, fileName });
+    return response.data;
+  }
+
+  async saveExpansionQuest(fileName: string, quest: ExpansionQuestConfig): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.put<ExpansionQuestSaveResponse>(`/expansion/quests/quest/${encodeURIComponent(fileName)}`, { quest });
+    return response.data;
+  }
+
+  async deleteExpansionQuest(fileName: string): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.delete<ExpansionQuestSaveResponse>(`/expansion/quests/quest/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
+  async getExpansionQuestObjective(type: number, fileName: string): Promise<ExpansionQuestObjectiveDetailResponse> {
+    const response = await this.client.get<ExpansionQuestObjectiveDetailResponse>(`/expansion/quests/objective/${type}/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
+  async createExpansionQuestObjective(objective: ExpansionQuestObjectiveConfig, fileName?: string): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.post<ExpansionQuestSaveResponse>('/expansion/quests/objective', { objective, fileName });
+    return response.data;
+  }
+
+  async saveExpansionQuestObjective(type: number, fileName: string, objective: ExpansionQuestObjectiveConfig): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.put<ExpansionQuestSaveResponse>(`/expansion/quests/objective/${type}/${encodeURIComponent(fileName)}`, { objective });
+    return response.data;
+  }
+
+  async deleteExpansionQuestObjective(type: number, fileName: string): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.delete<ExpansionQuestSaveResponse>(`/expansion/quests/objective/${type}/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
+  async getExpansionQuestNpc(fileName: string): Promise<ExpansionQuestNpcDetailResponse> {
+    const response = await this.client.get<ExpansionQuestNpcDetailResponse>(`/expansion/quests/npc/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
+  async createExpansionQuestNpc(npc: ExpansionQuestNpcConfig, fileName?: string): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.post<ExpansionQuestSaveResponse>('/expansion/quests/npc', { npc, fileName });
+    return response.data;
+  }
+
+  async saveExpansionQuestNpc(fileName: string, npc: ExpansionQuestNpcConfig): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.put<ExpansionQuestSaveResponse>(`/expansion/quests/npc/${encodeURIComponent(fileName)}`, { npc });
+    return response.data;
+  }
+
+  async deleteExpansionQuestNpc(fileName: string): Promise<ExpansionQuestSaveResponse> {
+    const response = await this.client.delete<ExpansionQuestSaveResponse>(`/expansion/quests/npc/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
   // ============================================================================
   // Server Logs API
   // ============================================================================
@@ -678,6 +767,45 @@ class SstApi {
     const response = await this.client.get<KeyResultsResponse>('/vehicles/key-results/all');
     return response.data;
   }
+
+  // ============================================================================
+  // Discord Support Tickets
+  // ============================================================================
+
+  async getDiscordStatus(): Promise<Pick<DiscordTicketsResponse, 'bot' | 'stats'>> {
+    const response = await this.client.get<Pick<DiscordTicketsResponse, 'bot' | 'stats'>>('/discord/status');
+    return response.data;
+  }
+
+  async getDiscordTickets(params?: { status?: 'open' | 'closed' | 'all'; limit?: number }): Promise<DiscordTicketsResponse> {
+    const response = await this.client.get<DiscordTicketsResponse>('/discord/tickets', { params });
+    return response.data;
+  }
+
+  async getDiscordTicket(ticketId: number | string): Promise<DiscordTicketDetailResponse> {
+    const response = await this.client.get<DiscordTicketDetailResponse>(`/discord/tickets/${ticketId}`);
+    return response.data;
+  }
+
+  async replyDiscordTicket(ticketId: number | string, message: string): Promise<DiscordTicketActionResponse> {
+    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${ticketId}/reply`, { message });
+    return response.data;
+  }
+
+  async claimDiscordTicket(ticketId: number | string): Promise<DiscordTicketActionResponse> {
+    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${ticketId}/claim`);
+    return response.data;
+  }
+
+  async closeDiscordTicket(ticketId: number | string, reason: string): Promise<DiscordTicketActionResponse> {
+    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${ticketId}/close`, { reason });
+    return response.data;
+  }
+
+  async publishDiscordTicketPanel(channelId?: string): Promise<DiscordTicketPanelResponse> {
+    const response = await this.client.post<DiscordTicketPanelResponse>('/discord/panel/publish', { channelId });
+    return response.data;
+  }
 }
 
 // Export singleton instance
@@ -719,6 +847,7 @@ export const getActiveOnlinePlayers = () => api.getActiveOnlinePlayers();
 export const getPlayerOnlineStatus = (playerId: string) => api.getPlayerOnlineStatus(playerId);
 export const getAllPlayerLocations = () => api.getAllPlayerLocations();
 export const getAIPositions = () => api.getAIPositions();
+export const getAIAnalysis = () => api.getAIAnalysis();
 export const healPlayer = (request: HealRequest) => api.healPlayer(request);
 export const teleportPlayer = (request: TeleportRequest) => api.teleportPlayer(request);
 export const getCommandResults = () => api.getCommandResults();
@@ -748,6 +877,20 @@ export const reloadExpansionAtmBalances = () => api.reloadExpansionAtmBalances()
 export const getExpansionAtmResults = () => api.getExpansionAtmResults();
 export const getExpansionAtmHistory = (playerId?: string) => api.getExpansionAtmHistory(playerId);
 export const getExpansionData = () => api.getExpansionData();
+export const getExpansionQuests = () => api.getExpansionQuests();
+export const getExpansionQuestTemplates = () => api.getExpansionQuestTemplates();
+export const getExpansionQuest = (fileName: string) => api.getExpansionQuest(fileName);
+export const createExpansionQuest = (quest: ExpansionQuestConfig, fileName?: string) => api.createExpansionQuest(quest, fileName);
+export const saveExpansionQuest = (fileName: string, quest: ExpansionQuestConfig) => api.saveExpansionQuest(fileName, quest);
+export const deleteExpansionQuest = (fileName: string) => api.deleteExpansionQuest(fileName);
+export const getExpansionQuestObjective = (type: number, fileName: string) => api.getExpansionQuestObjective(type, fileName);
+export const createExpansionQuestObjective = (objective: ExpansionQuestObjectiveConfig, fileName?: string) => api.createExpansionQuestObjective(objective, fileName);
+export const saveExpansionQuestObjective = (type: number, fileName: string, objective: ExpansionQuestObjectiveConfig) => api.saveExpansionQuestObjective(type, fileName, objective);
+export const deleteExpansionQuestObjective = (type: number, fileName: string) => api.deleteExpansionQuestObjective(type, fileName);
+export const getExpansionQuestNpc = (fileName: string) => api.getExpansionQuestNpc(fileName);
+export const createExpansionQuestNpc = (npc: ExpansionQuestNpcConfig, fileName?: string) => api.createExpansionQuestNpc(npc, fileName);
+export const saveExpansionQuestNpc = (fileName: string, npc: ExpansionQuestNpcConfig) => api.saveExpansionQuestNpc(fileName, npc);
+export const deleteExpansionQuestNpc = (fileName: string) => api.deleteExpansionQuestNpc(fileName);
 
 // Logs exports
 export const getLogSummary = () => api.getLogSummary();
@@ -775,6 +918,15 @@ export const generateVehicleKey = (request: KeyGenerationRequest) => api.generat
 export const deleteVehicle = (vehicleId: string) => api.deleteVehicle(vehicleId);
 export const getDeleteResults = () => api.getDeleteResults();
 export const getKeyGenerationResults = () => api.getKeyGenerationResults();
+
+// Discord support exports
+export const getDiscordStatus = () => api.getDiscordStatus();
+export const getDiscordTickets = (params?: { status?: 'open' | 'closed' | 'all'; limit?: number }) => api.getDiscordTickets(params);
+export const getDiscordTicket = (ticketId: number | string) => api.getDiscordTicket(ticketId);
+export const replyDiscordTicket = (ticketId: number | string, message: string) => api.replyDiscordTicket(ticketId, message);
+export const claimDiscordTicket = (ticketId: number | string) => api.claimDiscordTicket(ticketId);
+export const closeDiscordTicket = (ticketId: number | string, reason: string) => api.closeDiscordTicket(ticketId, reason);
+export const publishDiscordTicketPanel = (channelId?: string) => api.publishDiscordTicketPanel(channelId);
 
 // Item delete exports
 export const deleteItemFromPlayer = (playerId: string, request: Omit<ItemDeleteRequest, 'playerId'>) => api.deleteItemFromPlayer(playerId, request);

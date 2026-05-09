@@ -5,6 +5,18 @@ All notable changes to SST Dashboard will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12] - 2026-05-09
+
+### Added
+- Added Support Tickets for publishing the Discord ticket panel, claiming, replying, closing, and reviewing linked player context.
+- Added AI Analysis with a Live Map-style layout for visualising AI patrols, events, and configuration risk.
+- Added Quest Designer for DayZ Expansion with browser-based create, edit, delete, and interactive map plotting.
+- Added player combat heatmap tools for reviewing hit-zone patterns.
+
+### Changed
+- Improved Settings for Discord setup and Expansion folder auto-detection, including the Quests folder.
+- Cleaned release placeholders and local path examples for public GitHub publishing.
+
 ## [1.0.11] - 2026-05-08
 
 ### Fixed

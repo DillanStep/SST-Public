@@ -1,4 +1,5 @@
 import express from "express";
+import { getAIAnalysis } from "../utils/aiAnalysis.js";
 import { aiSnapshotMetadata, getAiPositionsSnapshot } from "../utils/aiPositions.js";
 
 const router = express.Router();
@@ -68,6 +69,14 @@ router.get("/positions/all", async (req, res) => {
     res.json(await getTransformedSnapshot());
   } catch (error) {
     res.status(500).json({ error: "Failed to read AI positions", details: error.message });
+  }
+});
+
+router.get("/analysis", async (req, res) => {
+  try {
+    res.json(await getAIAnalysis());
+  } catch (error) {
+    res.status(500).json({ error: "Failed to analyse AI settings", details: error.message });
   }
 });
 

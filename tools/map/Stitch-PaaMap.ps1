@@ -27,7 +27,6 @@ function Resolve-ConverterPath {
 
     $candidates = @(@(
         (Join-Path ${env:ProgramFiles(x86)} "Steam\steamapps\common\DayZ Tools\Bin\ImageToPAA\ImageToPAA.exe"),
-        "D:\SteamLibrary\steamapps\common\DayZ Tools\Bin\ImageToPAA\ImageToPAA.exe",
         "C:\Program Files (x86)\Steam\steamapps\common\DayZ Tools\Bin\ImageToPAA\ImageToPAA.exe"
     ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) })
 
