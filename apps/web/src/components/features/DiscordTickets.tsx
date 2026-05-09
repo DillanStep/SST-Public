@@ -37,7 +37,19 @@ const statusVariant = (status: DiscordBotStatus['status']) => {
   return 'default';
 };
 
-const ticketStatusVariant = (status: DiscordTicket['status']) => status === 'open' ? 'success' : 'default';
+const isOpenTicket = (status?: DiscordTicket['status']) => status === 'open' || status === 'in_progress';
+
+const formatTicketStatus = (status: DiscordTicket['status']) => {
+  if (status === 'in_progress') return 'in progress';
+  return status;
+};
+
+const ticketStatusVariant = (status: DiscordTicket['status']) => {
+  if (status === 'open') return 'success';
+  if (status === 'in_progress') return 'warning';
+  if (status === 'resolved') return 'info';
+  return 'default';
+};
 
 const formatDateTime = (value?: string) => {
   if (!value) return 'Never';
@@ -93,7 +105,7 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
   const [stats, setStats] = useState<DiscordTicketStats>({ total: 0, open: 0, closed: 0 });
   const [bot, setBot] = useState<DiscordBotStatus | null>(null);
   const [panel, setPanel] = useState<DiscordTicketPanel | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<DiscordTicket['id'] | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<DiscordTicket | null>(null);
   const [messages, setMessages] = useState<DiscordTicketMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -104,7 +116,7 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
   const [closeReason, setCloseReason] = useState('');
   const [search, setSearch] = useState('');
 
-  const selectedTicketId = selectedTicket?.id || selectedId;
+  const selectedTicketId = selectedTicket?.id ?? selectedId;
 
   const loadTickets = useCallback(async () => {
     if (!isConnected) return;
@@ -127,13 +139,13 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
         setSelectedId(response.tickets?.[0]?.id || null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load Discord tickets');
+      setError(err instanceof Error ? err.message : 'Failed to load support tickets');
     } finally {
       setLoading(false);
     }
   }, [filter, isConnected, selectedId]);
 
-  const loadTicket = useCallback(async (ticketId: number) => {
+  const loadTicket = useCallback(async (ticketId: DiscordTicket['id']) => {
     setDetailLoading(true);
     setError('');
 
@@ -173,6 +185,9 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
         ticket.playerName,
         ticket.discordUsername,
         ticket.playerMatch?.playerName,
+        ticket.externalId,
+        ticket.sourceLabel,
+        ticket.body,
       ].some((value) => String(value || '').toLowerCase().includes(query));
     });
   }, [search, tickets]);
@@ -256,7 +271,7 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
       <Card>
         <div className="py-16 text-center">
           <LifeBuoy size={44} className="mx-auto mb-4 text-surface-300" />
-          <p className="text-surface-500">Connect to the API to manage Discord support tickets.</p>
+          <p className="text-surface-500">Connect to the API to manage support tickets.</p>
         </div>
       </Card>
     );
@@ -281,7 +296,7 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
   return (
     <div className="space-y-5">
       <Card
-        title="Discord Support"
+        title="Support Tickets"
         icon={<LifeBuoy size={18} />}
         actions={
           <>
@@ -318,10 +333,20 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
           <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
             <div className="text-sm font-medium text-surface-600">Open Tickets</div>
             <div className="mt-2 text-2xl font-semibold text-surface-900">{stats.open}</div>
+            {stats.sources && (
+              <div className="mt-1 text-xs text-surface-500">
+                Discord {stats.sources.discord.open} · In-game {stats.sources.game.open}
+              </div>
+            )}
           </div>
           <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
             <div className="text-sm font-medium text-surface-600">Closed Tickets</div>
             <div className="mt-2 text-2xl font-semibold text-surface-900">{stats.closed}</div>
+            {stats.sources && (
+              <div className="mt-1 text-xs text-surface-500">
+                Discord {stats.sources.discord.closed} · In-game {stats.sources.game.closed}
+              </div>
+            )}
           </div>
           <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
             <div className="text-sm font-medium text-surface-600">Raise Ticket Panel</div>
@@ -381,7 +406,7 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search Steam ID, player, or Discord user"
+              placeholder="Search Steam ID, player, source, or subject"
               className="w-full rounded-xl border border-surface-200 bg-surface-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-surface-400 focus:bg-white focus:ring-2 focus:ring-surface-200"
             />
           </div>
@@ -415,7 +440,10 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
                     <div className="truncate font-semibold text-surface-900">{ticketTitle(ticket)}</div>
                     <div className="mt-1 truncate font-mono text-xs text-surface-500">{ticket.steamId}</div>
                   </div>
-                  <Badge variant={ticketStatusVariant(ticket.status)}>{ticket.status}</Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant={ticketStatusVariant(ticket.status)}>{formatTicketStatus(ticket.status)}</Badge>
+                    <Badge variant={ticket.source === 'game' ? 'info' : 'default'}>{ticket.sourceLabel || 'Discord'}</Badge>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-3 text-xs text-surface-500">
                   <span className="truncate">{ticket.playerMatch?.playerName || ticket.playerName || ticket.discordUsername || 'Unknown player'}</span>
@@ -440,12 +468,18 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-xl font-semibold text-surface-900">{ticketTitle(selectedTicket)}</h2>
-                    <Badge variant={ticketStatusVariant(selectedTicket.status)}>{selectedTicket.status}</Badge>
+                    <Badge variant={ticketStatusVariant(selectedTicket.status)}>{formatTicketStatus(selectedTicket.status)}</Badge>
+                    <Badge variant={selectedTicket.source === 'game' ? 'info' : 'default'}>{selectedTicket.sourceLabel || 'Discord'}</Badge>
                     {selectedTicket.claimedByName && <Badge variant="info">Claimed by {selectedTicket.claimedByName}</Badge>}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-surface-500">
                     <span className="rounded-lg bg-surface-100 px-2 py-1 font-mono">Steam {selectedTicket.steamId}</span>
-                    <span className="rounded-lg bg-surface-100 px-2 py-1">Discord {selectedTicket.discordUsername || selectedTicket.discordUserId}</span>
+                    {selectedTicket.discordUsername || selectedTicket.discordUserId ? (
+                      <span className="rounded-lg bg-surface-100 px-2 py-1">Discord {selectedTicket.discordUsername || selectedTicket.discordUserId}</span>
+                    ) : null}
+                    {selectedTicket.externalId ? (
+                      <span className="rounded-lg bg-surface-100 px-2 py-1">Ticket {selectedTicket.externalId}</span>
+                    ) : null}
                     <span className="rounded-lg bg-surface-100 px-2 py-1">Created {formatDateTime(selectedTicket.createdAt)}</span>
                   </div>
                 </div>
@@ -484,10 +518,14 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
                   </div>
                 </div>
                 <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">Channel</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-surface-500">
+                    {selectedTicket.source === 'game' ? 'Source' : 'Channel'}
+                  </div>
                   <div className="mt-2 flex items-center gap-2 font-mono text-sm text-surface-900">
                     <ExternalLink size={15} className="text-surface-400" />
-                    {selectedTicket.channelId || 'Pending'}
+                    {selectedTicket.source === 'game'
+                      ? selectedTicket.sourceFile || selectedTicket.externalId || 'In-game ticket'
+                      : selectedTicket.channelId || 'Pending'}
                   </div>
                 </div>
                 <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
@@ -689,10 +727,12 @@ export const DiscordTickets: React.FC<DiscordTicketsProps> = ({ isConnected }) =
                 })}
               </div>
 
-              {selectedTicket.status === 'open' ? (
+              {isOpenTicket(selectedTicket.status) ? (
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-surface-700">Reply to Discord</label>
+                    <label className="text-sm font-medium text-surface-700">
+                      {selectedTicket.source === 'game' ? 'Add admin reply' : 'Reply to Discord'}
+                    </label>
                     <div className="flex gap-2">
                       <textarea
                         value={reply}

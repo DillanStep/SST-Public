@@ -9,6 +9,15 @@ import {
 } from "../services/discordBot.js";
 import { findServerPlayerBySteamId } from "../utils/playerLookup.js";
 import { buildPlayerSupportContext } from "../utils/playerSupportContext.js";
+import {
+  addGameTicketReply,
+  claimGameTicket,
+  closeGameTicket,
+  getGameTicket,
+  getGameTicketStats,
+  isGameTicketId,
+  listGameTickets,
+} from "../utils/gameTickets.js";
 
 const router = Router();
 
@@ -33,10 +42,51 @@ async function enrichTicket(ticket, options = {}) {
   return enriched;
 }
 
-router.get("/status", (_req, res) => {
+function mergeStats(discordStats, gameStats) {
+  return {
+    total: discordStats.total + gameStats.total,
+    open: discordStats.open + gameStats.open,
+    closed: discordStats.closed + gameStats.closed,
+    sources: {
+      discord: discordStats,
+      game: gameStats,
+    },
+  };
+}
+
+function sortTickets(tickets) {
+  return tickets.sort((a, b) => {
+    const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+async function safeGameStats() {
+  try {
+    return await getGameTicketStats();
+  } catch (err) {
+    console.warn(`[Tickets] Failed to load in-game ticket stats: ${err?.message || err}`);
+    return { total: 0, open: 0, closed: 0 };
+  }
+}
+
+async function safeGameTickets(options) {
+  try {
+    return await listGameTickets(options);
+  } catch (err) {
+    console.warn(`[Tickets] Failed to load in-game tickets: ${err?.message || err}`);
+    return [];
+  }
+}
+
+router.get("/status", async (_req, res) => {
+  const gameStats = await safeGameStats();
+  const discordStats = discordTicketsDb.getStats();
+
   res.json({
     bot: getDiscordBotStatus(),
-    stats: discordTicketsDb.getStats(),
+    stats: mergeStats(discordStats, gameStats),
     panel: discordTicketsDb.getPanel(),
   });
 });
@@ -45,14 +95,21 @@ router.get("/tickets", async (req, res) => {
   const status = ["open", "closed", "all"].includes(String(req.query.status))
     ? String(req.query.status)
     : "open";
-  const tickets = discordTicketsDb.listTickets({
+  const limit = parseLimit(req.query.limit);
+  const discordTickets = discordTicketsDb.listTickets({
     status,
-    limit: parseLimit(req.query.limit),
+    limit,
   });
+  const [gameTickets, gameStats] = await Promise.all([
+    safeGameTickets({ status, limit }),
+    safeGameStats(),
+  ]);
+  const tickets = sortTickets([...discordTickets, ...gameTickets]).slice(0, limit);
+  const discordStats = discordTicketsDb.getStats();
 
   res.json({
     tickets: await Promise.all(tickets.map(enrichTicket)),
-    stats: discordTicketsDb.getStats(),
+    stats: mergeStats(discordStats, gameStats),
     bot: getDiscordBotStatus(),
     panel: discordTicketsDb.getPanel(),
   });
@@ -72,6 +129,19 @@ router.post("/panel/publish", async (req, res) => {
 });
 
 router.get("/tickets/:id", async (req, res) => {
+  if (isGameTicketId(req.params.id)) {
+    try {
+      const result = await getGameTicket(req.params.id);
+      return res.json({
+        ticket: await enrichTicket(result.ticket, { includePlayerContext: true }),
+        messages: result.messages,
+        bot: getDiscordBotStatus(),
+      });
+    } catch (err) {
+      return res.status(err?.status || 404).json({ error: err?.message || "Ticket not found." });
+    }
+  }
+
   const ticket = discordTicketsDb.getTicketById(req.params.id);
   if (!ticket) {
     return res.status(404).json({ error: "Ticket not found." });
@@ -86,6 +156,15 @@ router.get("/tickets/:id", async (req, res) => {
 
 router.post("/tickets/:id/reply", async (req, res) => {
   try {
+    if (isGameTicketId(req.params.id)) {
+      const result = await addGameTicketReply(req.params.id, req.body?.message, req.user?.username || "SST Admin");
+      return res.json({
+        ok: true,
+        ticket: await enrichTicket(result.ticket, { includePlayerContext: true }),
+        messages: result.messages,
+      });
+    }
+
     const ticket = await sendTicketReply(req.params.id, req.body?.message, req.user?.username || "SST Admin");
     res.json({
       ok: true,
@@ -99,6 +178,15 @@ router.post("/tickets/:id/reply", async (req, res) => {
 
 router.post("/tickets/:id/claim", async (req, res) => {
   try {
+    if (isGameTicketId(req.params.id)) {
+      const result = await claimGameTicket(req.params.id, req.user?.username || "SST Admin");
+      return res.json({
+        ok: true,
+        ticket: await enrichTicket(result.ticket, { includePlayerContext: true }),
+        messages: result.messages,
+      });
+    }
+
     const ticket = await claimTicketFromDashboard(req.params.id, req.user?.id, req.user?.username || "SST Admin");
     res.json({
       ok: true,
@@ -112,6 +200,19 @@ router.post("/tickets/:id/claim", async (req, res) => {
 
 router.post("/tickets/:id/close", async (req, res) => {
   try {
+    if (isGameTicketId(req.params.id)) {
+      const result = await closeGameTicket(
+        req.params.id,
+        req.user?.username || "SST Admin",
+        req.body?.reason
+      );
+      return res.json({
+        ok: true,
+        ticket: await enrichTicket(result.ticket, { includePlayerContext: true }),
+        messages: result.messages,
+      });
+    }
+
     const ticket = await closeTicketFromDashboard(
       req.params.id,
       req.user?.id,

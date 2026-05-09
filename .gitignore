@@ -32,6 +32,9 @@ DZexpansion*/
 !dayz/server-mod/@SST/
 !dayz/server-mod/@SST/Addons/
 !dayz/server-mod/@SST/Addons/*.pbo
+!dayz/server-mod/@SST_Tickets/
+!dayz/server-mod/@SST_Tickets/Addons/
+!dayz/server-mod/@SST_Tickets/Addons/*.pbo
 
 # --- Open-source safety (apps) ---
 # Secrets

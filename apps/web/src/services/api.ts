@@ -783,22 +783,26 @@ class SstApi {
   }
 
   async getDiscordTicket(ticketId: number | string): Promise<DiscordTicketDetailResponse> {
-    const response = await this.client.get<DiscordTicketDetailResponse>(`/discord/tickets/${ticketId}`);
+    const encodedTicketId = encodeURIComponent(String(ticketId));
+    const response = await this.client.get<DiscordTicketDetailResponse>(`/discord/tickets/${encodedTicketId}`);
     return response.data;
   }
 
   async replyDiscordTicket(ticketId: number | string, message: string): Promise<DiscordTicketActionResponse> {
-    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${ticketId}/reply`, { message });
+    const encodedTicketId = encodeURIComponent(String(ticketId));
+    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${encodedTicketId}/reply`, { message });
     return response.data;
   }
 
   async claimDiscordTicket(ticketId: number | string): Promise<DiscordTicketActionResponse> {
-    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${ticketId}/claim`);
+    const encodedTicketId = encodeURIComponent(String(ticketId));
+    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${encodedTicketId}/claim`);
     return response.data;
   }
 
   async closeDiscordTicket(ticketId: number | string, reason: string): Promise<DiscordTicketActionResponse> {
-    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${ticketId}/close`, { reason });
+    const encodedTicketId = encodeURIComponent(String(ticketId));
+    const response = await this.client.post<DiscordTicketActionResponse>(`/discord/tickets/${encodedTicketId}/close`, { reason });
     return response.data;
   }
 

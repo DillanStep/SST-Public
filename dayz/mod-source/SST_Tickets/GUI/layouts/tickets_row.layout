@@ -1,0 +1,73 @@
+PanelWidgetClass Row {
+ ignorepointer 1
+ size 1 0.045
+ hexactpos 0
+ vexactpos 0
+ hexactsize 0
+ vexactsize 0
+ {
+  TextWidgetClass TicketId {
+   ignorepointer 1
+   position 0.00 0
+   size 0.18 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" left
+   "text valign" center
+  }
+
+  TextWidgetClass Subject {
+   ignorepointer 1
+   position 0.18 0
+   size 0.50 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" left
+   "text valign" center
+  }
+
+  TextWidgetClass Status {
+   ignorepointer 1
+   position 0.68 0
+   size 0.16 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" left
+   "text valign" center
+  }
+
+  TextWidgetClass CreatedAt {
+   ignorepointer 1
+   position 0.84 0
+   size 0.16 1
+   hexactpos 0
+   vexactpos 0
+   hexactsize 0
+   vexactsize 0
+   style Normal
+   text ""
+   font "gui/fonts/Metron-Light18"
+   "exact text" 1
+   "text halign" right
+   "text valign" center
+  }
+ }
+}

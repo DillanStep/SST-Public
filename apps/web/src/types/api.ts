@@ -297,10 +297,15 @@ export interface DiscordSupportPlayerContext {
 }
 
 export interface DiscordTicket {
-  id: number;
+  id: number | string;
+  source?: 'discord' | 'game';
+  sourceLabel?: string;
+  externalId?: string;
   serverId: string;
-  status: 'open' | 'closed';
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
   subject: string;
+  body?: string;
+  sourceFile?: string;
   steamId: string;
   playerName: string;
   discordUserId: string;
@@ -321,9 +326,9 @@ export interface DiscordTicket {
 }
 
 export interface DiscordTicketMessage {
-  id: number;
-  ticketId: number;
-  authorType: 'discord' | 'admin' | 'system';
+  id: number | string;
+  ticketId: number | string;
+  authorType: 'discord' | 'admin' | 'system' | 'player';
   authorId: string;
   authorName: string;
   message: string;
@@ -361,6 +366,18 @@ export interface DiscordTicketStats {
   total: number;
   open: number;
   closed: number;
+  sources?: {
+    discord: {
+      total: number;
+      open: number;
+      closed: number;
+    };
+    game: {
+      total: number;
+      open: number;
+      closed: number;
+    };
+  };
 }
 
 export interface DiscordTicketsResponse {
